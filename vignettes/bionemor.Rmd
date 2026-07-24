@@ -1,0 +1,186 @@
+---
+title: "Evo 2 workflows with BioNeMo Framework"
+output: rmarkdown::html_vignette
+vignette: |
+  %\VignetteIndexEntry{Evo 2 workflows with BioNeMo Framework}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+`bionemor` treats BioNeMo Framework as versioned external compute. The R API
+writes validated FASTA and configuration files, invokes a documented CLI, and
+materializes results back into R. The package does not expose Python model,
+trainer, or tensor objects.
+
+## Supported models and profiles
+
+| Model | Size | Profile | Checkpoints | Fit | Response | Score | Raw |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: |
+| Evo 2 | 1B | `bionemo-2.6.3` | Hugging Face, NGC, local | yes | yes | yes | yes |
+| Evo 2 | 7B | `bionemo-2.6.3` | Hugging Face, NGC, local | yes | yes | yes | yes |
+| Evo 2 | 40B | `bionemo-2.6.3` | Hugging Face, NGC, local | yes | yes | yes | yes |
+
+Representation extraction and parameter-efficient fitting are not implemented
+for this profile.
+
+## Local container workflow
+
+This primary workflow uses the public BioNeMo Framework image and a public
+Hugging Face checkpoint. It does not require an NGC key.
+
+```{r primary-workflow, eval = FALSE}
+library(bionemor)
+
+compute <- bionemo_compute(
+  backend = "local",
+  engine = "container",
+  image = "nvcr.io/nvidia/clara/bionemo-framework:2.6.3",
+  workspace = "/home/ubuntu/bionemor-workspace"
+)
+
+bionemo_doctor(compute, target = "training", verbose = FALSE)
+
+spec <- evo2("1b")
+base_checkpoint <- evo2_checkpoint(
+  spec,
+  source = "hf://arcinstitute/savanna_evo2_1b_base",
+  path = "checkpoints/evo2-1b-8k",
+  compute = compute
+)
+model <- evo2("1b", checkpoint = base_checkpoint)
+
+baseline <- predict(
+  model,
+  "ACGTACGTACGT",
+  type = "response",
+  compute = compute,
+  num_tokens = 8L
+)
+
+scores <- predict(
+  model,
+  c(reference = "ACGTACGT", alternate = "ACGTTCGT"),
+  type = "score",
+  compute = compute,
+  reduction = "mean"
+)
+
+raw <- predict(
+  model,
+  "ACGTACGT",
+  type = "raw",
+  compute = compute
+)
+
+control <- evo2_fit_control(
+  sequence_length = 8192L,
+  learning_rate = 1e-5,
+  precision = "bf16"
+)
+fitted <- generics::fit(
+  model,
+  data = c(first = "ACGTACGTACGT", second = "TGCATGCATGCA"),
+  compute = compute,
+  steps = 3L,
+  control = control,
+  timeout = 300
+)
+
+after <- predict(
+  fitted,
+  "ACGTACGTACGT",
+  type = "response",
+  compute = compute,
+  num_tokens = 8L
+)
+```
+
+Relative paths resolve under `compute@workspace`. For container execution,
+absolute inputs and outputs must also be visible inside that workspace.
+
+## Entitled NGC checkpoints
+
+NGC checkpoints use a separate, explicit path. Set `NGC_CLI_API_KEY`, or
+`NGC_API_KEY` for compatibility, before preparing the checkpoint:
+
+```{r ngc-checkpoint, eval = FALSE}
+ngc_checkpoint <- evo2_checkpoint(
+  evo2("7b"),
+  source = "ngc://evo2/7b-1m:1.0",
+  path = "checkpoints/evo2-7b-1m-ngc",
+  compute = compute
+)
+```
+
+The NGC resource is fetched with `download_bionemo_data` in the selected
+BioNeMo environment. The key is passed only to that child process and is not
+stored in commands, provenance, manifests, or logs.
+
+## R, CLI, and Python boundary
+
+The execution contract is:
+
+```text
+R API
+  -> validated FASTA and YAML files
+  -> versioned BioNeMo CLI command
+  -> external Python process
+  -> checkpoint or prediction artifact
+  -> typed R result
+```
+
+The `bionemo-2.6.3` profile uses `evo2_convert_to_nemo2`,
+`preprocess_evo2`, `train_evo2`, `predict_evo2`, and `infer_evo2`.
+Distributed execution, Docker, and Slurm do not run through reticulate.
+
+`type = "response"` returns a named character vector. `type = "score"`
+returns a data frame. `type = "raw"` returns a file-backed
+`BioNeMoArtifact`, so R never loads a large logits tensor.
+
+## Asynchronous jobs
+
+```{r jobs, eval = FALSE}
+job <- predict(
+  model,
+  sequences,
+  type = "score",
+  compute = compute,
+  async = TRUE
+)
+
+job_status(job)
+job_logs(job, tail = 100L)
+prediction <- job_wait(job)
+```
+
+A timeout passed to `job_wait()` only stops waiting. It does not cancel the
+external job. Use `job_cancel()` explicitly. The `timeout` passed to `fit()`
+instead bounds preprocessing and training as one operation. Finite local
+operation timeouts require the GNU `timeout` command.
+
+## Plain checkpoint handoff to nimr
+
+The packages exchange one path and do not import one another. Assume
+`fitted_7b` is an Evo 2 7B model returned by `fit()`:
+
+```{r nimr-handoff, eval = FALSE}
+checkpoint <- bionemor::checkpoint_path(fitted_7b)
+
+profile <- nimr::nim_profile(
+  "evo2",
+  variant = "7b",
+  service = "self-hosted"
+)
+
+deployment <- nimr::nim_deploy(
+  profile,
+  checkpoint = checkpoint
+)
+```
+
+The user selects the NIM profile explicitly. `bionemor` does not imply NIM
+access, image entitlement, or NGC credentials.

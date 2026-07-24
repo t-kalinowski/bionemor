@@ -1,0 +1,8 @@
+.git
+.Rhistory
+.RData
+.Ruserdata
+.ruff_cache
+*.Rcheck
+*.tar.gz
+SPEC.md

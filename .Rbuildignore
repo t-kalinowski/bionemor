@@ -1,0 +1,8 @@
+^SPEC\.md$
+^LICENSE\.md$
+^\.git$
+^\.gitignore$
+^\.dockerignore$
+^\.ruff_cache$
+^bionemor_[^/]+\.tar\.gz$
+^bionemor\.Rcheck$

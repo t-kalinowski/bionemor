@@ -1,0 +1,79 @@
+---
+title: "Test Evo 2 on a Brev L40S instance"
+output: rmarkdown::html_vignette
+vignette: |
+  %\VignetteIndexEntry{Test Evo 2 on a Brev L40S instance}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This guide runs `bionemor` on one Brev L40S instance. It uses BioNeMo
+Framework 2.6.3 and public Evo 2 checkpoints from Hugging Face. The workflow
+does not require an NGC key and does not start or test a NIM service.
+
+The 7B smoke test covers diagnostics, generation, scoring, and raw logits. The
+1B acceptance workflow covers public checkpoint conversion, baseline
+inference, three full fitting steps, and fitted inference.
+
+## Inspect before provisioning
+
+Install and authenticate the Brev CLI, then run the provisioning script from
+the repository root. It performs a dry run by default:
+
+```{bash, eval = FALSE}
+./inst/scripts/brev-evo2-create.sh
+```
+
+The default type is `l40s-48gb.1x`. Brev availability and pricing can change,
+so inspect the dry-run output and the current catalog before creating an
+instance. There is no GPU-type fallback.
+
+Create only after confirming the exact instance:
+
+```{bash, eval = FALSE}
+./inst/scripts/brev-evo2-create.sh --create bionemor-evo2
+```
+
+## Run individual checks
+
+Copy the repository and run the 7B smoke test:
+
+```{bash, eval = FALSE}
+brev copy ./ bionemor-evo2:/home/ubuntu/bionemor/
+brev exec bionemor-evo2 \
+  "bash /home/ubuntu/bionemor/inst/scripts/brev-evo2-framework.sh"
+```
+
+Run the 1B fitting workflow:
+
+```{bash, eval = FALSE}
+brev exec bionemor-evo2 \
+  "bash /home/ubuntu/bionemor/inst/scripts/brev-evo2-finetune.sh"
+```
+
+The training phase has a hard 300-second container boundary. It includes FASTA
+preprocessing and `train_evo2`. If it reaches the limit, the script removes the
+training container and fails.
+
+Stop the instance after individual runs:
+
+```{bash, eval = FALSE}
+brev stop bionemor-evo2
+```
+
+## Opt-in acceptance runner
+
+The explicit runner provisions, copies, runs both workflows, and stops the
+instance from an `EXIT` trap:
+
+```{bash, eval = FALSE}
+./inst/scripts/brev-evo2-run.sh --run bionemor-evo2
+```
+
+`--run` is required because this action provisions billable compute. The trap
+stops the instance after success or failure. Stopping preserves the converted
+checkpoints and run artifacts on the instance disk.

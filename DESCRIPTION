@@ -1,0 +1,48 @@
+Package: bionemor
+Title: NVIDIA BioNeMo Framework Workflows from R
+Version: 0.0.0.9000
+Authors@R:
+    person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
+Description: An R interface to versioned NVIDIA BioNeMo Framework workflows.
+    Prepares checkpoints, fits models, and runs file-backed batch inference
+    through external local, container, or Slurm processes.
+License: MIT + file LICENSE
+URL: https://github.com/t-kalinowski/bionemor
+BugReports: https://github.com/t-kalinowski/bionemor/issues
+Depends:
+    R (>= 4.2)
+Imports:
+    generics,
+    jsonlite,
+    processx,
+    S7 (>= 0.2.0),
+    stats,
+    utils,
+    yaml
+Suggests:
+    Biostrings,
+    knitr,
+    reticulate,
+    rmarkdown,
+    testthat (>= 3.2.0),
+    withr
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
+Collate:
+    '00-utils.R'
+    '01-classes.R'
+    '02-model.R'
+    '03-compute.R'
+    '04-control.R'
+    '05-checkpoint.R'
+    '06-adapter-evo2.R'
+    '07-jobs.R'
+    '08-fit.R'
+    '09-predict.R'
+    '10-setup.R'
+    'reexports.R'
+    'bionemor-package.R'
+    'zzz.R'
