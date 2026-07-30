@@ -118,21 +118,17 @@ runtime_probe_command <- function(
   gpus = FALSE,
   immutable = TRUE
 ) {
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute descriptor")
-  }
-  if (!is_scalar_string(executable)) {
-    stop("probe executable must be one command name")
-  }
-  if (!is.character(args) || anyNA(args)) {
-    stop("probe arguments must be a character vector")
-  }
-  if (!is_scalar_logical(gpus)) {
-    stop("gpus must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(immutable)) {
-    stop("immutable must be TRUE or FALSE")
-  }
+  stopifnot(
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "probe executable must be one command name" = is_scalar_string(executable),
+    "probe arguments must be a character vector" = is.character(args) &&
+      !anyNA(args),
+    "gpus must be TRUE or FALSE" = is_scalar_logical(gpus),
+    "immutable must be TRUE or FALSE" = is_scalar_logical(immutable)
+  )
   if (compute@engine == "external") {
     return(command_spec(
       executable,
@@ -865,18 +861,15 @@ bionemo_install <- function(
   pull = TRUE,
   keep_source = FALSE
 ) {
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute descriptor")
-  }
-  if (!is_scalar_logical(rebuild)) {
-    stop("rebuild must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(pull)) {
-    stop("pull must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(keep_source)) {
-    stop("keep_source must be TRUE or FALSE")
-  }
+  stopifnot(
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "rebuild must be TRUE or FALSE" = is_scalar_logical(rebuild),
+    "pull must be TRUE or FALSE" = is_scalar_logical(pull),
+    "keep_source must be TRUE or FALSE" = is_scalar_logical(keep_source)
+  )
   plan <- bionemo_install_plan(compute)
   if (compute@engine == "external" || compute@backend == "slurm") {
     if (compute@backend == "slurm" && compute@engine == "container") {

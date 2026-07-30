@@ -917,38 +917,27 @@ evo2_checkpoint <- function(
 ) {
   invocation <- match.call(expand.dots = FALSE)
   format <- match.arg(format)
-  if (!S7_inherits(model, Evo2Model)) {
-    stop("model must be an Evo 2 model specification")
-  }
-  if (!is_scalar_string(source) && !S7_inherits(source, BioNeMoCheckpoint)) {
-    stop(
-      "source must be 'recommended', one source string, or a BioNeMo checkpoint"
-    )
-  }
-  if (!is_scalar_string(path)) {
-    stop("path must be one non-empty string")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!dir.exists(compute@workspace)) {
-    stop("compute workspace must exist")
-  }
-  if (!is_scalar_string(revision)) {
-    stop("revision must be one non-empty string")
-  }
-  if (!is_scalar_string(tokenizer)) {
-    stop("tokenizer must be one non-empty string")
-  }
-  if (!is_scalar_logical(overwrite)) {
-    stop("overwrite must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(trust)) {
-    stop("trust must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+  stopifnot(
+    "model must be an Evo 2 model specification" = S7_inherits(
+      model,
+      Evo2Model
+    ),
+    "source must be 'recommended', one source string, or a BioNeMo checkpoint" = is_scalar_string(
+      source
+    ) ||
+      S7_inherits(source, BioNeMoCheckpoint),
+    "path must be one non-empty string" = is_scalar_string(path),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "compute workspace must exist" = dir.exists(compute@workspace),
+    "revision must be one non-empty string" = is_scalar_string(revision),
+    "tokenizer must be one non-empty string" = is_scalar_string(tokenizer),
+    "overwrite must be TRUE or FALSE" = is_scalar_logical(overwrite),
+    "trust must be TRUE or FALSE" = is_scalar_logical(trust),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
 
   info <- checkpoint_source_info(
     model,
@@ -1245,27 +1234,23 @@ evo2_export <- function(
   async = FALSE
 ) {
   invocation <- match.call(expand.dots = FALSE)
-  if (!S7_inherits(model, Evo2Model)) {
-    stop("model must be an Evo 2 model specification")
-  }
-  if (!is_scalar_string(path)) {
-    stop("path must be one non-empty string")
-  }
-  if (!identical(format, "vortex")) {
-    stop("format must be 'vortex'")
-  }
-  if (!is_scalar_logical(strip_optimizer)) {
-    stop("strip_optimizer must be TRUE or FALSE")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!is_scalar_logical(overwrite)) {
-    stop("overwrite must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+  stopifnot(
+    "model must be an Evo 2 model specification" = S7_inherits(
+      model,
+      Evo2Model
+    ),
+    "path must be one non-empty string" = is_scalar_string(path),
+    "format must be 'vortex'" = identical(format, "vortex"),
+    "strip_optimizer must be TRUE or FALSE" = is_scalar_logical(
+      strip_optimizer
+    ),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "overwrite must be TRUE or FALSE" = is_scalar_logical(overwrite),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   checkpoint <- model@checkpoint
   if (
     !is_scalar_string(checkpoint) &&

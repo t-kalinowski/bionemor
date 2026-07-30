@@ -6,18 +6,14 @@ workspace <- Sys.getenv(
 )
 image <- Sys.getenv("BIONEMOR_EVO2_IMAGE")
 checkpoint_path <- Sys.getenv("BIONEMOR_EVO2_CHECKPOINT")
-if (!nzchar(image)) {
-  stop("BIONEMOR_EVO2_IMAGE is required")
-}
-if (!nzchar(checkpoint_path)) {
-  stop("BIONEMOR_EVO2_CHECKPOINT is required")
-}
-if (!dir.exists(workspace)) {
-  stop("BIONEMOR_EVO2_WORKSPACE must exist")
-}
-if (!dir.exists(checkpoint_path)) {
-  stop("BIONEMOR_EVO2_CHECKPOINT must be an existing directory")
-}
+stopifnot(
+  "BIONEMOR_EVO2_IMAGE is required" = nzchar(image),
+  "BIONEMOR_EVO2_CHECKPOINT is required" = nzchar(checkpoint_path),
+  "BIONEMOR_EVO2_WORKSPACE must exist" = dir.exists(workspace),
+  "BIONEMOR_EVO2_CHECKPOINT must be an existing directory" = dir.exists(
+    checkpoint_path
+  )
+)
 
 workspace <- normalizePath(workspace, mustWork = TRUE)
 checkpoint_path <- normalizePath(checkpoint_path, mustWork = TRUE)

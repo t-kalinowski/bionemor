@@ -27,42 +27,37 @@ command_spec <- function(
   stderr = NULL,
   timeout = Inf
 ) {
-  if (!is_scalar_string(executable)) {
-    stop("command executable must be one non-empty string")
-  }
-  if (!is.character(args) || anyNA(args)) {
-    stop("command args must be a character vector without missing values")
-  }
-  if (
-    !is.character(env) ||
-      anyNA(env) ||
-      length(env) != 0L &&
-        (is.null(names(env)) ||
-          !all(nzchar(names(env))) ||
-          anyDuplicated(names(env)))
-  ) {
-    stop("command env must be a named character vector without missing values")
-  }
-  if (!is.null(cwd) && !is_scalar_string(cwd)) {
-    stop("command cwd must be NULL or one non-empty string")
-  }
-  if (!is.character(redactions) || anyNA(redactions)) {
-    stop("command redactions must be a character vector without missing values")
-  }
-  if (!is.null(stdin) && !is_scalar_string(stdin)) {
-    stop("command stdin must be NULL or one non-empty string")
-  }
-  if (!is.null(stdout) && !is_scalar_string(stdout)) {
-    stop("command stdout must be NULL or one non-empty string")
-  }
-  if (!is.null(stderr) && !is_scalar_string(stderr)) {
-    stop("command stderr must be NULL or one non-empty string")
-  }
-  if (
-    !identical(timeout, Inf) && (!is_scalar_number(timeout) || timeout <= 0)
-  ) {
-    stop("command timeout must be positive or infinite")
-  }
+  stopifnot(
+    "command executable must be one non-empty string" = is_scalar_string(
+      executable
+    ),
+    "command args must be a character vector without missing values" = is.character(
+      args
+    ) &&
+      !anyNA(args),
+    "command env must be a named character vector without missing values" = is.character(
+      env
+    ) &&
+      !anyNA(env) &&
+      (length(env) == 0L ||
+        !is.null(names(env)) &&
+          all(nzchar(names(env))) &&
+          !anyDuplicated(names(env))),
+    "command cwd must be NULL or one non-empty string" = is.null(cwd) ||
+      is_scalar_string(cwd),
+    "command redactions must be a character vector without missing values" = is.character(
+      redactions
+    ) &&
+      !anyNA(redactions),
+    "command stdin must be NULL or one non-empty string" = is.null(stdin) ||
+      is_scalar_string(stdin),
+    "command stdout must be NULL or one non-empty string" = is.null(stdout) ||
+      is_scalar_string(stdout),
+    "command stderr must be NULL or one non-empty string" = is.null(stderr) ||
+      is_scalar_string(stderr),
+    "command timeout must be positive or infinite" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0
+  )
   structure(
     list(
       executable = executable,
@@ -369,21 +364,17 @@ create_run <- function(
   request = list(),
   request_origins = list()
 ) {
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!dir.exists(compute@workspace)) {
-    stop("compute workspace must exist")
-  }
-  if (!is_scalar_string(kind) || !grepl("^[A-Za-z0-9_.-]+$", kind)) {
-    stop("kind must be one safe name")
-  }
-  if (!is.list(request)) {
-    stop("request must be a list")
-  }
-  if (!is.list(request_origins)) {
-    stop("request origins must be a list")
-  }
+  stopifnot(
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "compute workspace must exist" = dir.exists(compute@workspace),
+    "kind must be one safe name" = is_scalar_string(kind) &&
+      grepl("^[A-Za-z0-9_.-]+$", kind),
+    "request must be a list" = is.list(request),
+    "request origins must be a list" = is.list(request_origins)
+  )
   name <- safe_name(name, paste0("evo2-", kind))
   path <- file.path(compute@workspace, ".bionemor", "runs", name)
   if (file.exists(path)) {
@@ -1254,35 +1245,27 @@ submit_plan <- function(
   timeout = Inf,
   async = TRUE
 ) {
-  if (!inherits(plan, "bionemor_command_plan")) {
-    stop("plan must be a command plan")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!is_scalar_string(run_path) || !dir.exists(run_path)) {
-    stop("run path must be an existing run directory")
-  }
-  if (
-    !identical(read_json_file(file.path(run_path, "request.json"))$kind, kind)
-  ) {
-    stop("kind must match the persisted run kind")
-  }
-  if (
-    !is.null(expected_result) &&
-      !is.list(expected_result) &&
-      !inherits(expected_result, "S7_object")
-  ) {
-    stop("expected result must be a list, S7 object, or NULL")
-  }
-  if (
-    !identical(timeout, Inf) && (!is_scalar_number(timeout) || timeout <= 0)
-  ) {
-    stop("timeout must be positive or infinite")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+  stopifnot(
+    "plan must be a command plan" = inherits(plan, "bionemor_command_plan"),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "run path must be an existing run directory" = is_scalar_string(run_path) &&
+      dir.exists(run_path),
+    "kind must match the persisted run kind" = identical(
+      read_json_file(file.path(run_path, "request.json"))$kind,
+      kind
+    ),
+    "expected result must be a list, S7 object, or NULL" = is.null(
+      expected_result
+    ) ||
+      is.list(expected_result) ||
+      inherits(expected_result, "S7_object"),
+    "timeout must be positive or infinite" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0,
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   request <- read_json_file(
     file.path(run_path, "request.json"),
     simplify = FALSE

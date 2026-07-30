@@ -35,18 +35,14 @@ evo2_recipe <- function(
   allow_mutable = FALSE
 ) {
   lock <- evo2_recipe_lock()
-  if (!is_scalar_string(revision)) {
-    stop("revision must be one non-empty string")
-  }
-  if (!is.null(repository) && !is_scalar_string(repository)) {
-    stop("repository must be NULL or one non-empty string")
-  }
-  if (!is.null(base_image) && !is_scalar_string(base_image)) {
-    stop("base_image must be NULL or one non-empty string")
-  }
-  if (!is_scalar_logical(allow_mutable)) {
-    stop("allow_mutable must be TRUE or FALSE")
-  }
+  stopifnot(
+    "revision must be one non-empty string" = is_scalar_string(revision),
+    "repository must be NULL or one non-empty string" = is.null(repository) ||
+      is_scalar_string(repository),
+    "base_image must be NULL or one non-empty string" = is.null(base_image) ||
+      is_scalar_string(base_image),
+    "allow_mutable must be TRUE or FALSE" = is_scalar_logical(allow_mutable)
+  )
 
   revision <- if (identical(revision, "recommended")) {
     lock$revision

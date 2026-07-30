@@ -24,18 +24,19 @@ dataset_records <- function(x, id_col, sequence_col) {
   } else {
     return(NULL)
   }
-  if (length(sequences) <= 0L) {
-    stop("dataset must contain at least one sequence")
-  }
-  if (anyNA(ids) || !all(nzchar(ids)) || anyDuplicated(ids)) {
-    stop("dataset IDs must be non-empty and unique")
-  }
-  if (anyNA(sequences) || !all(nzchar(sequences))) {
-    stop("dataset sequences must be non-empty")
-  }
-  if (any(grepl("[\r\n]", ids)) || any(grepl("[\r\n]", sequences))) {
-    stop("dataset IDs and sequences must not contain line breaks")
-  }
+  stopifnot(
+    "dataset must contain at least one sequence" = length(sequences) > 0L,
+    "dataset IDs must be non-empty and unique" = !anyNA(ids) &&
+      all(nzchar(ids)) &&
+      !anyDuplicated(ids),
+    "dataset sequences must be non-empty" = !anyNA(sequences) &&
+      all(nzchar(sequences)),
+    "dataset IDs and sequences must not contain line breaks" = !any(grepl(
+      "[\r\n]",
+      ids
+    )) &&
+      !any(grepl("[\r\n]", sequences))
+  )
   stats::setNames(sequences, ids)
 }
 
@@ -69,32 +70,18 @@ evo2_dataset <- function(
   id_col = "id",
   sequence_col = "sequence"
 ) {
-  if (
-    !is.numeric(split) ||
-      !setequal(names(split), c("train", "validation", "test"))
-  ) {
-    stop("split must name train, validation, and test")
-  }
-  if (
-    length(split) != 3L ||
-      anyNA(split) ||
-      !all(is.finite(split)) ||
-      !all(split >= 0)
-  ) {
-    stop("split values must be finite and non-negative")
-  }
-  if (abs(sum(split) - 1) >= 0.00000001) {
-    stop("split must sum to one")
-  }
-  if (!is_scalar_integerish(seed, min = 0)) {
-    stop("seed must be a non-negative integer")
-  }
-  if (!is_scalar_string(id_col)) {
-    stop("id_col must be one non-empty string")
-  }
-  if (!is_scalar_string(sequence_col)) {
-    stop("sequence_col must be one non-empty string")
-  }
+  stopifnot(
+    "split must name train, validation, and test" = is.numeric(split) &&
+      setequal(names(split), c("train", "validation", "test")),
+    "split values must be finite and non-negative" = length(split) == 3L &&
+      !anyNA(split) &&
+      all(is.finite(split)) &&
+      all(split >= 0),
+    "split must sum to one" = abs(sum(split) - 1) < 1e-8,
+    "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0),
+    "id_col must be one non-empty string" = is_scalar_string(id_col),
+    "sequence_col must be one non-empty string" = is_scalar_string(sequence_col)
+  )
   split <- split[c("train", "validation", "test")]
   train <- dataset_source(train, id_col, sequence_col)
   if (!is.null(validation)) {
@@ -362,24 +349,20 @@ evo2_prepare <- function(
   async = FALSE
 ) {
   invocation <- match.call(expand.dots = FALSE)
-  if (!S7_inherits(model, Evo2Model)) {
-    stop("model must be an Evo 2 model")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!is_scalar_string(path)) {
-    stop("path must be one non-empty string")
-  }
-  if (!S7_inherits(control, Evo2PreprocessControl)) {
-    stop("control must be an Evo2PreprocessControl")
-  }
-  if (!is_scalar_logical(overwrite)) {
-    stop("overwrite must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+  stopifnot(
+    "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "path must be one non-empty string" = is_scalar_string(path),
+    "control must be an Evo2PreprocessControl" = S7_inherits(
+      control,
+      Evo2PreprocessControl
+    ),
+    "overwrite must be TRUE or FALSE" = is_scalar_logical(overwrite),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   if (!S7_inherits(data, Evo2Dataset)) {
     data <- evo2_dataset(data)
   }
@@ -896,29 +879,22 @@ evo2_finetune <- function(
   timeout = Inf
 ) {
   invocation <- match.call(expand.dots = FALSE)
-  if (!S7_inherits(object, Evo2Model)) {
-    stop("object must be an Evo 2 model")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!is_scalar_integerish(steps, min = 1)) {
-    stop("steps must be a positive integer")
-  }
-  if (!S7_inherits(method, Evo2FineTuneMethod)) {
-    stop("method must be an Evo2FineTuneMethod")
-  }
-  if (!S7_inherits(control, Evo2FitControl)) {
-    stop("control must be an Evo2FitControl")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
-  if (
-    !identical(timeout, Inf) && (!is_scalar_number(timeout) || timeout <= 0)
-  ) {
-    stop("timeout must be positive")
-  }
+  stopifnot(
+    "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "steps must be a positive integer" = is_scalar_integerish(steps, min = 1),
+    "method must be an Evo2FineTuneMethod" = S7_inherits(
+      method,
+      Evo2FineTuneMethod
+    ),
+    "control must be an Evo2FitControl" = S7_inherits(control, Evo2FitControl),
+    "async must be TRUE or FALSE" = is_scalar_logical(async),
+    "timeout must be positive" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0
+  )
   if (control@sequence_length > object@context_length) {
     bionemor_abort(
       "BN_CONTEXT_LIMIT",
@@ -950,30 +926,37 @@ evo2_finetune <- function(
     checkpoint_record
   )
   model_record <- evo2_model_record(object@size)
-  if (!identical(checkpoint@family, "evo2")) {
-    stop("checkpoint family does not match the model")
-  }
-  if (!identical(checkpoint@variant, object@size)) {
-    stop("checkpoint variant does not match the model")
-  }
-  if (!identical(checkpoint_record$model_size, object@model_size)) {
-    stop("checkpoint model size does not match the model")
-  }
-  if (!identical(checkpoint@recipe_revision, compute@recipe@revision)) {
-    stop("checkpoint recipe revision does not match the compute recipe")
-  }
-  if (S7_inherits(method, Evo2LoRA) && identical(checkpoint@kind, "lora")) {
-    stop("LoRA-on-LoRA fine-tuning is not supported")
-  }
-  if (
-    S7_inherits(method, Evo2FullFineTune) &&
-      identical(checkpoint@kind, "lora")
-  ) {
-    stop("full fine-tuning from a LoRA checkpoint is not supported")
-  }
-  if (isTRUE(checkpoint_record$inspection$vortex_style_fp8)) {
-    stop("Vortex-style MBridge checkpoints cannot be fine-tuned by train_evo2")
-  }
+  stopifnot(
+    "checkpoint family does not match the model" = identical(
+      checkpoint@family,
+      "evo2"
+    ),
+    "checkpoint variant does not match the model" = identical(
+      checkpoint@variant,
+      object@size
+    ),
+    "checkpoint model size does not match the model" = identical(
+      checkpoint_record$model_size,
+      object@model_size
+    ),
+    "checkpoint recipe revision does not match the compute recipe" = identical(
+      checkpoint@recipe_revision,
+      compute@recipe@revision
+    ),
+    "LoRA-on-LoRA fine-tuning is not supported" = !S7_inherits(
+      method,
+      Evo2LoRA
+    ) ||
+      !identical(checkpoint@kind, "lora"),
+    "full fine-tuning from a LoRA checkpoint is not supported" = !S7_inherits(
+      method,
+      Evo2FullFineTune
+    ) ||
+      !identical(checkpoint@kind, "lora"),
+    "Vortex-style MBridge checkpoints cannot be fine-tuned by train_evo2" = !isTRUE(
+      checkpoint_record$inspection$vortex_style_fp8
+    )
+  )
   assert_checkpoint_manifest_weights(checkpoint@path, checkpoint_record)
   preflight <- evo2_finetune_preflight(
     compute,
@@ -999,32 +982,30 @@ evo2_finetune <- function(
       async = FALSE
     )
   }
-  if (!is_scalar_string(data@path) || !dir.exists(data@path)) {
-    stop("prepared data path does not exist")
-  }
-  if (!identical(data@manifest$model_size, object@model_size)) {
-    stop("prepared data model size does not match the model")
-  }
-  if (!identical(data@manifest$tokenizer, tokenizer)) {
-    stop("prepared data tokenizer does not match the model registry")
-  }
-  if (
-    !identical(
+  stopifnot(
+    "prepared data path does not exist" = is_scalar_string(data@path) &&
+      dir.exists(data@path),
+    "prepared data model size does not match the model" = identical(
+      data@manifest$model_size,
+      object@model_size
+    ),
+    "prepared data tokenizer does not match the model registry" = identical(
+      data@manifest$tokenizer,
+      tokenizer
+    ),
+    "prepared data tokenizer revision does not match the model registry" = identical(
       data@manifest$tokenizer_revision,
       model_record$tokenizer_revision
-    )
-  ) {
-    stop("prepared data tokenizer revision does not match the model registry")
-  }
-  if (!identical(data@manifest$recipe_revision, compute@recipe@revision)) {
-    stop("prepared data recipe revision does not match the compute recipe")
-  }
-  if (
-    !is_scalar_string(data@manifest$manifest_path) ||
-      !file.exists(data@manifest$manifest_path)
-  ) {
-    stop("prepared data manifest is missing")
-  }
+    ),
+    "prepared data recipe revision does not match the compute recipe" = identical(
+      data@manifest$recipe_revision,
+      compute@recipe@revision
+    ),
+    "prepared data manifest is missing" = is_scalar_string(
+      data@manifest$manifest_path
+    ) &&
+      file.exists(data@manifest$manifest_path)
+  )
 
   name <- safe_name(name, "evo2-finetune")
   output <- normalize_path(

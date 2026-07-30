@@ -596,31 +596,27 @@ evo2 <- function(
     "tokenizer_revision",
     "mixed_precision_recipe"
   )
-  if (
-    !is.null(checkpoint) &&
-      !is_scalar_string(checkpoint) &&
-      !S7_inherits(checkpoint, BioNeMoCheckpoint)
-  ) {
-    stop("checkpoint must be NULL, one path, or a BioNeMo checkpoint")
-  }
-  if (
-    !identical(revision, "recommended") &&
-      (!is_scalar_string(revision) || !grepl("^[0-9a-fA-F]{40}$", revision))
-  ) {
-    stop("revision must be 'recommended' or a full commit SHA")
-  }
-  if (
-    !is.list(config) ||
-      length(config) != 0L &&
-        (is.null(names(config)) ||
-          !all(nzchar(names(config))) ||
-          anyDuplicated(names(config)))
-  ) {
-    stop("config must be a named list")
-  }
-  if (!all(names(config) %in% allowed_config)) {
-    stop("config contains an unsupported model setting")
-  }
+  stopifnot(
+    "checkpoint must be NULL, one path, or a BioNeMo checkpoint" = is.null(
+      checkpoint
+    ) ||
+      is_scalar_string(checkpoint) ||
+      S7_inherits(checkpoint, BioNeMoCheckpoint),
+    "revision must be 'recommended' or a full commit SHA" = identical(
+      revision,
+      "recommended"
+    ) ||
+      is_scalar_string(revision) &&
+        grepl("^[0-9a-fA-F]{40}$", revision),
+    "config must be a named list" = is.list(config) &&
+      (length(config) == 0L ||
+        !is.null(names(config)) &&
+          all(nzchar(names(config))) &&
+          !anyDuplicated(names(config))),
+    "config contains an unsupported model setting" = all(
+      names(config) %in% allowed_config
+    )
+  )
 
   if (is_scalar_string(checkpoint)) {
     inspection <- inspect_model_checkpoint(checkpoint, record$model_size)

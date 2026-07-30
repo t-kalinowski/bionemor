@@ -294,37 +294,28 @@ validate_sequence_context <- function(
   additional_tokens = 0L,
   max_sequence_length = NULL
 ) {
-  if (
-    !is.list(input) ||
-      !is.character(input$ids) ||
-      !is.character(input$sequences)
-  ) {
-    stop("input must be a prepared sequence input")
-  }
-  if (!S7_inherits(object, Evo2Model)) {
-    stop("object must be an Evo 2 model")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!operation %in% c("generation", "score", "profile", "embedding")) {
-    stop("operation must be one inference operation")
-  }
-  if (!is_scalar_string(run_path) || !dir.exists(run_path)) {
-    stop("run path must exist")
-  }
-  if (!is_scalar_string(checkpoint)) {
-    stop("checkpoint must be one non-empty string")
-  }
-  if (!is_scalar_integerish(additional_tokens, min = 0)) {
-    stop("additional tokens must be a non-negative integer")
-  }
-  if (
-    !is.null(max_sequence_length) &&
-      !is_scalar_integerish(max_sequence_length, min = 1)
-  ) {
-    stop("maximum sequence length must be NULL or a positive integer")
-  }
+  stopifnot(
+    "input must be a prepared sequence input" = is.list(input) &&
+      is.character(input$ids) &&
+      is.character(input$sequences),
+    "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "operation must be one inference operation" = operation %in%
+      c("generation", "score", "profile", "embedding"),
+    "run path must exist" = is_scalar_string(run_path) && dir.exists(run_path),
+    "checkpoint must be one non-empty string" = is_scalar_string(checkpoint),
+    "additional tokens must be a non-negative integer" = is_scalar_integerish(
+      additional_tokens,
+      min = 0
+    ),
+    "maximum sequence length must be NULL or a positive integer" = is.null(
+      max_sequence_length
+    ) ||
+      is_scalar_integerish(max_sequence_length, min = 1)
+  )
   model_context_length <- as.integer(object@context_length)
   context_length <- if (is.null(max_sequence_length)) {
     model_context_length
@@ -959,24 +950,27 @@ evo2_prediction_plan <- function(
     checkpoint,
     checkpoint_manifest
   )
-  if (!is.null(resolved$max_sequence_length)) {
-    stop("max_sequence_length is supported only for generation")
-  }
-  if (!identical(resolved$max_batch_size, 1L)) {
-    stop("max_batch_size is supported only for generation")
-  }
-  if (!identical(control_property(control, "cuda_graphs", "auto"), "auto")) {
-    stop("CUDA graph controls are supported only for generation")
-  }
-  if (resolved$chunked_prefill) {
-    stop("chunked prefill is supported only for generation")
-  }
-  if (!is.null(resolved$dynamic_max_tokens)) {
-    stop("dynamic_max_tokens is supported only for generation")
-  }
-  if (!identical(resolved$dynamic_block_size, 256L)) {
-    stop("dynamic_block_size is supported only for generation")
-  }
+  stopifnot(
+    "max_sequence_length is supported only for generation" = is.null(
+      resolved$max_sequence_length
+    ),
+    "max_batch_size is supported only for generation" = identical(
+      resolved$max_batch_size,
+      1L
+    ),
+    "CUDA graph controls are supported only for generation" = identical(
+      control_property(control, "cuda_graphs", "auto"),
+      "auto"
+    ),
+    "chunked prefill is supported only for generation" = !resolved$chunked_prefill,
+    "dynamic_max_tokens is supported only for generation" = is.null(
+      resolved$dynamic_max_tokens
+    ),
+    "dynamic_block_size is supported only for generation" = identical(
+      resolved$dynamic_block_size,
+      256L
+    )
+  )
   predict_args <- c(
     "--fasta",
     input$path,

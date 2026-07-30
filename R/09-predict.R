@@ -1,16 +1,16 @@
 validate_inference_context <- function(object, compute, control) {
-  if (!S7_inherits(object, Evo2Model)) {
-    stop("object must be an Evo 2 model")
-  }
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute specification")
-  }
-  if (!S7_inherits(control, Evo2InferenceControl)) {
-    stop("control must be an Evo 2 inference control")
-  }
-  if (!dir.exists(compute@workspace)) {
-    stop("compute workspace must exist")
-  }
+  stopifnot(
+    "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "control must be an Evo 2 inference control" = S7_inherits(
+      control,
+      Evo2InferenceControl
+    ),
+    "compute workspace must exist" = dir.exists(compute@workspace)
+  )
   checkpoint <- model_checkpoint_path(object, base = compute@workspace)
   if (!is_scalar_string(checkpoint)) {
     stop("inference requires an explicit checkpoint")
@@ -273,33 +273,34 @@ evo2_generate <- function(
   invocation <- match.call(expand.dots = FALSE)
   normalize <- match.arg(normalize)
   validate <- match.arg(validate)
-  if (!is_scalar_integerish(num_tokens, min = 1)) {
-    stop("num_tokens must be a positive integer")
-  }
-  if (!is_scalar_integerish(n, min = 1) || n != 1) {
-    stop("n must equal 1 with the pinned recipe")
-  }
-  if (!is_scalar_number(temperature) || temperature <= 0) {
-    stop("temperature must be positive")
-  }
-  if (!is_scalar_integerish(top_k, min = 0)) {
-    stop("top_k must be a non-negative integer")
-  }
-  if (!is_scalar_number(top_p) || top_p < 0 || top_p > 1) {
-    stop("top_p must be between zero and one")
-  }
-  if ((top_k > 0 && top_p > 0)) {
-    stop("at most one of top_k and top_p may be positive")
-  }
-  if (!is.null(seed) && !is_scalar_integerish(seed, min = 1)) {
-    stop("seed must be NULL or a positive integer")
-  }
-  if (!is_scalar_logical(return_probabilities)) {
-    stop("return_probabilities must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+  stopifnot(
+    "num_tokens must be a positive integer" = is_scalar_integerish(
+      num_tokens,
+      min = 1
+    ),
+    "n must equal 1 with the pinned recipe" = is_scalar_integerish(
+      n,
+      min = 1
+    ) &&
+      n == 1,
+    "temperature must be positive" = is_scalar_number(temperature) &&
+      temperature > 0,
+    "top_k must be a non-negative integer" = is_scalar_integerish(
+      top_k,
+      min = 0
+    ),
+    "top_p must be between zero and one" = is_scalar_number(top_p) &&
+      top_p >= 0 &&
+      top_p <= 1,
+    "at most one of top_k and top_p may be positive" = !(top_k > 0 &&
+      top_p > 0),
+    "seed must be NULL or a positive integer" = is.null(seed) ||
+      is_scalar_integerish(seed, min = 1),
+    "return_probabilities must be TRUE or FALSE" = is_scalar_logical(
+      return_probabilities
+    ),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   validate_generation_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -787,21 +788,21 @@ evo2_score <- function(
   reduction <- match.arg(reduction)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
-  if (!is_scalar_integerish(batch_size, min = 1)) {
-    stop("batch_size must be a positive integer")
-  }
-  if (!is_scalar_logical(prepend_bos)) {
-    stop("prepend_bos must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(mask_phylogenetic_tags)) {
-    stop("mask_phylogenetic_tags must be TRUE or FALSE")
-  }
-  if (!identical(mask_phylogenetic_tags, FALSE)) {
-    stop("mask_phylogenetic_tags must be FALSE with the pinned recipe")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+  stopifnot(
+    "batch_size must be a positive integer" = is_scalar_integerish(
+      batch_size,
+      min = 1
+    ),
+    "prepend_bos must be TRUE or FALSE" = is_scalar_logical(prepend_bos),
+    "mask_phylogenetic_tags must be TRUE or FALSE" = is_scalar_logical(
+      mask_phylogenetic_tags
+    ),
+    "mask_phylogenetic_tags must be FALSE with the pinned recipe" = identical(
+      mask_phylogenetic_tags,
+      FALSE
+    ),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -996,23 +997,18 @@ evo2_profile <- function(
   metric <- match.arg(metric)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
-  if (!is_scalar_integerish(batch_size, min = 1)) {
-    stop("batch_size must be a positive integer")
-  }
-  if (!is_scalar_string(output)) {
-    stop("profile output is required")
-  }
-  if (
-    !identical(
+  stopifnot(
+    "batch_size must be a positive integer" = is_scalar_integerish(
+      batch_size,
+      min = 1
+    ),
+    "profile output is required" = is_scalar_string(output),
+    "context parallelism is not supported for positional profiles" = identical(
       as.integer(control_property(control, "context_parallel_size", 1L)),
       1L
-    )
-  ) {
-    stop("context parallelism is not supported for positional profiles")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+    ),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -1155,29 +1151,23 @@ evo2_embed <- function(
   pool <- match.arg(pool)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
-  if (!identical(layer, "last") && !is_scalar_integerish(layer, min = 1)) {
-    stop("layer must be 'last' or a positive integer")
-  }
-  if (!is_scalar_integerish(batch_size, min = 1)) {
-    stop("batch_size must be a positive integer")
-  }
-  if (pool == "none" && !is_scalar_string(output)) {
-    stop("unpooled embeddings require output")
-  }
-  if (pool == "none" && strand == "both") {
-    stop("unpooled bidirectional embeddings are not supported")
-  }
-  if (
-    !identical(
+  stopifnot(
+    "layer must be 'last' or a positive integer" = identical(layer, "last") ||
+      is_scalar_integerish(layer, min = 1),
+    "batch_size must be a positive integer" = is_scalar_integerish(
+      batch_size,
+      min = 1
+    ),
+    "unpooled embeddings require output" = pool != "none" ||
+      is_scalar_string(output),
+    "unpooled bidirectional embeddings are not supported" = pool != "none" ||
+      strand != "both",
+    "context parallelism is not supported for embeddings" = identical(
       as.integer(control_property(control, "context_parallel_size", 1L)),
       1L
-    )
-  ) {
-    stop("context parallelism is not supported for embeddings")
-  }
-  if (!is_scalar_logical(async)) {
-    stop("async must be TRUE or FALSE")
-  }
+    ),
+    "async must be TRUE or FALSE" = is_scalar_logical(async)
+  )
   validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint

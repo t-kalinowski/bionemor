@@ -80,54 +80,53 @@ evo2_inference_control <- function(
   precision <- match.arg(precision)
   vortex_style_fp8 <- match.arg(vortex_style_fp8)
   cuda_graphs <- match.arg(cuda_graphs)
-  if (!is_scalar_integerish(tensor_parallel_size, min = 1)) {
-    stop("tensor_parallel_size must be a positive integer")
-  }
-  if (
-    !is_scalar_integerish(pipeline_parallel_size, min = 1) ||
-      pipeline_parallel_size != 1
-  ) {
-    stop("pipeline_parallel_size must be 1")
-  }
-  if (!is_scalar_integerish(context_parallel_size, min = 1)) {
-    stop("context_parallel_size must be a positive integer")
-  }
-  if (!is_scalar_integerish(micro_batch_size, min = 1)) {
-    stop("micro_batch_size must be a positive integer")
-  }
-  if (
-    !is.null(max_sequence_length) &&
-      !is_scalar_integerish(max_sequence_length, min = 1)
-  ) {
-    stop("max_sequence_length must be NULL or a positive integer")
-  }
-  if (!is_scalar_integerish(max_batch_size, min = 1)) {
-    stop("max_batch_size must be a positive integer")
-  }
-  if (
-    !is.null(mixed_precision_recipe) &&
-      !is_scalar_string(mixed_precision_recipe)
-  ) {
-    stop("mixed_precision_recipe must be NULL or one non-empty string")
-  }
-  if (!is_scalar_logical(subquadratic_ops)) {
-    stop("subquadratic_ops must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(chunked_prefill)) {
-    stop("chunked_prefill must be TRUE or FALSE")
-  }
-  if (
-    !is.null(dynamic_max_tokens) &&
-      !is_scalar_integerish(dynamic_max_tokens, min = 1)
-  ) {
-    stop("dynamic_max_tokens must be NULL or a positive integer")
-  }
-  if (!is_scalar_integerish(dynamic_block_size, min = 1)) {
-    stop("dynamic_block_size must be a positive integer")
-  }
-  if (subquadratic_ops && cuda_graphs == "local") {
-    stop("subquadratic_ops and local CUDA graphs are incompatible")
-  }
+  stopifnot(
+    "tensor_parallel_size must be a positive integer" = is_scalar_integerish(
+      tensor_parallel_size,
+      min = 1
+    ),
+    "pipeline_parallel_size must be 1" = is_scalar_integerish(
+      pipeline_parallel_size,
+      min = 1
+    ) &&
+      pipeline_parallel_size == 1,
+    "context_parallel_size must be a positive integer" = is_scalar_integerish(
+      context_parallel_size,
+      min = 1
+    ),
+    "micro_batch_size must be a positive integer" = is_scalar_integerish(
+      micro_batch_size,
+      min = 1
+    ),
+    "max_sequence_length must be NULL or a positive integer" = is.null(
+      max_sequence_length
+    ) ||
+      is_scalar_integerish(max_sequence_length, min = 1),
+    "max_batch_size must be a positive integer" = is_scalar_integerish(
+      max_batch_size,
+      min = 1
+    ),
+    "mixed_precision_recipe must be NULL or one non-empty string" = is.null(
+      mixed_precision_recipe
+    ) ||
+      is_scalar_string(mixed_precision_recipe),
+    "subquadratic_ops must be TRUE or FALSE" = is_scalar_logical(
+      subquadratic_ops
+    ),
+    "chunked_prefill must be TRUE or FALSE" = is_scalar_logical(
+      chunked_prefill
+    ),
+    "dynamic_max_tokens must be NULL or a positive integer" = is.null(
+      dynamic_max_tokens
+    ) ||
+      is_scalar_integerish(dynamic_max_tokens, min = 1),
+    "dynamic_block_size must be a positive integer" = is_scalar_integerish(
+      dynamic_block_size,
+      min = 1
+    ),
+    "subquadratic_ops and local CUDA graphs are incompatible" = !subquadratic_ops ||
+      cuda_graphs != "local"
+  )
   extra <- validate_control_extra(extra, inference_extra_fields)
 
   result <- Evo2InferenceControl(
@@ -193,63 +192,54 @@ evo2_preprocess_control <- function(
 ) {
   invocation <- match.call(expand.dots = FALSE)
   transcribe <- match.arg(transcribe)
-  if (!is_scalar_logical(uppercase)) {
-    stop("uppercase must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(embed_reverse_complement)) {
-    stop("embed_reverse_complement must be TRUE or FALSE")
-  }
-  if (
-    !is_scalar_number(random_reverse_complement) ||
-      random_reverse_complement < 0 ||
-      random_reverse_complement > 1
-  ) {
-    stop("random_reverse_complement must be between zero and one")
-  }
-  if (
-    !is_scalar_number(random_lineage_dropout) ||
-      random_lineage_dropout < 0 ||
-      random_lineage_dropout > 1
-  ) {
-    stop("random_lineage_dropout must be between zero and one")
-  }
-  if (!is_scalar_logical(append_eod)) {
-    stop("append_eod must be TRUE or FALSE")
-  }
-  if (
-    !is.null(sample_length) && !is_scalar_integerish(sample_length, min = 1)
-  ) {
-    stop("sample_length must be NULL or a positive integer")
-  }
-  if (!is_scalar_logical(drop_empty_sequences)) {
-    stop("drop_empty_sequences must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(filter_nnn)) {
-    stop("filter_nnn must be TRUE or FALSE")
-  }
-  if (
-    !is.null(taxonomy) &&
-      !is_scalar_string(taxonomy) &&
-      !is.data.frame(taxonomy) &&
-      !is.list(taxonomy)
-  ) {
-    stop("taxonomy must be NULL, one path, a data frame, or a list")
-  }
-  if (!is_scalar_integerish(prompt_spacer_length, min = 0)) {
-    stop("prompt_spacer_length must be a non-negative integer")
-  }
-  if (!is_scalar_integerish(workers, min = 1)) {
-    stop("workers must be a positive integer")
-  }
-  if (!is_scalar_integerish(concurrency, min = 1)) {
-    stop("concurrency must be a positive integer")
-  }
-  if (!is_scalar_integerish(chunk_size, min = 1)) {
-    stop("chunk_size must be a positive integer")
-  }
-  if (!is_scalar_integerish(seed, min = 0)) {
-    stop("seed must be a non-negative integer")
-  }
+  stopifnot(
+    "uppercase must be TRUE or FALSE" = is_scalar_logical(uppercase),
+    "embed_reverse_complement must be TRUE or FALSE" = is_scalar_logical(
+      embed_reverse_complement
+    ),
+    "random_reverse_complement must be between zero and one" = is_scalar_number(
+      random_reverse_complement
+    ) &&
+      random_reverse_complement >= 0 &&
+      random_reverse_complement <= 1,
+    "random_lineage_dropout must be between zero and one" = is_scalar_number(
+      random_lineage_dropout
+    ) &&
+      random_lineage_dropout >= 0 &&
+      random_lineage_dropout <= 1,
+    "append_eod must be TRUE or FALSE" = is_scalar_logical(append_eod),
+    "sample_length must be NULL or a positive integer" = is.null(
+      sample_length
+    ) ||
+      is_scalar_integerish(sample_length, min = 1),
+    "drop_empty_sequences must be TRUE or FALSE" = is_scalar_logical(
+      drop_empty_sequences
+    ),
+    "filter_nnn must be TRUE or FALSE" = is_scalar_logical(filter_nnn),
+    "taxonomy must be NULL, one path, a data frame, or a list" = is.null(
+      taxonomy
+    ) ||
+      is_scalar_string(taxonomy) ||
+      is.data.frame(taxonomy) ||
+      is.list(taxonomy),
+    "prompt_spacer_length must be a non-negative integer" = is_scalar_integerish(
+      prompt_spacer_length,
+      min = 0
+    ),
+    "workers must be a positive integer" = is_scalar_integerish(
+      workers,
+      min = 1
+    ),
+    "concurrency must be a positive integer" = is_scalar_integerish(
+      concurrency,
+      min = 1
+    ),
+    "chunk_size must be a positive integer" = is_scalar_integerish(
+      chunk_size,
+      min = 1
+    ),
+    "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0)
+  )
 
   result <- Evo2PreprocessControl(
     uppercase = uppercase,
@@ -298,32 +288,26 @@ evo2_lora <- function(
   fully_trainable = character()
 ) {
   invocation <- match.call(expand.dots = FALSE)
-  if (!is_scalar_integerish(rank, min = 1)) {
-    stop("rank must be a positive integer")
-  }
-  if (!is_scalar_number(alpha) || alpha <= 0) {
-    stop("alpha must be positive")
-  }
-  if (!is_scalar_number(dropout) || dropout < 0 || dropout >= 1) {
-    stop("dropout must be between zero and one")
-  }
-  if (
-    !is.character(targets) ||
-      length(targets) <= 0L ||
-      anyNA(targets) ||
-      anyDuplicated(targets) ||
-      !all(targets %in% names(evo2_lora_target_modules))
-  ) {
-    stop("targets must contain supported semantic target names")
-  }
-  if (
-    !is.character(fully_trainable) ||
-      anyNA(fully_trainable) ||
-      anyDuplicated(fully_trainable) ||
-      !all(grepl("^[A-Za-z][A-Za-z0-9_]*$", fully_trainable))
-  ) {
-    stop("fully_trainable must contain plain module names")
-  }
+  stopifnot(
+    "rank must be a positive integer" = is_scalar_integerish(rank, min = 1),
+    "alpha must be positive" = is_scalar_number(alpha) && alpha > 0,
+    "dropout must be between zero and one" = is_scalar_number(dropout) &&
+      dropout >= 0 &&
+      dropout < 1,
+    "targets must contain supported semantic target names" = is.character(
+      targets
+    ) &&
+      length(targets) > 0L &&
+      !anyNA(targets) &&
+      !anyDuplicated(targets) &&
+      all(targets %in% names(evo2_lora_target_modules)),
+    "fully_trainable must contain plain module names" = is.character(
+      fully_trainable
+    ) &&
+      !anyNA(fully_trainable) &&
+      !anyDuplicated(fully_trainable) &&
+      all(grepl("^[A-Za-z][A-Za-z0-9_]*$", fully_trainable))
+  )
   target_modules <- unlist(
     evo2_lora_target_modules[targets],
     use.names = FALSE
