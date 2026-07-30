@@ -118,17 +118,21 @@ runtime_probe_command <- function(
   gpus = FALSE,
   immutable = TRUE
 ) {
-  stopifnot(
-    "compute must be a BioNeMo compute descriptor" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "probe executable must be one command name" = is_scalar_string(executable),
-    "probe arguments must be a character vector" = is.character(args) &&
-      !anyNA(args),
-    "gpus must be TRUE or FALSE" = is_scalar_logical(gpus),
-    "immutable must be TRUE or FALSE" = is_scalar_logical(immutable)
-  )
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute descriptor")
+  }
+  if (!is_scalar_string(executable)) {
+    stop("probe executable must be one command name")
+  }
+  if (!is.character(args) || anyNA(args)) {
+    stop("probe arguments must be a character vector")
+  }
+  if (!is_scalar_logical(gpus)) {
+    stop("gpus must be TRUE or FALSE")
+  }
+  if (!is_scalar_logical(immutable)) {
+    stop("immutable must be TRUE or FALSE")
+  }
   if (compute@engine == "external") {
     return(command_spec(
       executable,
@@ -229,12 +233,9 @@ runtime_install_steps <- function(compute, target = "all") {
 #' @return A `BioNeMoSetupPlan` containing structured commands.
 #' @export
 bionemo_install_plan <- function(compute) {
-  stopifnot(
-    "compute must be a BioNeMo compute descriptor" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    )
-  )
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute descriptor")
+  }
   paths <- install_paths(compute)
   recipe <- compute@recipe
 
@@ -576,13 +577,12 @@ prepare_recipe_build_context <- function(paths, recipe) {
       hint = "Run bionemo_install() to fetch the pinned recipe source."
     )
   }
-  stopifnot(
-    "build context must be inside the installation root" = path_is_within(
-      paths$context,
-      paths$root
-    ) &&
-      !identical(paths$context, paths$root)
-  )
+  if (
+    !path_is_within(paths$context, paths$root) ||
+      identical(paths$context, paths$root)
+  ) {
+    stop("build context must be inside the installation root")
+  }
   if (!recipe@verified || !is_scalar_string(recipe@base_image_digest)) {
     bionemor_abort(
       "BN_RECIPE_MISMATCH",
@@ -800,12 +800,15 @@ verify_container_image_labels <- function(compute) {
 }
 
 verify_base_image_digest <- function(engine, recipe) {
-  stopifnot(
-    "container engine must be one command name" = is_scalar_string(engine),
-    "recipe must be a BioNeMo recipe" = S7_inherits(recipe, BioNeMoRecipe),
-    "verified recipes require a locked base-image digest" = !recipe@verified ||
-      is_scalar_string(recipe@base_image_digest)
-  )
+  if (!is_scalar_string(engine)) {
+    stop("container engine must be one command name")
+  }
+  if (!S7_inherits(recipe, BioNeMoRecipe)) {
+    stop("recipe must be a BioNeMo recipe")
+  }
+  if (recipe@verified && !is_scalar_string(recipe@base_image_digest)) {
+    stop("verified recipes require a locked base-image digest")
+  }
   if (is.null(recipe@base_image_digest)) {
     return(invisible(recipe))
   }
@@ -862,15 +865,18 @@ bionemo_install <- function(
   pull = TRUE,
   keep_source = FALSE
 ) {
-  stopifnot(
-    "compute must be a BioNeMo compute descriptor" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "rebuild must be TRUE or FALSE" = is_scalar_logical(rebuild),
-    "pull must be TRUE or FALSE" = is_scalar_logical(pull),
-    "keep_source must be TRUE or FALSE" = is_scalar_logical(keep_source)
-  )
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute descriptor")
+  }
+  if (!is_scalar_logical(rebuild)) {
+    stop("rebuild must be TRUE or FALSE")
+  }
+  if (!is_scalar_logical(pull)) {
+    stop("pull must be TRUE or FALSE")
+  }
+  if (!is_scalar_logical(keep_source)) {
+    stop("keep_source must be TRUE or FALSE")
+  }
   plan <- bionemo_install_plan(compute)
   if (compute@engine == "external" || compute@backend == "slurm") {
     if (compute@backend == "slurm" && compute@engine == "container") {
@@ -1215,13 +1221,12 @@ runtime_probe <- function(
 }
 
 runtime_capabilities <- function(compute, refresh = FALSE) {
-  stopifnot(
-    "compute must be a BioNeMo compute descriptor" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "refresh must be TRUE or FALSE" = is_scalar_logical(refresh)
-  )
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute descriptor")
+  }
+  if (!is_scalar_logical(refresh)) {
+    stop("refresh must be TRUE or FALSE")
+  }
   cached <- compute@config$capabilities
   if (!refresh && is.list(cached)) {
     return(cached)
@@ -1660,9 +1665,9 @@ doctor_capabilities <- function(compute, target, model = NULL) {
     compatible_compute@config <- config
     models <- evo2_models(compatible_compute)
     selected <- models[models$name == model@size, , drop = FALSE]
-    stopifnot(
-      "model is missing from the compatibility registry" = nrow(selected) == 1L
-    )
+    if (nrow(selected) != 1L) {
+      stop("model is missing from the compatibility registry")
+    }
     rows[[length(rows) + 1L]] <- doctor_row(
       "model compatibility",
       if (isTRUE(selected$compatible[[1L]])) "pass" else "fail",
@@ -1759,15 +1764,15 @@ bionemo_doctor <- function(
   verbose = TRUE
 ) {
   target <- match.arg(target)
-  stopifnot(
-    "compute must be a BioNeMo compute descriptor" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "model must be NULL or an Evo 2 model" = is.null(model) ||
-      S7_inherits(model, Evo2Model),
-    "verbose must be TRUE or FALSE" = is_scalar_logical(verbose)
-  )
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute descriptor")
+  }
+  if (!is.null(model) && !S7_inherits(model, Evo2Model)) {
+    stop("model must be NULL or an Evo 2 model")
+  }
+  if (!is_scalar_logical(verbose)) {
+    stop("verbose must be TRUE or FALSE")
+  }
   checks <- rbind(
     doctor_backend(compute),
     doctor_host_tools(compute),

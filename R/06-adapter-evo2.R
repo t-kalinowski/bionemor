@@ -19,7 +19,7 @@ as_sequences <- function(x, column = "sequence") {
     x <- as.character(x)
   }
   if (is.data.frame(x)) {
-    if (!(column %in% names(x))) {
+    if (!column %in% names(x)) {
       abort_invalid_sequence("data must contain the requested sequence column")
     }
     values <- x[[column]]
@@ -294,28 +294,37 @@ validate_sequence_context <- function(
   additional_tokens = 0L,
   max_sequence_length = NULL
 ) {
-  stopifnot(
-    "input must be a prepared sequence input" = is.list(input) &&
-      is.character(input$ids) &&
-      is.character(input$sequences),
-    "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
-    "compute must be a BioNeMo compute specification" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "operation must be one inference operation" = operation %in%
-      c("generation", "score", "profile", "embedding"),
-    "run path must exist" = is_scalar_string(run_path) && dir.exists(run_path),
-    "checkpoint must be one non-empty string" = is_scalar_string(checkpoint),
-    "additional tokens must be a non-negative integer" = is_scalar_integerish(
-      additional_tokens,
-      min = 0
-    ),
-    "maximum sequence length must be NULL or a positive integer" = is.null(
-      max_sequence_length
-    ) ||
-      is_scalar_integerish(max_sequence_length, min = 1)
-  )
+  if (
+    !is.list(input) ||
+      !is.character(input$ids) ||
+      !is.character(input$sequences)
+  ) {
+    stop("input must be a prepared sequence input")
+  }
+  if (!S7_inherits(object, Evo2Model)) {
+    stop("object must be an Evo 2 model")
+  }
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute specification")
+  }
+  if (!operation %in% c("generation", "score", "profile", "embedding")) {
+    stop("operation must be one inference operation")
+  }
+  if (!is_scalar_string(run_path) || !dir.exists(run_path)) {
+    stop("run path must exist")
+  }
+  if (!is_scalar_string(checkpoint)) {
+    stop("checkpoint must be one non-empty string")
+  }
+  if (!is_scalar_integerish(additional_tokens, min = 0)) {
+    stop("additional tokens must be a non-negative integer")
+  }
+  if (
+    !is.null(max_sequence_length) &&
+      !is_scalar_integerish(max_sequence_length, min = 1)
+  ) {
+    stop("maximum sequence length must be NULL or a positive integer")
+  }
   model_context_length <- as.integer(object@context_length)
   context_length <- if (is.null(max_sequence_length)) {
     model_context_length
@@ -359,14 +368,16 @@ validate_sequence_context <- function(
 }
 
 write_jsonl_rows <- function(rows, path) {
-  stopifnot(
-    "rows must be a list of named records" = is.list(rows) &&
-      all(vapply(
+  if (
+    !is.list(rows) ||
+      !all(vapply(
         rows,
         function(x) is.list(x) && !is.null(names(x)),
         logical(1)
       ))
-  )
+  ) {
+    stop("rows must be a list of named records")
+  }
   lines <- vapply(
     rows,
     jsonlite::toJSON,
@@ -381,7 +392,9 @@ write_jsonl_rows <- function(rows, path) {
 }
 
 read_jsonl_rows <- function(path) {
-  stopifnot("JSONL file does not exist" = file.exists(path))
+  if (!file.exists(path)) {
+    stop("JSONL file does not exist")
+  }
   lines <- readLines(path, warn = FALSE)
   lines <- lines[nzchar(trimws(lines))]
   lapply(
@@ -504,19 +517,27 @@ evo2_phylo_tag <- function(
     g = genus,
     s = species
   )
-  stopifnot(
-    "taxonomy ranks must be NULL or one non-empty string" = all(vapply(
+  if (
+    !all(vapply(
       ranks,
       function(x) is.null(x) || is_scalar_string(x),
       logical(1)
-    )),
-    "taxonomy ranks must not contain separators or line breaks" = all(vapply(
+    ))
+  ) {
+    stop("taxonomy ranks must be NULL or one non-empty string")
+  }
+  if (
+    !all(vapply(
       ranks,
       function(x) is.null(x) || !grepl("[;|\r\n]", x),
       logical(1)
-    )),
-    "uppercase must be TRUE or FALSE" = is_scalar_logical(uppercase)
-  )
+    ))
+  ) {
+    stop("taxonomy ranks must not contain separators or line breaks")
+  }
+  if (!is_scalar_logical(uppercase)) {
+    stop("uppercase must be TRUE or FALSE")
+  }
   values <- vapply(ranks, function(x) x %||% "None", character(1))
   tag <- paste0(
     "|",
@@ -624,11 +645,11 @@ resolved_inference_control <- function(
     )
   }
   if (automatic_vortex) {
-    stopifnot(
-      "automatic Vortex FP8 requires a verified Hopper GPU capability report" = verified_hopper_runtime(
-        compute
+    if (!verified_hopper_runtime(compute)) {
+      stop(
+        "automatic Vortex FP8 requires a verified Hopper GPU capability report"
       )
-    )
+    }
   }
   subquadratic <- control_property(control, "subquadratic_ops", FALSE)
   cuda_graphs <- control_property(control, "cuda_graphs", "auto")
@@ -637,24 +658,22 @@ resolved_inference_control <- function(
   }
   world_size <- as.integer(compute@gpus * compute@nodes)
   model_parallel <- as.integer(tensor * pipeline * context)
-  stopifnot(
-    "tensor parallelism must be a positive integer" = is_scalar_integerish(
-      tensor,
-      min = 1
-    ),
-    "pipeline parallelism must equal one" = identical(as.integer(pipeline), 1L),
-    "context parallelism must be a positive integer" = is_scalar_integerish(
-      context,
-      min = 1
-    ),
-    "model parallelism cannot exceed the allocated world size" = model_parallel <=
-      world_size
-  )
+  if (!is_scalar_integerish(tensor, min = 1)) {
+    stop("tensor parallelism must be a positive integer")
+  }
+  if (!identical(as.integer(pipeline), 1L)) {
+    stop("pipeline parallelism must equal one")
+  }
+  if (!is_scalar_integerish(context, min = 1)) {
+    stop("context parallelism must be a positive integer")
+  }
+  if (model_parallel > world_size) {
+    stop("model parallelism cannot exceed the allocated world size")
+  }
   if (operation == "generation") {
-    stopifnot(
-      "generation world size must equal the model-parallel product" = model_parallel ==
-        world_size
-    )
+    if (model_parallel != world_size) {
+      stop("generation world size must equal the model-parallel product")
+    }
   }
   list(
     tensor_parallel_size = as.integer(tensor),
@@ -754,18 +773,14 @@ prediction_ignored_extra_fields <- c(
 )
 
 validate_generation_control <- function(control) {
-  stopifnot(
-    "control micro_batch_size is unsupported; use max_batch_size for generation" = identical(
-      control_property(control, "micro_batch_size", 1L),
-      1L
-    ),
-    "inference extra settings are not supported for generation" = length(control_property(
-      control,
-      "extra",
-      list()
-    )) ==
-      0L
-  )
+  if (!identical(control_property(control, "micro_batch_size", 1L), 1L)) {
+    stop(
+      "control micro_batch_size is unsupported; use max_batch_size for generation"
+    )
+  }
+  if (length(control_property(control, "extra", list())) != 0L) {
+    stop("inference extra settings are not supported for generation")
+  }
   invisible(control)
 }
 
@@ -794,12 +809,11 @@ validate_prediction_control <- function(control) {
       settings = ignored_extra
     )
   }
-  stopifnot(
-    "control micro_batch_size is unsupported; use the task-specific batch_size argument" = identical(
-      control_property(control, "micro_batch_size", 1L),
-      1L
+  if (!identical(control_property(control, "micro_batch_size", 1L), 1L)) {
+    stop(
+      "control micro_batch_size is unsupported; use the task-specific batch_size argument"
     )
-  )
+  }
   invisible(control)
 }
 
@@ -933,15 +947,11 @@ evo2_prediction_plan <- function(
   prepend_bos = FALSE,
   checkpoint_manifest = NULL
 ) {
-  stopifnot(
-    "prediction mode is unsupported" = mode %in%
-      c(
-        "score",
-        "profile",
-        "embedding-pooled",
-        "embedding-unpooled"
-      )
-  )
+  if (
+    !mode %in% c("score", "profile", "embedding-pooled", "embedding-unpooled")
+  ) {
+    stop("prediction mode is unsupported")
+  }
   resolved <- resolved_inference_control(
     control,
     compute,
@@ -949,27 +959,24 @@ evo2_prediction_plan <- function(
     checkpoint,
     checkpoint_manifest
   )
-  stopifnot(
-    "max_sequence_length is supported only for generation" = is.null(
-      resolved$max_sequence_length
-    ),
-    "max_batch_size is supported only for generation" = identical(
-      resolved$max_batch_size,
-      1L
-    ),
-    "CUDA graph controls are supported only for generation" = identical(
-      control_property(control, "cuda_graphs", "auto"),
-      "auto"
-    ),
-    "chunked prefill is supported only for generation" = !resolved$chunked_prefill,
-    "dynamic_max_tokens is supported only for generation" = is.null(
-      resolved$dynamic_max_tokens
-    ),
-    "dynamic_block_size is supported only for generation" = identical(
-      resolved$dynamic_block_size,
-      256L
-    )
-  )
+  if (!is.null(resolved$max_sequence_length)) {
+    stop("max_sequence_length is supported only for generation")
+  }
+  if (!identical(resolved$max_batch_size, 1L)) {
+    stop("max_batch_size is supported only for generation")
+  }
+  if (!identical(control_property(control, "cuda_graphs", "auto"), "auto")) {
+    stop("CUDA graph controls are supported only for generation")
+  }
+  if (resolved$chunked_prefill) {
+    stop("chunked prefill is supported only for generation")
+  }
+  if (!is.null(resolved$dynamic_max_tokens)) {
+    stop("dynamic_max_tokens is supported only for generation")
+  }
+  if (!identical(resolved$dynamic_block_size, 256L)) {
+    stop("dynamic_block_size is supported only for generation")
+  }
   predict_args <- c(
     "--fasta",
     input$path,

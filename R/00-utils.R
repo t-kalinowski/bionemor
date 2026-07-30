@@ -41,15 +41,21 @@ argument_origin_map <- function(
   adapter_defaults = character(),
   auto_resolved = character()
 ) {
-  stopifnot(
-    "values must be a named list" = is.list(values) &&
-      !is.null(names(values)) &&
-      all(nzchar(names(values))),
-    "call must be a matched call" = is.call(call),
-    "argument map must name request fields" = is.character(argument_map) &&
-      !is.null(names(argument_map)) &&
-      all(nzchar(names(argument_map)))
-  )
+  if (
+    !is.list(values) || is.null(names(values)) || !all(nzchar(names(values)))
+  ) {
+    stop("values must be a named list")
+  }
+  if (!is.call(call)) {
+    stop("call must be a matched call")
+  }
+  if (
+    !is.character(argument_map) ||
+      is.null(names(argument_map)) ||
+      !all(nzchar(names(argument_map)))
+  ) {
+    stop("argument map must name request fields")
+  }
   supplied <- setdiff(names(call), c("", "..."))
   origins <- stats::setNames(
     rep("package_default", length(values)),
@@ -63,11 +69,9 @@ argument_origin_map <- function(
   )
   origins[intersect(adapter_defaults, names(origins))] <- "adapter_default"
   origins[intersect(auto_resolved, names(origins))] <- "auto_resolved"
-  stopifnot(
-    "value origin is unsupported" = all(
-      unlist(origins, use.names = FALSE) %in% value_origin_codes
-    )
-  )
+  if (!all(unlist(origins, use.names = FALSE) %in% value_origin_codes)) {
+    stop("value origin is unsupported")
+  }
   as.list(origins)
 }
 
@@ -85,19 +89,19 @@ object_value_origins <- function(object, fallback = "user_requested") {
 }
 
 bionemor_abort <- function(code, message, ..., call = NULL) {
-  stopifnot(
-    "code must be a registered BioNeMo condition code" = is_scalar_string(
-      code
-    ) &&
-      code %in% bionemor_condition_codes,
-    "message must be one non-empty string" = is_scalar_string(message)
-  )
+  if (!is_scalar_string(code) || !code %in% bionemor_condition_codes) {
+    stop("code must be a registered BioNeMo condition code")
+  }
+  if (!is_scalar_string(message)) {
+    stop("message must be one non-empty string")
+  }
   fields <- list(...)
-  stopifnot(
-    "condition fields must be named" = length(fields) == 0L ||
-      !is.null(names(fields)) &&
-        all(nzchar(names(fields)))
-  )
+  if (
+    length(fields) != 0L &&
+      (is.null(names(fields)) || !all(nzchar(names(fields))))
+  ) {
+    stop("condition fields must be named")
+  }
   fields <- fields[!vapply(fields, is.null, logical(1))]
   condition <- structure(
     c(
@@ -129,11 +133,15 @@ is_scalar_integerish <- function(x, min = NULL) {
 }
 
 pluck_vec <- function(x, field, ptype) {
-  stopifnot(
-    "x must be a list" = is.list(x),
-    "field must be one non-empty string" = is_scalar_string(field),
-    "ptype must be one atomic value" = is.atomic(ptype) && length(ptype) == 1L
-  )
+  if (!is.list(x)) {
+    stop("x must be a list")
+  }
+  if (!is_scalar_string(field)) {
+    stop("field must be one non-empty string")
+  }
+  if (!is.atomic(ptype) || length(ptype) != 1L) {
+    stop("ptype must be one atomic value")
+  }
   vapply(x, function(element) element[[field]], ptype)
 }
 
@@ -150,10 +158,12 @@ pluck_dbl <- function(x, field) {
 }
 
 normalize_path <- function(path, base = getwd()) {
-  stopifnot(
-    "path must be one non-empty string" = is_scalar_string(path),
-    "base must be one non-empty string" = is_scalar_string(base)
-  )
+  if (!is_scalar_string(path)) {
+    stop("path must be one non-empty string")
+  }
+  if (!is_scalar_string(base)) {
+    stop("base must be one non-empty string")
+  }
   path <- path.expand(path)
   absolute <- grepl("^/|^[A-Za-z]:[/\\\\]|^\\\\\\\\", path)
   if (!absolute) {
@@ -197,11 +207,9 @@ credential_environment_variables <- c(
 )
 
 process_environment <- function(allow = character()) {
-  stopifnot(
-    "allow contains an unsupported credential environment variable" = all(
-      allow %in% credential_environment_variables
-    )
-  )
+  if (!all(allow %in% credential_environment_variables)) {
+    stop("allow contains an unsupported credential environment variable")
+  }
   environment <- Sys.getenv()
   excluded <- setdiff(credential_environment_variables, allow)
   environment[!names(environment) %in% excluded]
@@ -313,10 +321,12 @@ prop_list <- function() {
 }
 
 atomic_write_lines <- function(text, path) {
-  stopifnot(
-    "path must be one non-empty string" = is_scalar_string(path),
-    "text must be a character vector" = is.character(text)
-  )
+  if (!is_scalar_string(path)) {
+    stop("path must be one non-empty string")
+  }
+  if (!is.character(text)) {
+    stop("text must be a character vector")
+  }
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   temporary <- tempfile(
     paste0(".", basename(path), "-"),
@@ -324,9 +334,9 @@ atomic_write_lines <- function(text, path) {
   )
   on.exit(unlink(temporary), add = TRUE)
   writeLines(text, temporary, useBytes = TRUE)
-  stopifnot(
-    "failed to atomically replace output file" = file.rename(temporary, path)
-  )
+  if (!file.rename(temporary, path)) {
+    stop("failed to atomically replace output file")
+  }
   invisible(path)
 }
 
@@ -348,34 +358,35 @@ atomic_write_json <- function(
 }
 
 read_json_file <- function(path, simplify = TRUE) {
-  stopifnot(
-    "JSON file does not exist" = is_scalar_string(path) && file.exists(path)
-  )
+  if (!is_scalar_string(path) || !file.exists(path)) {
+    stop("JSON file does not exist")
+  }
   jsonlite::read_json(path, simplifyVector = simplify)
 }
 
 safe_name <- function(name, prefix) {
-  stopifnot(
-    "prefix must be one safe name" = is_scalar_string(prefix) &&
-      grepl("^[A-Za-z0-9_.-]+$", prefix)
-  )
+  if (!is_scalar_string(prefix) || !grepl("^[A-Za-z0-9_.-]+$", prefix)) {
+    stop("prefix must be one safe name")
+  }
   if (is.null(name)) {
     stamp <- format(Sys.time(), "%Y%m%dT%H%M%S", tz = "UTC")
     suffix <- sprintf("%06d", sample.int(999999L, 1L))
     return(paste(prefix, stamp, suffix, sep = "-"))
   }
-  stopifnot(
-    "name must be one safe name" = is_scalar_string(name) &&
-      grepl("^[A-Za-z0-9_.-]+$", name) &&
-      !(name %in% c(".", ".."))
-  )
+  if (
+    !is_scalar_string(name) ||
+      !grepl("^[A-Za-z0-9_.-]+$", name) ||
+      (name %in% c(".", ".."))
+  ) {
+    stop("name must be one safe name")
+  }
   name
 }
 
 path_digest <- function(path) {
-  stopifnot(
-    "path must exist" = is_scalar_string(path) && file.exists(path)
-  )
+  if (!is_scalar_string(path) || !file.exists(path)) {
+    stop("path must exist")
+  }
   path <- normalize_path(path)
   if (dir.exists(path)) {
     files <- list.files(
@@ -401,10 +412,12 @@ path_digest <- function(path) {
 }
 
 stable_partition_value <- function(seed, id) {
-  stopifnot(
-    "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0),
-    "id must be one non-empty string" = is_scalar_string(id)
-  )
+  if (!is_scalar_integerish(seed, min = 0)) {
+    stop("seed must be a non-negative integer")
+  }
+  if (!is_scalar_string(id)) {
+    stop("id must be one non-empty string")
+  }
   values <- utf8ToInt(paste0(as.integer(seed), "\r", id))
   hash <- 0
   for (value in values) {

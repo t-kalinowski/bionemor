@@ -6,9 +6,9 @@ evo2_recipe_lock <- function() {
     mustWork = TRUE
   )
   lock <- jsonlite::read_json(path, simplifyVector = TRUE)
-  stopifnot(
-    "unsupported Evo 2 recipe lock schema" = identical(lock$schema_version, 1L)
-  )
+  if (!identical(lock$schema_version, 1L)) {
+    stop("unsupported Evo 2 recipe lock schema")
+  }
   lock
 }
 
@@ -35,24 +35,27 @@ evo2_recipe <- function(
   allow_mutable = FALSE
 ) {
   lock <- evo2_recipe_lock()
-  stopifnot(
-    "revision must be one non-empty string" = is_scalar_string(revision),
-    "repository must be NULL or one non-empty string" = is.null(repository) ||
-      is_scalar_string(repository),
-    "base_image must be NULL or one non-empty string" = is.null(base_image) ||
-      is_scalar_string(base_image),
-    "allow_mutable must be TRUE or FALSE" = is_scalar_logical(allow_mutable)
-  )
+  if (!is_scalar_string(revision)) {
+    stop("revision must be one non-empty string")
+  }
+  if (!is.null(repository) && !is_scalar_string(repository)) {
+    stop("repository must be NULL or one non-empty string")
+  }
+  if (!is.null(base_image) && !is_scalar_string(base_image)) {
+    stop("base_image must be NULL or one non-empty string")
+  }
+  if (!is_scalar_logical(allow_mutable)) {
+    stop("allow_mutable must be TRUE or FALSE")
+  }
 
   revision <- if (identical(revision, "recommended")) {
     lock$revision
   } else {
     revision
   }
-  stopifnot(
-    "revision must be a full commit SHA unless allow_mutable is TRUE" = allow_mutable ||
-      grepl("^[0-9a-fA-F]{40}$", revision)
-  )
+  if (!allow_mutable && !grepl("^[0-9a-fA-F]{40}$", revision)) {
+    stop("revision must be a full commit SHA unless allow_mutable is TRUE")
+  }
   if (grepl("^[0-9a-fA-F]{40}$", revision)) {
     revision <- tolower(revision)
   }
@@ -91,9 +94,9 @@ evo2_recipe <- function(
 }
 
 recipe_base_image_reference <- function(recipe) {
-  stopifnot(
-    "recipe must be a BioNeMo recipe" = S7_inherits(recipe, BioNeMoRecipe)
-  )
+  if (!S7_inherits(recipe, BioNeMoRecipe)) {
+    stop("recipe must be a BioNeMo recipe")
+  }
   if (is.null(recipe@base_image_digest)) {
     return(recipe@base_image)
   }
@@ -102,22 +105,24 @@ recipe_base_image_reference <- function(recipe) {
 }
 
 default_recipe_image <- function(recipe) {
-  stopifnot(
-    "recipe must be a BioNeMo recipe" = S7_inherits(recipe, BioNeMoRecipe)
-  )
+  if (!S7_inherits(recipe, BioNeMoRecipe)) {
+    stop("recipe must be a BioNeMo recipe")
+  }
   paste0("bionemor/evo2:", substr(recipe@revision, 1L, 12L))
 }
 
 sha256_file_digest <- function(path) {
-  stopifnot(
-    "path must be one readable file" = is_scalar_string(path) &&
-      file.exists(path) &&
-      !dir.exists(path) &&
-      file.access(path, 4L) == 0L,
-    "sha256sum is required to record file provenance" = nzchar(Sys.which(
-      "sha256sum"
-    ))
-  )
+  if (
+    !is_scalar_string(path) ||
+      !file.exists(path) ||
+      dir.exists(path) ||
+      file.access(path, 4L) != 0L
+  ) {
+    stop("path must be one readable file")
+  }
+  if (!nzchar(Sys.which("sha256sum"))) {
+    stop("sha256sum is required to record file provenance")
+  }
   result <- processx::run(
     "sha256sum",
     c("--", path),
@@ -126,50 +131,48 @@ sha256_file_digest <- function(path) {
     env = process_environment()
   )
   digest <- substr(trimws(result$stdout), 1L, 64L)
-  stopifnot(
-    "failed to compute the file SHA-256 digest" = result$status == 0L &&
-      grepl("^[0-9a-fA-F]{64}$", digest)
-  )
+  if (result$status != 0L || !grepl("^[0-9a-fA-F]{64}$", digest)) {
+    stop("failed to compute the file SHA-256 digest")
+  }
   paste0("sha256:", tolower(digest))
 }
 
 slurm_image_digest <- function(compute) {
-  stopifnot(
-    "compute must describe a Slurm container runtime" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ) &&
-      identical(compute@backend, "slurm") &&
-      identical(compute@engine, "container"),
-    "Slurm container execution requires an image" = is_scalar_string(
-      compute@image
-    )
-  )
+  if (
+    !S7_inherits(compute, BioNeMoCompute) ||
+      !identical(compute@backend, "slurm") ||
+      !identical(compute@engine, "container")
+  ) {
+    stop("compute must describe a Slurm container runtime")
+  }
+  if (!is_scalar_string(compute@image)) {
+    stop("Slurm container execution requires an image")
+  }
   if (is_scalar_string(compute@image_digest)) {
     return(compute@image_digest)
   }
-  stopifnot(
-    "Slurm container image must be a readable local SIF file or a digest-qualified URI" = file.exists(
-      compute@image
-    ) &&
-      !dir.exists(compute@image)
-  )
+  if (!file.exists(compute@image) || dir.exists(compute@image)) {
+    stop(
+      "Slurm container image must be a readable local SIF file or a digest-qualified URI"
+    )
+  }
   sha256_file_digest(compute@image)
 }
 
 slurm_sif_verification_lines <- function(compute) {
-  stopifnot(
-    "compute must describe a Slurm container runtime" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ) &&
-      identical(compute@backend, "slurm") &&
-      identical(compute@engine, "container"),
-    "Slurm container execution requires a resolved image digest" = is_scalar_string(
-      compute@image_digest
-    ) &&
-      grepl("^sha256:[0-9a-fA-F]{64}$", compute@image_digest)
-  )
+  if (
+    !S7_inherits(compute, BioNeMoCompute) ||
+      !identical(compute@backend, "slurm") ||
+      !identical(compute@engine, "container")
+  ) {
+    stop("compute must describe a Slurm container runtime")
+  }
+  if (
+    !is_scalar_string(compute@image_digest) ||
+      !grepl("^sha256:[0-9a-fA-F]{64}$", compute@image_digest)
+  ) {
+    stop("Slurm container execution requires a resolved image digest")
+  }
   if (grepl("@sha256:[0-9a-fA-F]{64}$", compute@image)) {
     return(character())
   }
@@ -225,57 +228,74 @@ bionemo_compute <- function(
 ) {
   backend <- match.arg(backend)
   engine <- match.arg(engine)
-  stopifnot(
-    "workspace must be one non-empty string" = is_scalar_string(workspace),
-    "recipe must be a BioNeMo recipe" = S7_inherits(recipe, BioNeMoRecipe),
-    "image must be NULL or one non-empty string" = is.null(image) ||
-      is_scalar_string(image),
-    "gpus must be a positive integer" = is_scalar_integerish(gpus, min = 1),
-    "nodes must be a positive integer" = is_scalar_integerish(nodes, min = 1),
-    "version 1 supports a single node" = nodes == 1,
-    "queue must be NULL or one non-empty string" = is.null(queue) ||
-      is_scalar_string(queue),
-    "account must be NULL or one non-empty string" = is.null(account) ||
-      is_scalar_string(account),
-    "walltime must be NULL or one non-empty string" = is.null(walltime) ||
-      is_scalar_string(walltime),
-    "config must be a named list" = is.list(config) &&
-      (length(config) == 0L ||
-        !is.null(names(config)) &&
-          all(nzchar(names(config))) &&
-          !anyDuplicated(names(config))),
-    "image must be NULL when engine is 'external'" = engine != "external" ||
-      is.null(image),
-    "Slurm container execution requires an image path or URI" = backend !=
-      "slurm" ||
-      engine != "container" ||
-      !is.null(image),
-    "unverified recipes require an external runtime or an explicit container image" = recipe@verified ||
-      engine == "external" ||
-      !is.null(image)
-  )
+  if (!is_scalar_string(workspace)) {
+    stop("workspace must be one non-empty string")
+  }
+  if (!S7_inherits(recipe, BioNeMoRecipe)) {
+    stop("recipe must be a BioNeMo recipe")
+  }
+  if (!is.null(image) && !is_scalar_string(image)) {
+    stop("image must be NULL or one non-empty string")
+  }
+  if (!is_scalar_integerish(gpus, min = 1)) {
+    stop("gpus must be a positive integer")
+  }
+  if (!is_scalar_integerish(nodes, min = 1)) {
+    stop("nodes must be a positive integer")
+  }
+  if (nodes != 1) {
+    stop("version 1 supports a single node")
+  }
+  if (!is.null(queue) && !is_scalar_string(queue)) {
+    stop("queue must be NULL or one non-empty string")
+  }
+  if (!is.null(account) && !is_scalar_string(account)) {
+    stop("account must be NULL or one non-empty string")
+  }
+  if (!is.null(walltime) && !is_scalar_string(walltime)) {
+    stop("walltime must be NULL or one non-empty string")
+  }
+  if (
+    !is.list(config) ||
+      length(config) != 0L &&
+        (is.null(names(config)) ||
+          !all(nzchar(names(config))) ||
+          anyDuplicated(names(config)))
+  ) {
+    stop("config must be a named list")
+  }
+  if (engine == "external" && !is.null(image)) {
+    stop("image must be NULL when engine is 'external'")
+  }
+  if (backend == "slurm" && engine == "container" && is.null(image)) {
+    stop("Slurm container execution requires an image path or URI")
+  }
+  if (!recipe@verified && engine != "external" && is.null(image)) {
+    stop(
+      "unverified recipes require an external runtime or an explicit container image"
+    )
+  }
 
   workspace <- normalize_path(workspace)
-  stopifnot(
-    "workspace must not be the filesystem root" = !identical(
-      dirname(workspace),
-      workspace
-    )
-  )
+  if (identical(dirname(workspace), workspace)) {
+    stop("workspace must not be the filesystem root")
+  }
   dir.create(workspace, recursive = TRUE, showWarnings = FALSE)
-  stopifnot(
-    "workspace could not be created" = dir.exists(workspace),
-    "workspace must be writable" = file.access(workspace, 2L) == 0L
-  )
+  if (!dir.exists(workspace)) {
+    stop("workspace could not be created")
+  }
+  if (file.access(workspace, 2L) != 0L) {
+    stop("workspace must be writable")
+  }
 
   if (backend == "local" && engine == "container") {
     container_engine <- config$container_engine %||% "docker"
-    stopifnot(
-      "config$container_engine must be one command name" = is_scalar_string(
-        container_engine
-      ) &&
-        grepl("^[A-Za-z0-9_.-]+$", container_engine)
-    )
+    if (
+      !is_scalar_string(container_engine) ||
+        !grepl("^[A-Za-z0-9_.-]+$", container_engine)
+    ) {
+      stop("config$container_engine must be one command name")
+    }
     if (
       recipe@verified &&
         (is.null(image) ||
@@ -335,12 +355,11 @@ method(print, BioNeMoCompute) <- function(x, ...) {
 #' @return The parsed helper capability report with runtime provenance.
 #' @export
 bionemo_capabilities <- function(compute, refresh = FALSE) {
-  stopifnot(
-    "compute must be a BioNeMo compute descriptor" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "refresh must be TRUE or FALSE" = is_scalar_logical(refresh)
-  )
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute descriptor")
+  }
+  if (!is_scalar_logical(refresh)) {
+    stop("refresh must be TRUE or FALSE")
+  }
   runtime_capabilities(compute, refresh = refresh)
 }

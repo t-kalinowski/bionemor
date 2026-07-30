@@ -1,21 +1,23 @@
 validate_inference_context <- function(object, compute, control) {
-  stopifnot(
-    "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
-    "compute must be a BioNeMo compute specification" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
-    "control must be an Evo 2 inference control" = S7_inherits(
-      control,
-      Evo2InferenceControl
-    ),
-    "compute workspace must exist" = dir.exists(compute@workspace)
-  )
+  if (!S7_inherits(object, Evo2Model)) {
+    stop("object must be an Evo 2 model")
+  }
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute specification")
+  }
+  if (!S7_inherits(control, Evo2InferenceControl)) {
+    stop("control must be an Evo 2 inference control")
+  }
+  if (!dir.exists(compute@workspace)) {
+    stop("compute workspace must exist")
+  }
   checkpoint <- model_checkpoint_path(object, base = compute@workspace)
-  stopifnot(
-    "inference requires an explicit checkpoint" = is_scalar_string(checkpoint),
-    "checkpoint does not exist" = dir.exists(checkpoint)
-  )
+  if (!is_scalar_string(checkpoint)) {
+    stop("inference requires an explicit checkpoint")
+  }
+  if (!dir.exists(checkpoint)) {
+    stop("checkpoint does not exist")
+  }
   checkpoint_root <- checkpoint
   model_checkpoint <- object@checkpoint
   manifest <- NULL
@@ -104,12 +106,9 @@ validate_inference_context <- function(object, compute, control) {
   checkpoint <- normalizePath(checkpoint, mustWork = TRUE)
   checkpoint_root <- normalizePath(checkpoint_root, mustWork = TRUE)
   if (compute@engine == "container") {
-    stopifnot(
-      "container checkpoint must be inside the compute workspace" = path_is_within(
-        checkpoint,
-        compute@workspace
-      )
-    )
+    if (!path_is_within(checkpoint, compute@workspace)) {
+      stop("container checkpoint must be inside the compute workspace")
+    }
   }
   preflight <- evo2_model_preflight(object, compute, "inference")
   vortex <- control_property(control, "vortex_style_fp8", "auto")
@@ -152,10 +151,12 @@ validate_inference_context <- function(object, compute, control) {
 }
 
 persist_inference_input_source <- function(run_path, input) {
-  stopifnot(
-    "run path must exist" = is_scalar_string(run_path) && dir.exists(run_path),
-    "input source metadata must be a list" = is.list(input$input_source)
-  )
+  if (!is_scalar_string(run_path) || !dir.exists(run_path)) {
+    stop("run path must exist")
+  }
+  if (!is.list(input$input_source)) {
+    stop("input source metadata must be a list")
+  }
   path <- file.path(run_path, "request.json")
   request <- read_json_file(path, simplify = FALSE)
   request$request$input_source <- input$input_source
@@ -165,22 +166,20 @@ persist_inference_input_source <- function(run_path, input) {
 }
 
 validate_output_path <- function(output, compute) {
-  stopifnot(
-    "output must be NULL or one non-empty string" = is.null(output) ||
-      is_scalar_string(output)
-  )
+  if (!is.null(output) && !is_scalar_string(output)) {
+    stop("output must be NULL or one non-empty string")
+  }
   if (is.null(output)) {
     return(NULL)
   }
   output <- normalize_path(output, base = compute@workspace)
-  stopifnot("output path already exists" = !file.exists(output))
+  if (file.exists(output)) {
+    stop("output path already exists")
+  }
   if (compute@engine == "container") {
-    stopifnot(
-      "container output must be inside the compute workspace" = path_is_within(
-        output,
-        compute@workspace
-      )
-    )
+    if (!path_is_within(output, compute@workspace)) {
+      stop("container output must be inside the compute workspace")
+    }
   }
   output
 }
@@ -192,7 +191,9 @@ copy_output_directory <- function(run_path, output) {
   if (!file.exists(output)) {
     dir.create(output, recursive = TRUE, showWarnings = FALSE)
   }
-  stopifnot("output must be a directory" = dir.exists(output))
+  if (!dir.exists(output)) {
+    stop("output must be a directory")
+  }
   files <- list.files(
     file.path(run_path, "outputs"),
     full.names = TRUE,
@@ -200,7 +201,9 @@ copy_output_directory <- function(run_path, output) {
     no.. = TRUE
   )
   copied <- file.copy(files, output, recursive = TRUE, overwrite = TRUE)
-  stopifnot("failed to copy portable outputs" = all(copied))
+  if (!all(copied)) {
+    stop("failed to copy portable outputs")
+  }
   invisible(output)
 }
 
@@ -209,9 +212,9 @@ copy_output_file <- function(path, output) {
     return(path)
   }
   dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)
-  stopifnot(
-    "failed to copy portable output" = file.copy(path, output, overwrite = TRUE)
-  )
+  if (!file.copy(path, output, overwrite = TRUE)) {
+    stop("failed to copy portable output")
+  }
   normalize_path(output)
 }
 
@@ -270,34 +273,33 @@ evo2_generate <- function(
   invocation <- match.call(expand.dots = FALSE)
   normalize <- match.arg(normalize)
   validate <- match.arg(validate)
-  stopifnot(
-    "num_tokens must be a positive integer" = is_scalar_integerish(
-      num_tokens,
-      min = 1
-    ),
-    "n must equal 1 with the pinned recipe" = is_scalar_integerish(
-      n,
-      min = 1
-    ) &&
-      n == 1,
-    "temperature must be positive" = is_scalar_number(temperature) &&
-      temperature > 0,
-    "top_k must be a non-negative integer" = is_scalar_integerish(
-      top_k,
-      min = 0
-    ),
-    "top_p must be between zero and one" = is_scalar_number(top_p) &&
-      top_p >= 0 &&
-      top_p <= 1,
-    "at most one of top_k and top_p may be positive" = !(top_k > 0 &&
-      top_p > 0),
-    "seed must be NULL or a positive integer" = is.null(seed) ||
-      is_scalar_integerish(seed, min = 1),
-    "return_probabilities must be TRUE or FALSE" = is_scalar_logical(
-      return_probabilities
-    ),
-    "async must be TRUE or FALSE" = is_scalar_logical(async)
-  )
+  if (!is_scalar_integerish(num_tokens, min = 1)) {
+    stop("num_tokens must be a positive integer")
+  }
+  if (!is_scalar_integerish(n, min = 1) || n != 1) {
+    stop("n must equal 1 with the pinned recipe")
+  }
+  if (!is_scalar_number(temperature) || temperature <= 0) {
+    stop("temperature must be positive")
+  }
+  if (!is_scalar_integerish(top_k, min = 0)) {
+    stop("top_k must be a non-negative integer")
+  }
+  if (!is_scalar_number(top_p) || top_p < 0 || top_p > 1) {
+    stop("top_p must be between zero and one")
+  }
+  if ((top_k > 0 && top_p > 0)) {
+    stop("at most one of top_k and top_p may be positive")
+  }
+  if (!is.null(seed) && !is_scalar_integerish(seed, min = 1)) {
+    stop("seed must be NULL or a positive integer")
+  }
+  if (!is_scalar_logical(return_probabilities)) {
+    stop("return_probabilities must be TRUE or FALSE")
+  }
+  if (!is_scalar_logical(async)) {
+    stop("async must be TRUE or FALSE")
+  }
   validate_generation_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -785,21 +787,21 @@ evo2_score <- function(
   reduction <- match.arg(reduction)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
-  stopifnot(
-    "batch_size must be a positive integer" = is_scalar_integerish(
-      batch_size,
-      min = 1
-    ),
-    "prepend_bos must be TRUE or FALSE" = is_scalar_logical(prepend_bos),
-    "mask_phylogenetic_tags must be TRUE or FALSE" = is_scalar_logical(
-      mask_phylogenetic_tags
-    ),
-    "mask_phylogenetic_tags must be FALSE with the pinned recipe" = identical(
-      mask_phylogenetic_tags,
-      FALSE
-    ),
-    "async must be TRUE or FALSE" = is_scalar_logical(async)
-  )
+  if (!is_scalar_integerish(batch_size, min = 1)) {
+    stop("batch_size must be a positive integer")
+  }
+  if (!is_scalar_logical(prepend_bos)) {
+    stop("prepend_bos must be TRUE or FALSE")
+  }
+  if (!is_scalar_logical(mask_phylogenetic_tags)) {
+    stop("mask_phylogenetic_tags must be TRUE or FALSE")
+  }
+  if (!identical(mask_phylogenetic_tags, FALSE)) {
+    stop("mask_phylogenetic_tags must be FALSE with the pinned recipe")
+  }
+  if (!is_scalar_logical(async)) {
+    stop("async must be TRUE or FALSE")
+  }
   validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -905,12 +907,9 @@ materialize_score_job <- function(job, descriptor) {
     map <- as.data.frame(map, stringsAsFactors = FALSE)
   }
   derived_ids <- pluck_chr(rows, "derived_id")
-  stopifnot(
-    "score output contains unexpected derived IDs" = setequal(
-      derived_ids,
-      map$derived_id
-    )
-  )
+  if (!setequal(derived_ids, map$derived_id)) {
+    stop("score output contains unexpected derived IDs")
+  }
   score <- stats::setNames(
     vapply(rows, function(row) as.double(row$score), numeric(1)),
     derived_ids
@@ -997,18 +996,23 @@ evo2_profile <- function(
   metric <- match.arg(metric)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
-  stopifnot(
-    "batch_size must be a positive integer" = is_scalar_integerish(
-      batch_size,
-      min = 1
-    ),
-    "profile output is required" = is_scalar_string(output),
-    "context parallelism is not supported for positional profiles" = identical(
+  if (!is_scalar_integerish(batch_size, min = 1)) {
+    stop("batch_size must be a positive integer")
+  }
+  if (!is_scalar_string(output)) {
+    stop("profile output is required")
+  }
+  if (
+    !identical(
       as.integer(control_property(control, "context_parallel_size", 1L)),
       1L
-    ),
-    "async must be TRUE or FALSE" = is_scalar_logical(async)
-  )
+    )
+  ) {
+    stop("context parallelism is not supported for positional profiles")
+  }
+  if (!is_scalar_logical(async)) {
+    stop("async must be TRUE or FALSE")
+  }
   validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -1094,11 +1098,9 @@ evo2_profile <- function(
 }
 
 materialize_profile_job <- function(job, descriptor) {
-  stopifnot(
-    "profile helper did not write its portable output" = file.exists(
-      descriptor$portable
-    )
-  )
+  if (!file.exists(descriptor$portable)) {
+    stop("profile helper did not write its portable output")
+  }
   path <- copy_output_file(descriptor$portable, descriptor$output)
   BioNeMoArtifact(
     path = path,
@@ -1153,23 +1155,29 @@ evo2_embed <- function(
   pool <- match.arg(pool)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
-  stopifnot(
-    "layer must be 'last' or a positive integer" = identical(layer, "last") ||
-      is_scalar_integerish(layer, min = 1),
-    "batch_size must be a positive integer" = is_scalar_integerish(
-      batch_size,
-      min = 1
-    ),
-    "unpooled embeddings require output" = pool != "none" ||
-      is_scalar_string(output),
-    "unpooled bidirectional embeddings are not supported" = pool != "none" ||
-      strand != "both",
-    "context parallelism is not supported for embeddings" = identical(
+  if (!identical(layer, "last") && !is_scalar_integerish(layer, min = 1)) {
+    stop("layer must be 'last' or a positive integer")
+  }
+  if (!is_scalar_integerish(batch_size, min = 1)) {
+    stop("batch_size must be a positive integer")
+  }
+  if (pool == "none" && !is_scalar_string(output)) {
+    stop("unpooled embeddings require output")
+  }
+  if (pool == "none" && strand == "both") {
+    stop("unpooled bidirectional embeddings are not supported")
+  }
+  if (
+    !identical(
       as.integer(control_property(control, "context_parallel_size", 1L)),
       1L
-    ),
-    "async must be TRUE or FALSE" = is_scalar_logical(async)
-  )
+    )
+  ) {
+    stop("context parallelism is not supported for embeddings")
+  }
+  if (!is_scalar_logical(async)) {
+    stop("async must be TRUE or FALSE")
+  }
   validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
@@ -1271,16 +1279,14 @@ evo2_embed <- function(
 }
 
 materialize_embedding_job <- function(job, descriptor) {
-  stopifnot(
-    "embedding helper did not write its portable output" = file.exists(
-      descriptor$portable
-    )
-  )
+  if (!file.exists(descriptor$portable)) {
+    stop("embedding helper did not write its portable output")
+  }
   if (descriptor$type == "embedding-unpooled") {
     summary_path <- paste0(descriptor$portable, ".summary.json")
-    stopifnot(
-      "embedding helper did not write its summary" = file.exists(summary_path)
-    )
+    if (!file.exists(summary_path)) {
+      stop("embedding helper did not write its summary")
+    }
     summary <- read_json_file(summary_path)
     shape <- as.integer(unlist(summary$shape, use.names = FALSE))
     schema <- as.list(summary$schema)
@@ -1290,19 +1296,19 @@ materialize_embedding_job <- function(job, descriptor) {
       embedding = "list<double>",
       strand = "string"
     )
-    stopifnot(
-      "embedding helper summary has the wrong mode" = identical(
-        summary$mode,
-        "embedding-unpooled"
-      ),
-      "embedding helper summary has an invalid shape" = length(shape) == 2L &&
-        identical(shape[[1L]], as.integer(summary$rows)) &&
-        shape[[2L]] == length(expected_schema),
-      "embedding helper summary has an invalid schema" = identical(
-        schema,
-        expected_schema
-      )
-    )
+    if (!identical(summary$mode, "embedding-unpooled")) {
+      stop("embedding helper summary has the wrong mode")
+    }
+    if (
+      length(shape) != 2L ||
+        !identical(shape[[1L]], as.integer(summary$rows)) ||
+        shape[[2L]] != length(expected_schema)
+    ) {
+      stop("embedding helper summary has an invalid shape")
+    }
+    if (!identical(schema, expected_schema)) {
+      stop("embedding helper summary has an invalid schema")
+    }
     path <- copy_output_file(descriptor$portable, descriptor$output)
     return(BioNeMoArtifact(
       path = path,
@@ -1324,21 +1330,15 @@ materialize_embedding_job <- function(job, descriptor) {
   }
   rows <- read_jsonl_rows(descriptor$portable)
   ids <- pluck_chr(rows, "id")
-  stopifnot(
-    "embedding output IDs do not match input order" = identical(
-      ids,
-      unlist(descriptor$input_ids, use.names = FALSE)
-    )
-  )
+  if (!identical(ids, unlist(descriptor$input_ids, use.names = FALSE))) {
+    stop("embedding output IDs do not match input order")
+  }
   values <- lapply(rows, function(row) {
     as.double(unlist(row$embedding, use.names = FALSE))
   })
-  stopifnot(
-    "embedding rows must have one common width" = length(unique(lengths(
-      values
-    ))) ==
-      1L
-  )
+  if (length(unique(lengths(values))) != 1L) {
+    stop("embedding rows must have one common width")
+  }
   matrix <- do.call(rbind, values)
   rownames(matrix) <- ids
   colnames(matrix) <- paste0("dim_", seq_len(ncol(matrix)))
