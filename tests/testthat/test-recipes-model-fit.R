@@ -14,12 +14,14 @@ test_that("the shipped registry defines the supported recipe models", {
 
 test_that("model compatibility follows advertised GPU and precision policy", {
   gpu_capabilities <- function(major, count) {
-    list(runtime = list(
-      gpu_count = count,
-      gpus = data.frame(
-        compute_capability_major = rep(major, count)
+    list(
+      runtime = list(
+        gpu_count = count,
+        gpus = data.frame(
+          compute_capability_major = rep(major, count)
+        )
       )
-    ))
+    )
   }
   compute <- function(major, requested = 2L, advertised = requested) {
     bionemo_compute(
@@ -75,10 +77,14 @@ test_that("inference rejects models without a verified execution policy", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
 
   expect_error(
@@ -103,10 +109,14 @@ test_that("inference validates requested precision against the actual GPUs", {
     bionemo_compute(
       engine = "external",
       workspace = workspace,
-      config = list(capabilities = list(runtime = list(
-        gpu_count = 1L,
-        gpus = data.frame(compute_capability_major = major)
-      )))
+      config = list(
+        capabilities = list(
+          runtime = list(
+            gpu_count = 1L,
+            gpus = data.frame(compute_capability_major = major)
+          )
+        )
+      )
     )
   }
 
@@ -149,10 +159,14 @@ test_that("fine-tuning rejects models without a verified execution policy", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
 
   expect_error(
@@ -345,12 +359,14 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     validation = c(validation_a = "AAAA"),
     test = c(test_a = "CCCC")
   )
-  preprocess_control <- evo2_preprocess_control(taxonomy = data.frame(
-    id = c("train_a", "train_b", "validation_a", "test_a"),
-    domain = rep("Bacteria", 4L),
-    class = rep("Gammaproteobacteria", 4L),
-    stringsAsFactors = FALSE
-  ))
+  preprocess_control <- evo2_preprocess_control(
+    taxonomy = data.frame(
+      id = c("train_a", "train_b", "validation_a", "test_a"),
+      domain = rep("Bacteria", 4L),
+      class = rep("Gammaproteobacteria", 4L),
+      stringsAsFactors = FALSE
+    )
+  )
 
   prepared <- evo2_prepare(
     data,
@@ -386,7 +402,14 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
   )
   expect_named(
     prepared@manifest$inputs$train,
-    c("path", "digest", "records", "minimum_length", "maximum_length", "mean_length")
+    c(
+      "path",
+      "digest",
+      "records",
+      "minimum_length",
+      "maximum_length",
+      "mean_length"
+    )
   )
   expect_true(all(vapply(
     prepared@manifest$outputs,
@@ -421,35 +444,41 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     simplifyVector = TRUE
   )
   tokens <- unlist(plan$steps, use.names = FALSE)
-  expect_true(all(c(
-    "torchrun",
-    "--no-python",
-    "train_evo2",
-    "--global-batch-size",
-    "--finetune-ckpt-dir",
-    "--eval-interval",
-    "--eval-iters",
-    "--sequence-parallel",
-    "--no-fp32-residual-connection",
-    "--adam-eps",
-    "--hf-tokenizer-model-path",
-    tokenizer,
-    "--lora-finetune",
-    "--lora-dim"
-  ) %in% tokens))
+  expect_true(all(
+    c(
+      "torchrun",
+      "--no-python",
+      "train_evo2",
+      "--global-batch-size",
+      "--finetune-ckpt-dir",
+      "--eval-interval",
+      "--eval-iters",
+      "--sequence-parallel",
+      "--no-fp32-residual-connection",
+      "--adam-eps",
+      "--hf-tokenizer-model-path",
+      tokenizer,
+      "--lora-finetune",
+      "--lora-dim"
+    ) %in%
+      tokens
+  ))
   base_flag <- which(tokens == "--finetune-ckpt-dir")
   expect_length(base_flag, 1L)
   expect_equal(
     tokens[[base_flag + 1L]],
     normalizePath(selected_base_checkpoint)
   )
-  expect_false(any(c(
-    "--devices",
-    "--grad-acc-batches",
-    "--ckpt-dir",
-    "--val-check-interval",
-    "--limit-val-batches"
-  ) %in% tokens))
+  expect_false(any(
+    c(
+      "--devices",
+      "--grad-acc-batches",
+      "--ckpt-dir",
+      "--val-check-interval",
+      "--limit-val-batches"
+    ) %in%
+      tokens
+  ))
 
   fitted <- job_wait(job, poll = 0.01, timeout = 10)
   expect_s3_class(fitted, "bionemor::Evo2Model")
@@ -527,14 +556,17 @@ test_that("dense MBridge checkpoints export explicitly to Vortex", {
     simplifyVector = TRUE
   )
   tokens <- unlist(plan$steps, use.names = FALSE)
-  expect_true(all(c(
-    "evo2_remove_optimizer",
-    "evo2_export_mbridge_to_vortex",
-    "--mbridge-ckpt-dir",
-    "--output-path",
-    "--model-size",
-    "evo2_7b"
-  ) %in% tokens))
+  expect_true(all(
+    c(
+      "evo2_remove_optimizer",
+      "evo2_export_mbridge_to_vortex",
+      "--mbridge-ckpt-dir",
+      "--output-path",
+      "--model-size",
+      "evo2_7b"
+    ) %in%
+      tokens
+  ))
   expect_false("--no-te" %in% tokens)
 })
 

@@ -26,7 +26,8 @@ test_that("detached local jobs finalize state, events, and provenance", {
   repeat {
     state <- jsonlite::read_json(state_path)
     if (
-      state$state %in% c("succeeded", "failed", "cancelled") &&
+      state$state %in%
+        c("succeeded", "failed", "cancelled") &&
         file.exists(manifest_path)
     ) {
       break
@@ -43,12 +44,15 @@ test_that("detached local jobs finalize state, events, and provenance", {
     readLines(file.path(run_path, "events.jsonl"), warn = FALSE),
     jsonlite::parse_json
   )
-  expect_true(all(c("running", "succeeded") %in% vapply(
-    events,
-    `[[`,
-    character(1),
-    "state"
-  )))
+  expect_true(all(
+    c("running", "succeeded") %in%
+      vapply(
+        events,
+        `[[`,
+        character(1),
+        "state"
+      )
+  ))
   manifest <- jsonlite::read_json(manifest_path, simplifyVector = FALSE)
   expect_equal(manifest$state, "succeeded")
   expect_equal(manifest$exit_status, 0L)
@@ -230,8 +234,10 @@ test_that("operation timeout escalates when the recipe ignores TERM", {
   deadline <- Sys.time() + 5
   repeat {
     state <- jsonlite::read_json(file.path(job_path(job), "state.json"))
-    if (state$state == "failed" &&
-        file.exists(file.path(job_path(job), "manifest.json"))) {
+    if (
+      state$state == "failed" &&
+        file.exists(file.path(job_path(job), "manifest.json"))
+    ) {
       break
     }
     if (Sys.time() >= deadline) {
@@ -366,8 +372,10 @@ test_that("prediction tensor cleanup failures fail the detached job", {
   deadline <- Sys.time() + 5
   repeat {
     state <- jsonlite::read_json(file.path(job_path(job), "state.json"))
-    if (state$state == "failed" &&
-        !file.exists(file.path(job_path(job), "finalizing"))) {
+    if (
+      state$state == "failed" &&
+        !file.exists(file.path(job_path(job), "finalizing"))
+    ) {
       break
     }
     if (Sys.time() >= deadline) {
@@ -388,11 +396,14 @@ test_that("prediction tensor cleanup failures fail the detached job", {
     function(file) endsWith(file$path, ".pt"),
     logical(1)
   )))
-  expect_true(length(list.files(
-    upstream,
-    pattern = "[.]pt$",
-    full.names = TRUE
-  )) > 0L)
+  expect_true(
+    length(list.files(
+      upstream,
+      pattern = "[.]pt$",
+      full.names = TRUE
+    )) >
+      0L
+  )
   expect_match(
     paste(job_logs(job), collapse = "\n"),
     "failed to remove prediction tensors",
@@ -459,7 +470,8 @@ test_that("force cancellation recovers a hung terminal log drain", {
       kill,
       c("-0", paste0("-", pid)),
       error_on_status = FALSE
-    )$status == 0L
+    )$status ==
+      0L
   }
   dir.create(workspace)
   fake_recipes_runtime(bin)
@@ -833,7 +845,8 @@ test_that("reopened status cleans children after runner-only death", {
         "/bin/kill",
         c("-0", paste0("-", pid)),
         error_on_status = FALSE
-      )$status == 0L
+      )$status ==
+        0L
     )
   }
   state <- jsonlite::read_json(file.path(job_path(job), "state.json"))
@@ -913,10 +926,8 @@ test_that("reopened status never signals a leaderless process group", {
   )
   deadline <- Sys.time() + 2
   while (
-    (
-      isTRUE(tools::pskill(plan_pid, signal = 0L)) ||
-        isTRUE(tools::pskill(runner_pid, signal = 0L))
-    ) &&
+    (isTRUE(tools::pskill(plan_pid, signal = 0L)) ||
+      isTRUE(tools::pskill(runner_pid, signal = 0L))) &&
       Sys.time() < deadline
   ) {
     Sys.sleep(0.01)
@@ -972,8 +983,10 @@ test_that("force cancellation before plan startup finalizes the run", {
   deadline <- Sys.time() + 2
   repeat {
     state <- jsonlite::read_json(state_path)
-    if (state$state == "running" &&
-        !file.exists(file.path(job_path(job), "plan.pid"))) {
+    if (
+      state$state == "running" &&
+        !file.exists(file.path(job_path(job), "plan.pid"))
+    ) {
       break
     }
     if (Sys.time() >= deadline) {

@@ -37,7 +37,11 @@ read_checkpoint_manifest <- function(path, manifest_path = NULL) {
 checkpoint_is_complete <- function(path, format = NULL) {
   manifest_path <- checkpoint_manifest_path(path, format)
   marker_path <- checkpoint_completion_path(path, format)
-  if (!file.exists(path) || !file.exists(manifest_path) || !file.exists(marker_path)) {
+  if (
+    !file.exists(path) ||
+      !file.exists(manifest_path) ||
+      !file.exists(marker_path)
+  ) {
     return(FALSE)
   }
   manifest <- tryCatch(
@@ -117,8 +121,7 @@ assert_manifest_matches <- function(manifest, expected) {
 
 evo2_checkpoint_model_record <- function(model) {
   stopifnot(
-    "model must be an Evo 2 model specification" =
-      S7_inherits(model, Evo2Model)
+    "model must be an Evo 2 model specification" = S7_inherits(model, Evo2Model)
   )
   evo2_model_record(model@size)
 }
@@ -210,7 +213,9 @@ checkpoint_source_info <- function(
       "savanna"
     } else if (startsWith(source, "ngc://")) {
       "nemo2"
-    } else if (!dir.exists(resolved_source) && grepl("[.]pt$", resolved_source)) {
+    } else if (
+      !dir.exists(resolved_source) && grepl("[.]pt$", resolved_source)
+    ) {
       "savanna"
     } else {
       bionemor_abort(
@@ -291,11 +296,10 @@ checkpoint_source_info <- function(
   }
   trusted_registry_source <-
     identical(resolved_source, record$source) &&
-      identical(detected_format, record$source_format) &&
-      identical(tolower(source_revision), tolower(record$source_revision))
+    identical(detected_format, record$source_format) &&
+    identical(tolower(source_revision), tolower(record$source_revision))
   explicit_trust_required <-
-    detected_format %in% c("savanna", "nemo2") &&
-      !trusted_registry_source
+    detected_format %in% c("savanna", "nemo2") && !trusted_registry_source
   if (
     explicit_trust_required &&
       !trust
@@ -329,8 +333,9 @@ checkpoint_source_info <- function(
 
 evo2_checkpoint_tokenizer <- function(tokenizer, record, compute) {
   stopifnot(
-    "tokenizer must be 'recommended' or one non-empty path" =
-      is_scalar_string(tokenizer)
+    "tokenizer must be 'recommended' or one non-empty path" = is_scalar_string(
+      tokenizer
+    )
   )
   if (identical(tokenizer, "recommended")) {
     if (compute@engine == "container") {
@@ -406,8 +411,9 @@ evo2_checkpoint_tokenizer_provenance <- function(
     path_digest(tokenizer_path)
   }
   stopifnot(
-    "tokenizer revision must be one non-empty string" =
-      is_scalar_string(revision)
+    "tokenizer revision must be one non-empty string" = is_scalar_string(
+      revision
+    )
   )
   list(
     identity = if (identical(tokenizer, "recommended")) {
@@ -481,7 +487,9 @@ assert_checkpoint_manifest_weights <- function(path, manifest) {
 }
 
 evo2_checkpoint_precision <- function(precision, record) {
-  stopifnot("precision must be one non-empty string" = is_scalar_string(precision))
+  stopifnot(
+    "precision must be one non-empty string" = is_scalar_string(precision)
+  )
   if (identical(precision, "auto")) {
     return(record$mixed_precision_recipe %||% "bf16_mixed")
   }
@@ -490,8 +498,7 @@ evo2_checkpoint_precision <- function(precision, record) {
     bf16 = "bf16_mixed",
     fp8 = "bf16_with_fp8_current_scaling_mixed",
     bf16_mixed = "bf16_mixed",
-    bf16_with_fp8_current_scaling_mixed =
-      "bf16_with_fp8_current_scaling_mixed",
+    bf16_with_fp8_current_scaling_mixed = "bf16_with_fp8_current_scaling_mixed",
     bionemor_abort(
       "BN_PRECISION_INCOMPATIBLE",
       "precision must be 'auto', 'bf16', 'fp8', or a supported recipe precision",
@@ -520,11 +527,16 @@ checkpoint_conversion_command <- function(
   compute
 ) {
   common <- c(
-    "--tokenizer-path", tokenizer,
-    "--mbridge-ckpt-dir", destination,
-    "--model-size", model_size,
-    "--seq-length", as.character(sequence_length),
-    "--mixed-precision-recipe", precision
+    "--tokenizer-path",
+    tokenizer,
+    "--mbridge-ckpt-dir",
+    destination,
+    "--model-size",
+    model_size,
+    "--seq-length",
+    as.character(sequence_length),
+    "--mixed-precision-recipe",
+    precision
   )
   if (source_format == "savanna") {
     converter_source <- if (startsWith(source, "hf://")) {
@@ -533,9 +545,11 @@ checkpoint_conversion_command <- function(
       source
     }
     args <- c(
-      "--savanna-ckpt-path", converter_source,
+      "--savanna-ckpt-path",
+      converter_source,
       common,
-      "--revision", revision
+      "--revision",
+      revision
     )
     return(command_spec(
       "evo2_convert_savanna_to_mbridge",
@@ -590,8 +604,12 @@ checkpoint_copy_command <- function(source, destination, compute) {
     "mkdir -p \"$2\"",
     paste0(
       "find \"$1\" -mindepth 1 -maxdepth 1 ",
-      "! -name '", checkpoint_manifest_file, "' ",
-      "! -name '", checkpoint_completion_file, "' ",
+      "! -name '",
+      checkpoint_manifest_file,
+      "' ",
+      "! -name '",
+      checkpoint_completion_file,
+      "' ",
       "-exec cp -a {} \"$2/\" \\;"
     ),
     sep = "\n"
@@ -643,12 +661,13 @@ checkpoint_expected_manifest <- function(
 
 materialize_checkpoint_job <- function(job, descriptor) {
   stopifnot(
-    "checkpoint result descriptor is invalid" =
-      is.list(descriptor) && identical(descriptor$type, "checkpoint"),
-    "checkpoint result path must be one non-empty string" =
-      is_scalar_string(descriptor$path),
-    "checkpoint result format must be MBridge or Vortex" =
-      descriptor$format %in% c("mbridge", "vortex")
+    "checkpoint result descriptor is invalid" = is.list(descriptor) &&
+      identical(descriptor$type, "checkpoint"),
+    "checkpoint result path must be one non-empty string" = is_scalar_string(
+      descriptor$path
+    ),
+    "checkpoint result format must be MBridge or Vortex" = descriptor$format %in%
+      c("mbridge", "vortex")
   )
   path <- descriptor$path
   manifest_path <- checkpoint_manifest_path(path, descriptor$format)
@@ -689,10 +708,12 @@ materialize_checkpoint_job <- function(job, descriptor) {
       "checkpoint inspector did not report an MBridge path"
     } else if (!is_scalar_string(inspection$model_size)) {
       "checkpoint inspector did not report the model size"
-    } else if (!identical(
-      inspection$model_size,
-      descriptor$expected$model_size
-    )) {
+    } else if (
+      !identical(
+        inspection$model_size,
+        descriptor$expected$model_size
+      )
+    ) {
       "checkpoint model size does not match the requested model"
     } else if (!inspection$kind %in% c("dense", "lora")) {
       "checkpoint inspector did not report dense or LoRA weights"
@@ -899,13 +920,19 @@ evo2_checkpoint <- function(
   invocation <- match.call(expand.dots = FALSE)
   format <- match.arg(format)
   stopifnot(
-    "model must be an Evo 2 model specification" =
-      S7_inherits(model, Evo2Model),
-    "source must be 'recommended', one source string, or a BioNeMo checkpoint" =
-      is_scalar_string(source) || S7_inherits(source, BioNeMoCheckpoint),
+    "model must be an Evo 2 model specification" = S7_inherits(
+      model,
+      Evo2Model
+    ),
+    "source must be 'recommended', one source string, or a BioNeMo checkpoint" = is_scalar_string(
+      source
+    ) ||
+      S7_inherits(source, BioNeMoCheckpoint),
     "path must be one non-empty string" = is_scalar_string(path),
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
     "compute workspace must exist" = dir.exists(compute@workspace),
     "revision must be one non-empty string" = is_scalar_string(revision),
     "tokenizer must be one non-empty string" = is_scalar_string(tokenizer),
@@ -941,19 +968,25 @@ evo2_checkpoint <- function(
   }
   destination <- normalize_path(path, base = compute@workspace)
   stopifnot(
-    "checkpoint destination must not be the filesystem root" =
-      !identical(dirname(destination), destination),
-    "checkpoint destination must not be the compute workspace itself" =
-      !identical(destination, normalize_path(compute@workspace))
+    "checkpoint destination must not be the filesystem root" = !identical(
+      dirname(destination),
+      destination
+    ),
+    "checkpoint destination must not be the compute workspace itself" = !identical(
+      destination,
+      normalize_path(compute@workspace)
+    )
   )
   remote_source <- startsWith(info$source, "hf://") ||
     startsWith(info$source, "ngc://")
   if (compute@engine == "container" || compute@backend == "slurm") {
     stopifnot(
-      "checkpoint path must be inside the compute workspace" =
-        path_is_within(destination, compute@workspace),
-      "local source must be inside the compute workspace for container or Slurm execution" =
-        remote_source || path_is_within(info$source, compute@workspace)
+      "checkpoint path must be inside the compute workspace" = path_is_within(
+        destination,
+        compute@workspace
+      ),
+      "local source must be inside the compute workspace for container or Slurm execution" = remote_source ||
+        path_is_within(info$source, compute@workspace)
     )
   }
   source_is_destination <- !remote_source &&
@@ -1093,16 +1126,12 @@ evo2_checkpoint <- function(
   } else {
     request_origins$format_request
   }
-  request_origins$source_revision <- if (
-    identical(revision, "recommended")
-  ) {
+  request_origins$source_revision <- if (identical(revision, "recommended")) {
     "auto_resolved"
   } else {
     request_origins$revision_request
   }
-  request_origins$tokenizer <- if (
-    identical(tokenizer, "recommended")
-  ) {
+  request_origins$tokenizer <- if (identical(tokenizer, "recommended")) {
     "auto_resolved"
   } else {
     request_origins$tokenizer_request
@@ -1212,14 +1241,19 @@ evo2_export <- function(
 ) {
   invocation <- match.call(expand.dots = FALSE)
   stopifnot(
-    "model must be an Evo 2 model specification" =
-      S7_inherits(model, Evo2Model),
+    "model must be an Evo 2 model specification" = S7_inherits(
+      model,
+      Evo2Model
+    ),
     "path must be one non-empty string" = is_scalar_string(path),
     "format must be 'vortex'" = identical(format, "vortex"),
-    "strip_optimizer must be TRUE or FALSE" =
-      is_scalar_logical(strip_optimizer),
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
+    "strip_optimizer must be TRUE or FALSE" = is_scalar_logical(
+      strip_optimizer
+    ),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
     "overwrite must be TRUE or FALSE" = is_scalar_logical(overwrite),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
@@ -1274,17 +1308,25 @@ evo2_export <- function(
   transformer_engine <- source_inspection$transformer_engine
   destination <- normalize_path(path, base = compute@workspace)
   stopifnot(
-    "export destination must not be a filesystem root" =
-      !identical(dirname(destination), destination),
-    "export destination must differ from the source checkpoint" =
-      !identical(destination, source)
+    "export destination must not be a filesystem root" = !identical(
+      dirname(destination),
+      destination
+    ),
+    "export destination must differ from the source checkpoint" = !identical(
+      destination,
+      source
+    )
   )
   if (compute@engine == "container" || compute@backend == "slurm") {
     stopifnot(
-      "export destination must be inside the compute workspace" =
-        path_is_within(destination, compute@workspace),
-      "checkpoint must be inside the compute workspace" =
-        path_is_within(source, compute@workspace)
+      "export destination must be inside the compute workspace" = path_is_within(
+        destination,
+        compute@workspace
+      ),
+      "checkpoint must be inside the compute workspace" = path_is_within(
+        source,
+        compute@workspace
+      )
     )
   }
   record <- evo2_checkpoint_model_record(model)
@@ -1323,8 +1365,10 @@ evo2_export <- function(
     manifest <- read_checkpoint_manifest(destination, manifest_path)
     assert_manifest_matches(manifest, expected)
     stopifnot(
-      "Vortex export is missing config.json" =
-        file.exists(file.path(dirname(destination), "config.json"))
+      "Vortex export is missing config.json" = file.exists(file.path(
+        dirname(destination),
+        "config.json"
+      ))
     )
     return(checkpoint_from_manifest(destination, manifest, manifest_path))
   }
@@ -1386,8 +1430,10 @@ evo2_export <- function(
     steps[[length(steps) + 1L]] <- command_spec(
       "evo2_remove_optimizer",
       c(
-        "--src-ckpt-dir", source,
-        "--dst-ckpt-dir", export_source
+        "--src-ckpt-dir",
+        source,
+        "--dst-ckpt-dir",
+        export_source
       ),
       cwd = compute@workspace
     )
@@ -1395,9 +1441,12 @@ evo2_export <- function(
   steps[[length(steps) + 1L]] <- command_spec(
     "evo2_export_mbridge_to_vortex",
     c(
-      "--mbridge-ckpt-dir", export_source,
-      "--output-path", destination,
-      "--model-size", model_size,
+      "--mbridge-ckpt-dir",
+      export_source,
+      "--output-path",
+      destination,
+      "--model-size",
+      model_size,
       if (!transformer_engine) "--no-te"
     ),
     cwd = compute@workspace
@@ -1407,8 +1456,10 @@ evo2_export <- function(
     "bionemor-evo2-helper",
     c(
       "write-manifest-fragment",
-      "--path", destination,
-      "--output", inspection
+      "--path",
+      destination,
+      "--output",
+      inspection
     ),
     cwd = compute@workspace
   )

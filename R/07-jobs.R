@@ -28,30 +28,35 @@ command_spec <- function(
   timeout = Inf
 ) {
   stopifnot(
-    "command executable must be one non-empty string" =
-      is_scalar_string(executable),
-    "command args must be a character vector without missing values" =
-      is.character(args) && !anyNA(args),
-    "command env must be a named character vector without missing values" =
-      is.character(env) &&
-        !anyNA(env) &&
-        (length(env) == 0L ||
-          !is.null(names(env)) &&
-            all(nzchar(names(env))) &&
-            !anyDuplicated(names(env))),
-    "command cwd must be NULL or one non-empty string" =
-      is.null(cwd) || is_scalar_string(cwd),
-    "command redactions must be a character vector without missing values" =
-      is.character(redactions) && !anyNA(redactions),
-    "command stdin must be NULL or one non-empty string" =
-      is.null(stdin) || is_scalar_string(stdin),
-    "command stdout must be NULL or one non-empty string" =
-      is.null(stdout) || is_scalar_string(stdout),
-    "command stderr must be NULL or one non-empty string" =
-      is.null(stderr) || is_scalar_string(stderr),
-    "command timeout must be positive or infinite" =
-      identical(timeout, Inf) ||
-        is_scalar_number(timeout) && timeout > 0
+    "command executable must be one non-empty string" = is_scalar_string(
+      executable
+    ),
+    "command args must be a character vector without missing values" = is.character(
+      args
+    ) &&
+      !anyNA(args),
+    "command env must be a named character vector without missing values" = is.character(
+      env
+    ) &&
+      !anyNA(env) &&
+      (length(env) == 0L ||
+        !is.null(names(env)) &&
+          all(nzchar(names(env))) &&
+          !anyDuplicated(names(env))),
+    "command cwd must be NULL or one non-empty string" = is.null(cwd) ||
+      is_scalar_string(cwd),
+    "command redactions must be a character vector without missing values" = is.character(
+      redactions
+    ) &&
+      !anyNA(redactions),
+    "command stdin must be NULL or one non-empty string" = is.null(stdin) ||
+      is_scalar_string(stdin),
+    "command stdout must be NULL or one non-empty string" = is.null(stdout) ||
+      is_scalar_string(stdout),
+    "command stderr must be NULL or one non-empty string" = is.null(stderr) ||
+      is_scalar_string(stderr),
+    "command timeout must be positive or infinite" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0
   )
   structure(
     list(
@@ -71,10 +76,14 @@ command_spec <- function(
 
 command_plan <- function(steps, metadata = list()) {
   stopifnot(
-    "command plan steps must be a non-empty list" =
-      is.list(steps) && length(steps) > 0L,
-    "every command plan step must be a command specification" =
-      all(vapply(steps, inherits, logical(1), "bionemor_command")),
+    "command plan steps must be a non-empty list" = is.list(steps) &&
+      length(steps) > 0L,
+    "every command plan step must be a command specification" = all(vapply(
+      steps,
+      inherits,
+      logical(1),
+      "bionemor_command"
+    )),
     "command plan metadata must be a list" = is.list(metadata)
   )
   structure(
@@ -199,9 +208,11 @@ compute_record <- function(compute) {
 
 compute_from_record <- function(value) {
   stopifnot(
-    "persisted run does not contain a complete recipe record" =
-      is.list(value$recipe) &&
-        all(c(
+    "persisted run does not contain a complete recipe record" = is.list(
+      value$recipe
+    ) &&
+      all(
+        c(
           "repository",
           "revision",
           "recipe_version",
@@ -210,11 +221,14 @@ compute_from_record <- function(value) {
           "base_image_digest",
           "bridge_protocol",
           "verified"
-        ) %in% names(value$recipe)),
-    "persisted run contains an invalid image digest" =
-      is.null(value$image_digest) ||
-        is_scalar_string(value$image_digest) &&
-          grepl("^sha256:[0-9a-fA-F]{64}$", value$image_digest)
+        ) %in%
+          names(value$recipe)
+      ),
+    "persisted run contains an invalid image digest" = is.null(
+      value$image_digest
+    ) ||
+      is_scalar_string(value$image_digest) &&
+        grepl("^sha256:[0-9a-fA-F]{64}$", value$image_digest)
   )
   recipe <- BioNeMoRecipe(
     repository = value$recipe$repository,
@@ -313,14 +327,16 @@ slurm_backend_id_path <- function(run_path) {
 
 persist_slurm_backend_id <- function(run_path, id) {
   stopifnot(
-    "Slurm job ID is invalid" =
-      is_scalar_string(id) && grepl("^[0-9]+$", id)
+    "Slurm job ID is invalid" = is_scalar_string(id) && grepl("^[0-9]+$", id)
   )
   atomic_write_lines(id, slurm_backend_id_path(run_path))
   state_path <- file.path(run_path, "state.json")
   state <- read_json_file(state_path, simplify = FALSE)
-  if (state$state %in% terminal_job_states &&
-      !identical(as.character(state$backend_id), id)) {
+  if (
+    state$state %in%
+      terminal_job_states &&
+      !identical(as.character(state$backend_id), id)
+  ) {
     state$backend_id <- id
     atomic_write_json(state, state_path)
   }
@@ -334,8 +350,8 @@ persisted_slurm_backend_id <- function(run_path, fallback = NULL) {
   }
   value <- trimws(readLines(path, n = 1L, warn = FALSE))
   stopifnot(
-    "persisted Slurm job ID is invalid" =
-      length(value) == 1L && grepl("^[0-9]+$", value)
+    "persisted Slurm job ID is invalid" = length(value) == 1L &&
+      grepl("^[0-9]+$", value)
   )
   value
 }
@@ -348,11 +364,13 @@ create_run <- function(
   request_origins = list()
 ) {
   stopifnot(
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
     "compute workspace must exist" = dir.exists(compute@workspace),
-    "kind must be one safe name" =
-      is_scalar_string(kind) && grepl("^[A-Za-z0-9_.-]+$", kind),
+    "kind must be one safe name" = is_scalar_string(kind) &&
+      grepl("^[A-Za-z0-9_.-]+$", kind),
     "request must be a list" = is.list(request),
     "request origins must be a list" = is.list(request_origins)
   )
@@ -451,24 +469,39 @@ wrap_backend_command <- function(command, compute, run_id) {
       compute@image_digest
     }
     stopifnot(
-      "container execution requires a resolved image digest" =
-        is_scalar_string(image)
+      "container execution requires a resolved image digest" = is_scalar_string(
+        image
+      )
     )
     container_name <- paste0("bionemor-", run_id)
-    env_args <- unlist(Map(function(name, value) {
-      if (name %in% credential_environment_variables) {
-        c("-e", name)
-      } else {
-        c("-e", paste0(name, "=", value))
-      }
-    }, names(environment), unname(environment)), use.names = FALSE)
+    env_args <- unlist(
+      Map(
+        function(name, value) {
+          if (name %in% credential_environment_variables) {
+            c("-e", name)
+          } else {
+            c("-e", paste0(name, "=", value))
+          }
+        },
+        names(environment),
+        unname(environment)
+      ),
+      use.names = FALSE
+    )
     return(command_spec(
       compute@config$container_engine %||% "docker",
       c(
-        "run", "--rm", "--gpus", "all", "--ipc=host",
-        "--name", container_name,
-        "-v", paste0(compute@workspace, ":", compute@workspace),
-        "-w", command$cwd %||% compute@workspace,
+        "run",
+        "--rm",
+        "--gpus",
+        "all",
+        "--ipc=host",
+        "--name",
+        container_name,
+        "-v",
+        paste0(compute@workspace, ":", compute@workspace),
+        "-w",
+        command$cwd %||% compute@workspace,
         env_args,
         image,
         command$executable,
@@ -485,9 +518,12 @@ wrap_backend_command <- function(command, compute, run_id) {
   command_spec(
     "apptainer",
     c(
-      "exec", "--nv",
-      "--bind", paste0(compute@workspace, ":", compute@workspace),
-      "--pwd", command$cwd %||% compute@workspace,
+      "exec",
+      "--nv",
+      "--bind",
+      paste0(compute@workspace, ":", compute@workspace),
+      "--pwd",
+      command$cwd %||% compute@workspace,
       compute@image,
       command$executable,
       command$args
@@ -698,8 +734,7 @@ process_identity_value <- function(pid) {
 write_process_identity <- function(pid, path) {
   identity <- process_identity_value(pid)
   stopifnot(
-    "process exited before its identity could be persisted" =
-      !is.null(identity)
+    "process exited before its identity could be persisted" = !is.null(identity)
   )
   atomic_write_json(identity, path)
   invisible(identity)
@@ -1046,7 +1081,11 @@ timeout_script_lines <- function(timeout, compute, run_id) {
     paste0("  ", shQuote(kill), " -TERM -- \"-$plan_pid\" 2>/dev/null || true"),
     "  sleep 1",
     paste0("  if ", shQuote(kill), " -0 -- \"-$plan_pid\" 2>/dev/null; then"),
-    paste0("    ", shQuote(kill), " -KILL -- \"-$plan_pid\" 2>/dev/null || true"),
+    paste0(
+      "    ",
+      shQuote(kill),
+      " -KILL -- \"-$plan_pid\" 2>/dev/null || true"
+    ),
     "  fi",
     "}"
   )
@@ -1059,32 +1098,47 @@ write_plan_script <- function(plan, compute, run_path, kind, timeout = Inf) {
   finalizer <- write_manifest_finalizer(run_path)
   identity_writer <- write_process_identity_writer(run_path)
   redactor <- write_log_redactor(run_path)
-  steps <- vapply(plan$steps, function(step) {
-    render_shell_command(wrap_backend_command(step, compute, id))
-  }, character(1))
-  step_roles <- vapply(plan$steps, function(step) {
-    if (
-      identical(plan$metadata$operation, "generation") &&
-        identical(basename(step$executable), "bionemor-evo2-helper") &&
-        length(step$args) > 0L &&
-        identical(step$args[[1L]], "validate-generation")
-    ) {
-      "generation-validation"
-    } else {
-      "upstream"
-    }
-  }, character(1))
-  step_lines <- unlist(Map(function(step, role) {
-    c(
-      paste0(
-        "  printf '%s\\n' ",
-        shQuote(role),
-        " > \"${BIONEMOR_RUN_PATH}/active-step\""
-      ),
-      paste0("  ", step),
-      "  rm -f \"${BIONEMOR_RUN_PATH}/active-step\""
-    )
-  }, steps, step_roles), use.names = FALSE)
+  steps <- vapply(
+    plan$steps,
+    function(step) {
+      render_shell_command(wrap_backend_command(step, compute, id))
+    },
+    character(1)
+  )
+  step_roles <- vapply(
+    plan$steps,
+    function(step) {
+      if (
+        identical(plan$metadata$operation, "generation") &&
+          identical(basename(step$executable), "bionemor-evo2-helper") &&
+          length(step$args) > 0L &&
+          identical(step$args[[1L]], "validate-generation")
+      ) {
+        "generation-validation"
+      } else {
+        "upstream"
+      }
+    },
+    character(1)
+  )
+  step_lines <- unlist(
+    Map(
+      function(step, role) {
+        c(
+          paste0(
+            "  printf '%s\\n' ",
+            shQuote(role),
+            " > \"${BIONEMOR_RUN_PATH}/active-step\""
+          ),
+          paste0("  ", step),
+          "  rm -f \"${BIONEMOR_RUN_PATH}/active-step\""
+        )
+      },
+      steps,
+      step_roles
+    ),
+    use.names = FALSE
+  )
   operation <- c(
     timeout_script_lines(timeout, compute, id),
     paste(
@@ -1111,7 +1165,7 @@ write_plan_script <- function(plan, compute, run_path, kind, timeout = Inf) {
     ": > \"$BIONEMOR_PLAN_START\"",
     if (is.finite(timeout)) {
       c(
-      "bionemor_operation_timeout \"$BIONEMOR_PLAN_PID\" &",
+        "bionemor_operation_timeout \"$BIONEMOR_PLAN_PID\" &",
         "BIONEMOR_TIMEOUT_PID=$!"
       )
     },
@@ -1187,24 +1241,24 @@ submit_plan <- function(
   async = TRUE
 ) {
   stopifnot(
-    "plan must be a command plan" =
-      inherits(plan, "bionemor_command_plan"),
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
-    "run path must be an existing run directory" =
-      is_scalar_string(run_path) && dir.exists(run_path),
-    "kind must match the persisted run kind" =
-      identical(
-        read_json_file(file.path(run_path, "request.json"))$kind,
-        kind
-      ),
-    "expected result must be a list, S7 object, or NULL" =
-      is.null(expected_result) ||
-        is.list(expected_result) ||
-        inherits(expected_result, "S7_object"),
-    "timeout must be positive or infinite" =
-      identical(timeout, Inf) ||
-        is_scalar_number(timeout) && timeout > 0,
+    "plan must be a command plan" = inherits(plan, "bionemor_command_plan"),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "run path must be an existing run directory" = is_scalar_string(run_path) &&
+      dir.exists(run_path),
+    "kind must match the persisted run kind" = identical(
+      read_json_file(file.path(run_path, "request.json"))$kind,
+      kind
+    ),
+    "expected result must be a list, S7 object, or NULL" = is.null(
+      expected_result
+    ) ||
+      is.list(expected_result) ||
+      inherits(expected_result, "S7_object"),
+    "timeout must be positive or infinite" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0,
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
   request <- read_json_file(
@@ -1350,12 +1404,11 @@ submit_plan <- function(
 bionemo_job <- function(path) {
   path <- normalize_path(path)
   stopifnot(
-    "path must contain a persisted BioNeMo run" =
-      dir.exists(path) &&
-        all(file.exists(file.path(
-          path,
-          c("request.json", "plan.json", "state.json")
-        )))
+    "path must contain a persisted BioNeMo run" = dir.exists(path) &&
+      all(file.exists(file.path(
+        path,
+        c("request.json", "plan.json", "state.json")
+      )))
   )
   request <- read_json_file(
     file.path(path, "request.json"),
@@ -1507,19 +1560,23 @@ slurm_job_status <- function(job) {
   )
   if (sum(matching) == 0L) {
     latest <- read_json_file(file.path(job@path, "state.json"))
-    return(if (latest$state %in% terminal_job_states) {
-      latest$state
-    } else {
-      slurm_nonterminal_state(persisted_state, latest$state)
-    })
+    return(
+      if (latest$state %in% terminal_job_states) {
+        latest$state
+      } else {
+        slurm_nonterminal_state(persisted_state, latest$state)
+      }
+    )
   }
   if (sum(matching) != 1L) {
     latest <- read_json_file(file.path(job@path, "state.json"))
-    return(if (latest$state %in% terminal_job_states) {
-      latest$state
-    } else {
-      slurm_nonterminal_state(persisted_state, latest$state)
-    })
+    return(
+      if (latest$state %in% terminal_job_states) {
+        latest$state
+      } else {
+        slurm_nonterminal_state(persisted_state, latest$state)
+      }
+    )
   }
   record <- fields[[which(matching)]]
   original <- trimws(record[[2L]])
@@ -1603,7 +1660,8 @@ local_job_status <- function(job) {
       job@path,
       "runner",
       runner_pid
-    ) == "alive"
+    ) ==
+      "alive"
   if (!runner_alive) {
     return(finalize_abandoned_local_run(
       job,
@@ -1678,8 +1736,8 @@ job_logs <- function(
 ) {
   stopifnot(
     "x must be a BioNeMo job" = S7_inherits(x, BioNeMoJob),
-    "tail must be NULL or a positive integer" =
-      is.null(tail) || is_scalar_integerish(tail, min = 1)
+    "tail must be NULL or a positive integer" = is.null(tail) ||
+      is_scalar_integerish(tail, min = 1)
   )
   stream <- match.arg(stream)
   paths <- switch(
@@ -1700,8 +1758,8 @@ persisted_process_id <- function(run_path, filename) {
   }
   value <- trimws(readLines(path, n = 1L, warn = FALSE))
   stopifnot(
-    "persisted process ID is invalid" =
-      length(value) == 1L && grepl("^[1-9][0-9]*$", value)
+    "persisted process ID is invalid" = length(value) == 1L &&
+      grepl("^[1-9][0-9]*$", value)
   )
   as.integer(value)
 }
@@ -1714,12 +1772,14 @@ persisted_process_identity <- function(run_path, stem, pid) {
   identity <- read_json_file(path, simplify = FALSE)
   cmdline <- unlist(identity$cmdline, use.names = FALSE)
   stopifnot(
-    "persisted process identity is invalid" =
-      identical(identity$schema_version, 1L) &&
-        identical(as.integer(identity$pid), as.integer(pid)) &&
-        is_scalar_string(identity$create_time) &&
-        is.character(cmdline) &&
-        !anyNA(cmdline)
+    "persisted process identity is invalid" = identical(
+      identity$schema_version,
+      1L
+    ) &&
+      identical(as.integer(identity$pid), as.integer(pid)) &&
+      is_scalar_string(identity$create_time) &&
+      is.character(cmdline) &&
+      !anyNA(cmdline)
   )
   identity$pid <- as.integer(identity$pid)
   identity$cmdline <- unname(cmdline)
@@ -1763,8 +1823,10 @@ local_runner_pid <- function(x) {
     return(NA_integer_)
   }
   stopifnot(
-    "local runner process ID is invalid" =
-      grepl("^[1-9][0-9]*$", candidates[[1L]])
+    "local runner process ID is invalid" = grepl(
+      "^[1-9][0-9]*$",
+      candidates[[1L]]
+    )
   )
   as.integer(candidates[[1L]])
 }
@@ -1866,9 +1928,11 @@ stop_local_job <- function(x, force = FALSE) {
     }
   }
   if (x@compute@engine == "container") {
-    if (!container_stopped &&
+    if (
+      !container_stopped &&
         !process_stopped &&
-        job_status(x) == "running") {
+        job_status(x) == "running"
+    ) {
       errors <- c(container_error, process_error)
       bionemor_abort(
         "BN_UPSTREAM",
@@ -1963,8 +2027,10 @@ stop_abandoned_local_children <- function(x) {
         )
       }
       stopifnot(
-        "failed to stop an abandoned local child process group" =
-          wait_for_process_group(pid, 2)
+        "failed to stop an abandoned local child process group" = wait_for_process_group(
+          pid,
+          2
+        )
       )
     }
   }
@@ -1999,8 +2065,10 @@ finalize_abandoned_local_run <- function(
   }
   unlink(file.path(x@path, c("stdout.pipe", "stderr.pipe")))
   stopifnot(
-    "failed to complete abandoned local run finalization" =
-      unlink(finalizing) == 0L
+    "failed to complete abandoned local run finalization" = unlink(
+      finalizing
+    ) ==
+      0L
   )
   state
 }
@@ -2093,11 +2161,14 @@ job_cancel <- function(x, force = FALSE) {
   cancel_request <- file.path(x@path, "cancel.request")
   file.create(cancel_request)
   keep_cancel_request <- FALSE
-  on.exit({
-    if (!keep_cancel_request) {
-      unlink(cancel_request)
-    }
-  }, add = TRUE)
+  on.exit(
+    {
+      if (!keep_cancel_request) {
+        unlink(cancel_request)
+      }
+    },
+    add = TRUE
+  )
   if (x@compute@backend == "local") {
     stop_local_job(x, force = force)
     state <- wait_for_cancelled_state(
@@ -2133,8 +2204,7 @@ job_cancel <- function(x, force = FALSE) {
     state <- wait_for_slurm_cancellation(x)
   }
   stopifnot(
-    "backend did not confirm a terminal state" =
-      state %in% terminal_job_states
+    "backend did not confirm a terminal state" = state %in% terminal_job_states
   )
   if (state != "cancelled") {
     unlink(cancel_request)
@@ -2168,24 +2238,27 @@ materializer_for <- function(type) {
 materialize_s7_job_result <- function(job, result) {
   if (S7_inherits(result, Evo2Dataset)) {
     stopifnot(
-      "prepared dataset output does not exist" =
-        is_scalar_string(result@path) && dir.exists(result@path)
+      "prepared dataset output does not exist" = is_scalar_string(
+        result@path
+      ) &&
+        dir.exists(result@path)
     )
     return(result)
   }
   if (S7_inherits(result, Evo2Model)) {
     checkpoint <- result@checkpoint
     stopifnot(
-      "fine-tune result is missing its checkpoint descriptor" =
-        S7_inherits(checkpoint, BioNeMoCheckpoint)
+      "fine-tune result is missing its checkpoint descriptor" = S7_inherits(
+        checkpoint,
+        BioNeMoCheckpoint
+      )
     )
     root <- checkpoint@path
     latest_file <- file.path(root, "latest_checkpointed_iteration.txt")
     path <- if (file.exists(latest_file)) {
       iteration <- trimws(readLines(latest_file, n = 1L, warn = FALSE))
       stopifnot(
-        "latest checkpoint iteration is invalid" =
-          grepl("^[0-9]+$", iteration)
+        "latest checkpoint iteration is invalid" = grepl("^[0-9]+$", iteration)
       )
       file.path(root, sprintf("iter_%07d", as.integer(iteration)))
     } else {
@@ -2194,8 +2267,8 @@ materialize_s7_job_result <- function(job, result) {
         grepl("^iter_[0-9]+$", basename(candidates))
       ]
       stopifnot(
-        "fine-tune did not write a checkpoint iteration" =
-          length(candidates) > 0L
+        "fine-tune did not write a checkpoint iteration" = length(candidates) >
+          0L
       )
       sort(candidates)[[length(candidates)]]
     }
@@ -2468,20 +2541,21 @@ run_manifest_resolved_origins <- function(plan, request, request_origins) {
   )
   origins[automatic] <- as.list(rep("auto_resolved", length(automatic)))
   if (
-    "mixed_precision_recipe" %in% names(origins) &&
+    "mixed_precision_recipe" %in%
+      names(origins) &&
       is.null(control$mixed_precision_recipe)
   ) {
     origins$mixed_precision_recipe <- "auto_resolved"
   }
   if (
-    "vortex_style_fp8" %in% names(origins) &&
+    "vortex_style_fp8" %in%
+      names(origins) &&
       identical(control$vortex_style_fp8, "auto")
   ) {
     origins$vortex_style_fp8 <- "auto_resolved"
   }
   if (
-    "cuda_graphs" %in% names(origins) &&
-      identical(control$cuda_graphs, "auto")
+    "cuda_graphs" %in% names(origins) && identical(control$cuda_graphs, "auto")
   ) {
     origins$cuda_graphs <- "auto_resolved"
   }
@@ -2670,8 +2744,8 @@ run_manifest_value <- function(job, result = NULL) {
 write_run_manifest <- function(job, result = NULL) {
   state <- read_json_file(file.path(job@path, "state.json"))
   stopifnot(
-    "run manifest requires a terminal job state" =
-      state$state %in% terminal_job_states
+    "run manifest requires a terminal job state" = state$state %in%
+      terminal_job_states
   )
   manifest <- run_manifest_value(job, result)
   if (state$state == "succeeded" && is.list(job@expected_result)) {
@@ -2686,12 +2760,15 @@ write_run_manifest <- function(job, result = NULL) {
 
 cleanup_prediction_tensors <- function(job, descriptor) {
   type <- descriptor$type %||% job@kind
-  if (!type %in% c(
-    "score",
-    "profile",
-    "embedding-pooled",
-    "embedding-unpooled"
-  )) {
+  if (
+    !type %in%
+      c(
+        "score",
+        "profile",
+        "embedding-pooled",
+        "embedding-unpooled"
+      )
+  ) {
     return(invisible(NULL))
   }
   upstream <- normalizePath(descriptor$upstream, mustWork = TRUE)
@@ -2700,9 +2777,11 @@ cleanup_prediction_tensors <- function(job, descriptor) {
     mustWork = TRUE
   )
   stopifnot(
-    "prediction tensors must be inside the run upstream directory" =
-      identical(upstream, run_upstream) ||
-        startsWith(upstream, paste0(run_upstream, .Platform$file.sep))
+    "prediction tensors must be inside the run upstream directory" = identical(
+      upstream,
+      run_upstream
+    ) ||
+      startsWith(upstream, paste0(run_upstream, .Platform$file.sep))
   )
   tensors <- list.files(
     upstream,
@@ -2726,8 +2805,7 @@ materialize_job_result <- function(x) {
     return(result)
   }
   stopifnot(
-    "job does not contain a persisted result descriptor" =
-      is.list(descriptor)
+    "job does not contain a persisted result descriptor" = is.list(descriptor)
   )
   type <- descriptor$type %||% x@kind
   name <- materializer_for(type)
@@ -2781,8 +2859,10 @@ persist_job_failure_reason <- function(x, reason) {
 }
 
 slurm_failure_reason <- function(x) {
-  if (x@compute@backend != "slurm" ||
-      !command_available("sacct")) {
+  if (
+    x@compute@backend != "slurm" ||
+      !command_available("sacct")
+  ) {
     return(NULL)
   }
   state <- read_json_file(file.path(x@path, "state.json"))
@@ -2816,15 +2896,18 @@ slurm_failure_reason <- function(x) {
     "",
     toupper(trimws(fields[[which(matching)]][[2L]]))
   )
-  if (scheduler %in% c(
-    "FAILED",
-    "TIMEOUT",
-    "OUT_OF_MEMORY",
-    "NODE_FAIL",
-    "PREEMPTED",
-    "BOOT_FAIL",
-    "DEADLINE"
-  )) {
+  if (
+    scheduler %in%
+      c(
+        "FAILED",
+        "TIMEOUT",
+        "OUT_OF_MEMORY",
+        "NODE_FAIL",
+        "PREEMPTED",
+        "BOOT_FAIL",
+        "DEADLINE"
+      )
+  ) {
     scheduler
   } else {
     NULL
@@ -2868,20 +2951,28 @@ job_sequence_summary <- function(x, resolved) {
 
 advertised_gpu_memory <- function(compute) {
   gpus <- compute@config$capabilities$runtime$gpus %||% NULL
-  memory <- if (is.data.frame(gpus) &&
-      "total_memory_bytes" %in% names(gpus)) {
+  memory <- if (
+    is.data.frame(gpus) &&
+      "total_memory_bytes" %in% names(gpus)
+  ) {
     as.double(gpus$total_memory_bytes)
-  } else if (is.list(gpus) &&
-      "total_memory_bytes" %in% names(gpus)) {
+  } else if (
+    is.list(gpus) &&
+      "total_memory_bytes" %in% names(gpus)
+  ) {
     as.double(unlist(gpus$total_memory_bytes, use.names = FALSE))
   } else if (is.list(gpus)) {
-    vapply(gpus, function(gpu) {
-      if (is.list(gpu)) {
-        as.double(gpu$total_memory_bytes %||% NA_real_)
-      } else {
-        NA_real_
-      }
-    }, numeric(1))
+    vapply(
+      gpus,
+      function(gpu) {
+        if (is.list(gpu)) {
+          as.double(gpu$total_memory_bytes %||% NA_real_)
+        } else {
+          NA_real_
+        }
+      },
+      numeric(1)
+    )
   } else {
     numeric()
   }
@@ -3022,16 +3113,22 @@ abort_job_state <- function(x, state, message) {
   }
   code <- if (state == "cancelled") {
     "BN_CANCELLED"
-  } else if (state == "failed" &&
+  } else if (
+    state == "failed" &&
       !is.null(failure_reason) &&
-      failure_reason %in% c("CUDA_OUT_OF_MEMORY", "OUT_OF_MEMORY")) {
+      failure_reason %in% c("CUDA_OUT_OF_MEMORY", "OUT_OF_MEMORY")
+  ) {
     "BN_GPU_MEMORY"
-  } else if (state == "failed" &&
-      identical(exit_status, 124L)) {
+  } else if (
+    state == "failed" &&
+      identical(exit_status, 124L)
+  ) {
     "BN_TIMEOUT"
-  } else if (state == "failed" &&
+  } else if (
+    state == "failed" &&
       x@kind == "generation" &&
-      !is.null(helper_code)) {
+      !is.null(helper_code)
+  ) {
     helper_code
   } else if (state == "failed") {
     "BN_UPSTREAM"
@@ -3097,9 +3194,8 @@ job_wait <- function(x, poll = 2, timeout = Inf) {
   stopifnot(
     "x must be a BioNeMo job" = S7_inherits(x, BioNeMoJob),
     "poll must be positive" = is_scalar_number(poll) && poll > 0,
-    "timeout must be positive or infinite" =
-      identical(timeout, Inf) ||
-        is_scalar_number(timeout) && timeout > 0
+    "timeout must be positive or infinite" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0
   )
   wait_started <- Sys.time()
   repeat {

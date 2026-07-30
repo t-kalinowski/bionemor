@@ -117,24 +117,27 @@ test_that("capabilities and doctor describe the external recipe runtime", {
   checks <- as.data.frame(doctor)
   expect_true(doctor@ok)
   expect_true(all(checks$status == "pass"))
-  expect_true(all(c(
-    "backend",
-    "host tools",
-    "workspace",
-    "helper protocol",
-    "recipe",
-    "runtime Python",
-    "runtime PyTorch",
-    "runtime CUDA",
-    "runtime Transformer Engine",
-    "runtime Megatron Bridge",
-    "runtime BioNeMo",
-    "GPU",
-    "base image",
-    "checkpoint storage",
-    "model compatibility",
-    "model checkpoint"
-  ) %in% checks$check))
+  expect_true(all(
+    c(
+      "backend",
+      "host tools",
+      "workspace",
+      "helper protocol",
+      "recipe",
+      "runtime Python",
+      "runtime PyTorch",
+      "runtime CUDA",
+      "runtime Transformer Engine",
+      "runtime Megatron Bridge",
+      "runtime BioNeMo",
+      "GPU",
+      "base image",
+      "checkpoint storage",
+      "model compatibility",
+      "model checkpoint"
+    ) %in%
+      checks$check
+  ))
 })
 
 test_that("Slurm doctor requires the scheduler command set", {
@@ -194,10 +197,14 @@ test_that("Slurm installation probes the runtime inside allocations", {
   invocations <- readLines(log, warn = FALSE)
   expect_equal(sum(startsWith(invocations, "sbatch|")), 9L)
   expect_equal(sum(startsWith(invocations, "sacct|")), 9L)
-  scripts <- sub("^sbatch\\|", "", invocations[startsWith(
-    invocations,
-    "sbatch|"
-  )])
+  scripts <- sub(
+    "^sbatch\\|",
+    "",
+    invocations[startsWith(
+      invocations,
+      "sbatch|"
+    )]
+  )
   expect_true(all(startsWith(scripts, compute@workspace)))
 })
 
@@ -240,10 +247,14 @@ test_that("Slurm installation records a local SIF SHA-256 digest", {
   )
   expect_true(image %in% readLines(apptainer_log, warn = FALSE))
   invocations <- readLines(slurm_log, warn = FALSE)
-  scripts <- sub("^sbatch\\|", "", invocations[startsWith(
-    invocations,
-    "sbatch|"
-  )])
+  scripts <- sub(
+    "^sbatch\\|",
+    "",
+    invocations[startsWith(
+      invocations,
+      "sbatch|"
+    )]
+  )
   contents <- vapply(
     scripts,
     function(path) paste(readLines(path, warn = FALSE), collapse = "\n"),
@@ -303,21 +314,24 @@ test_that("container probes use GPUs and mount the workspace", {
   capabilities <- bionemo_capabilities(compute, refresh = TRUE)
   expect_equal(capabilities$runtime$gpu_count, 1L)
   invocation <- readLines(log, warn = FALSE)
-  expect_true(all(c(
-    "docker",
-    "run",
-    "--rm",
-    "--gpus",
-    "all",
-    "-v",
-    paste0(compute@workspace, ":", compute@workspace),
-    "-w",
-    compute@workspace,
-    compute@image,
-    "bionemor-evo2-helper",
-    "capabilities",
-    "--json"
-  ) %in% invocation))
+  expect_true(all(
+    c(
+      "docker",
+      "run",
+      "--rm",
+      "--gpus",
+      "all",
+      "-v",
+      paste0(compute@workspace, ":", compute@workspace),
+      "-w",
+      compute@workspace,
+      compute@image,
+      "bionemor-evo2-helper",
+      "capabilities",
+      "--json"
+    ) %in%
+      invocation
+  ))
 
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   doctor <- bionemo_doctor(compute, model, target = "inference")
@@ -539,17 +553,25 @@ test_that("semantic inference controls map to exact supported recipe flags", {
     control = generation_control
   )
   invocation <- readLines(log)
-  expect_true(all(c(
-    "--max-seq-length", "1024",
-    "--max-batch-size", "2",
-    "--mixed-precision-recipe",
-    "bf16_with_fp8_current_scaling_mixed",
-    "--cuda-graph-impl", "none",
-    "--use-subquadratic-ops",
-    "--enable-chunked-prefill",
-    "--inference-dynamic-batching-max-tokens", "512",
-    "--inference-dynamic-batching-block-size", "128"
-  ) %in% invocation))
+  expect_true(all(
+    c(
+      "--max-seq-length",
+      "1024",
+      "--max-batch-size",
+      "2",
+      "--mixed-precision-recipe",
+      "bf16_with_fp8_current_scaling_mixed",
+      "--cuda-graph-impl",
+      "none",
+      "--use-subquadratic-ops",
+      "--enable-chunked-prefill",
+      "--inference-dynamic-batching-max-tokens",
+      "512",
+      "--inference-dynamic-batching-block-size",
+      "128"
+    ) %in%
+      invocation
+  ))
   expect_false("--vortex-style-fp8" %in% invocation)
 
   writeLines(character(), log)
@@ -571,16 +593,21 @@ test_that("semantic inference controls map to exact supported recipe flags", {
     vortex[[1L]] < length(invocation) &&
       identical(invocation[[vortex[[1L]] + 1L]], "True")
   )
-  expect_true(all(c(
-    "--mixed-precision-recipe",
-    "bf16_mixed"
-  ) %in% invocation))
+  expect_true(all(
+    c(
+      "--mixed-precision-recipe",
+      "bf16_mixed"
+    ) %in%
+      invocation
+  ))
 
   writeLines(character(), log)
-  prediction_control <- evo2_inference_control(extra = list(
-    no_sequence_parallel = TRUE,
-    min_length = 4L
-  ))
+  prediction_control <- evo2_inference_control(
+    extra = list(
+      no_sequence_parallel = TRUE,
+      min_length = 4L
+    )
+  )
   evo2_score(
     model,
     "ACGT",
@@ -589,11 +616,16 @@ test_that("semantic inference controls map to exact supported recipe flags", {
     control = prediction_control
   )
   invocation <- readLines(log)
-  expect_true(all(c(
-    "--no-sequence-parallel",
-    "--min-length", "4",
-    "--micro-batch-size", "2"
-  ) %in% invocation))
+  expect_true(all(
+    c(
+      "--no-sequence-parallel",
+      "--min-length",
+      "4",
+      "--micro-batch-size",
+      "2"
+    ) %in%
+      invocation
+  ))
 
   before <- length(invocation)
   for (setting in c(
@@ -743,16 +775,18 @@ test_that("default local cancellation terminates a TERM-resistant process tree",
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(
-      recipe_version = evo2_recipe()@recipe_version,
-      recipe_revision = evo2_recipe()@revision,
-      commands = list(infer_evo2 = TRUE),
-      features = list(generation_jsonl = TRUE),
-      runtime = list(
-        gpu_count = 1L,
-        gpus = data.frame(compute_capability_major = 9L)
+    config = list(
+      capabilities = list(
+        recipe_version = evo2_recipe()@recipe_version,
+        recipe_revision = evo2_recipe()@revision,
+        commands = list(infer_evo2 = TRUE),
+        features = list(generation_jsonl = TRUE),
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
       )
-    ))
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -864,10 +898,14 @@ test_that("Slurm failure manifests retain the scheduler exit status", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -902,10 +940,14 @@ test_that("Slurm accounting lag preserves the submitted state", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -945,10 +987,14 @@ test_that("Slurm jobs use one quoted script and scheduler cancellation", {
     workspace = workspace,
     gpus = 2L,
     queue = "gpu",
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 2L,
-      gpus = data.frame(compute_capability_major = c(9L, 9L))
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 2L,
+          gpus = data.frame(compute_capability_major = c(9L, 9L))
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -956,7 +1002,11 @@ test_that("Slurm jobs use one quoted script and scheduler cancellation", {
   script <- file.path(job_path(job), "slurm.sh")
   contents <- readLines(script, warn = FALSE)
   expect_true(file.exists(script))
-  expect_match(paste(contents, collapse = "\n"), "#SBATCH --gpus 2", fixed = TRUE)
+  expect_match(
+    paste(contents, collapse = "\n"),
+    "#SBATCH --gpus 2",
+    fixed = TRUE
+  )
   expect_match(
     paste(contents, collapse = "\n"),
     shQuote(compute@workspace),
@@ -995,10 +1045,14 @@ test_that("Slurm submission cannot overwrite a job that already finished", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -1031,10 +1085,14 @@ test_that("a stale Slurm query cannot overwrite a terminal state", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- withr::with_envvar(
@@ -1090,10 +1148,14 @@ test_that("Slurm infrastructure terminal states map to failed jobs", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -1152,10 +1214,14 @@ test_that("failed scheduler cancellation removes its request marker", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- evo2_score(
@@ -1184,10 +1250,14 @@ test_that("Slurm submission persists the submitted state", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
@@ -1228,10 +1298,14 @@ test_that("failed Slurm submission becomes a durable failed job", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   run_path <- file.path(
@@ -1284,10 +1358,14 @@ test_that("invalid sbatch output becomes a durable failed job", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   run_path <- file.path(
@@ -1339,10 +1417,14 @@ test_that("Slurm running progress survives reopen and stale accounting", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- evo2_score(
@@ -1384,10 +1466,14 @@ test_that("a terminal scheduler state clears a stale Slurm finalizer", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- evo2_score(
@@ -1436,10 +1522,14 @@ test_that("accepted Slurm cancellation retains its request marker", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- evo2_score(
@@ -1475,13 +1565,17 @@ test_that("local CUDA OOM exposes the GPU memory error context", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(
-        compute_capability_major = 9L,
-        total_memory_bytes = memory
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(
+            compute_capability_major = 9L,
+            total_memory_bytes = memory
+          )
+        )
       )
-    )))
+    )
   )
   checkpoint <- make_mbridge_checkpoint(workspace)
   model <- evo2("7b", checkpoint = checkpoint)
@@ -1544,13 +1638,17 @@ test_that("Slurm OUT_OF_MEMORY exposes and persists GPU memory context", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(
-        compute_capability_major = 9L,
-        total_memory_bytes = memory
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(
+            compute_capability_major = 9L,
+            total_memory_bytes = memory
+          )
+        )
       )
-    )))
+    )
   )
   checkpoint <- make_mbridge_checkpoint(workspace)
   model <- evo2("7b", checkpoint = checkpoint)
@@ -1604,10 +1702,14 @@ test_that("unattributed generation exit statuses remain upstream failures", {
     backend = "slurm",
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   for (status in c("65", "66", "67")) {

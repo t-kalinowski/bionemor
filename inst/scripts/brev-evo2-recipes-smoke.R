@@ -10,16 +10,19 @@ stopifnot(
   "BIONEMOR_EVO2_IMAGE is required" = nzchar(image),
   "BIONEMOR_EVO2_CHECKPOINT is required" = nzchar(checkpoint_path),
   "BIONEMOR_EVO2_WORKSPACE must exist" = dir.exists(workspace),
-  "BIONEMOR_EVO2_CHECKPOINT must be an existing directory" =
-    dir.exists(checkpoint_path)
+  "BIONEMOR_EVO2_CHECKPOINT must be an existing directory" = dir.exists(
+    checkpoint_path
+  )
 )
 
 workspace <- normalizePath(workspace, mustWork = TRUE)
 checkpoint_path <- normalizePath(checkpoint_path, mustWork = TRUE)
 stopifnot(
-  "BIONEMOR_EVO2_CHECKPOINT must be inside BIONEMOR_EVO2_WORKSPACE" =
-    identical(checkpoint_path, workspace) ||
-      startsWith(checkpoint_path, paste0(workspace, .Platform$file.sep))
+  "BIONEMOR_EVO2_CHECKPOINT must be inside BIONEMOR_EVO2_WORKSPACE" = identical(
+    checkpoint_path,
+    workspace
+  ) ||
+    startsWith(checkpoint_path, paste0(workspace, .Platform$file.sep))
 )
 
 compute <- bionemo_compute(
@@ -50,13 +53,13 @@ generated <- evo2_generate(
 scores <- evo2_score(model, sequences, compute)
 embeddings <- evo2_embed(model, sequences, compute, pool = "mean")
 stopifnot(
-  "generation did not return one result per input" =
-    nrow(generated) == length(sequences),
-  "scoring did not return one result per input" =
-    nrow(scores) == length(sequences),
+  "generation did not return one result per input" = nrow(generated) ==
+    length(sequences),
+  "scoring did not return one result per input" = nrow(scores) ==
+    length(sequences),
   "scoring returned non-finite values" = all(is.finite(scores$score)),
-  "embedding did not return one result per input" =
-    nrow(embeddings) == length(sequences),
+  "embedding did not return one result per input" = nrow(embeddings) ==
+    length(sequences),
   "embedding returned non-finite values" = all(is.finite(embeddings))
 )
 

@@ -7,10 +7,12 @@ evo2_model_registry_records <- function() {
   )
   registry <- jsonlite::read_json(path, simplifyVector = FALSE)
   stopifnot(
-    "unsupported Evo 2 model registry schema" =
-      identical(registry$schema_version, 1L),
-    "Evo 2 model registry is empty" =
-      is.list(registry$models) && length(registry$models) > 0L
+    "unsupported Evo 2 model registry schema" = identical(
+      registry$schema_version,
+      1L
+    ),
+    "Evo 2 model registry is empty" = is.list(registry$models) &&
+      length(registry$models) > 0L
   )
   registry$models
 }
@@ -114,8 +116,9 @@ evo2_gpu_advertisement <- function(compute) {
 evo2_model_compatibility <- function(registry, compute) {
   policies <- c("bf16-or-fp8", "vortex-fp8-on-hopper", "unverified")
   stopifnot(
-    "model registry contains an unsupported precision policy" =
-      all(registry$precision_policy %in% policies)
+    "model registry contains an unsupported precision policy" = all(
+      registry$precision_policy %in% policies
+    )
   )
 
   advertisement <- evo2_gpu_advertisement(compute)
@@ -206,8 +209,10 @@ evo2_has_gpu_capabilities <- function(compute) {
 
 evo2_compute_with_gpu_capabilities <- function(compute) {
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute)
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    )
   )
   if (evo2_has_gpu_capabilities(compute)) {
     return(compute)
@@ -220,16 +225,18 @@ evo2_compute_with_gpu_capabilities <- function(compute) {
 
 evo2_model_preflight <- function(object, compute, operation, record = NULL) {
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute)
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    )
   )
   record <- record %||% evo2_execution_model_record(object, operation)
   compute <- evo2_compute_with_gpu_capabilities(compute)
   registry <- evo2_model_registry()
   index <- match(record$name, registry$name)
   stopifnot(
-    "model is missing from the compatibility registry" =
-      length(index) == 1L && !is.na(index)
+    "model is missing from the compatibility registry" = length(index) == 1L &&
+      !is.na(index)
   )
   compatibility <- evo2_model_compatibility(registry, compute)
   if (!isTRUE(compatibility$compatible[[index]])) {
@@ -416,8 +423,10 @@ checkpoint_config_inspection <- function(config, resolved_path) {
 
 inspect_model_checkpoint <- function(path, model_size) {
   stopifnot(
-    "checkpoint must be an existing MBridge directory" =
-      is_scalar_string(path) && dir.exists(path)
+    "checkpoint must be an existing MBridge directory" = is_scalar_string(
+      path
+    ) &&
+      dir.exists(path)
   )
   path <- normalize_path(path)
   run_config <- file.path(path, "run_config.yaml")
@@ -428,10 +437,14 @@ inspect_model_checkpoint <- function(path, model_size) {
     if (file.exists(latest)) {
       iteration <- readLines(latest, warn = FALSE)
       stopifnot(
-        "latest_checkpointed_iteration.txt must contain one iteration" =
-          length(iteration) == 1L,
-        "latest checkpoint iteration must be a non-negative integer" =
-          grepl("^[0-9]+$", iteration)
+        "latest_checkpointed_iteration.txt must contain one iteration" = length(
+          iteration
+        ) ==
+          1L,
+        "latest checkpoint iteration must be a non-negative integer" = grepl(
+          "^[0-9]+$",
+          iteration
+        )
       )
       iteration <- sub("^0+", "", iteration)
       if (!nzchar(iteration)) {
@@ -446,10 +459,13 @@ inspect_model_checkpoint <- function(path, model_size) {
         )
       )
       stopifnot(
-        "latest checkpoint iteration does not exist" =
-          dir.exists(resolved_path),
-        "latest checkpoint iteration must contain run_config.yaml" =
-          file.exists(file.path(resolved_path, "run_config.yaml"))
+        "latest checkpoint iteration does not exist" = dir.exists(
+          resolved_path
+        ),
+        "latest checkpoint iteration must contain run_config.yaml" = file.exists(file.path(
+          resolved_path,
+          "run_config.yaml"
+        ))
       )
     } else {
       candidates <- list.dirs(path, recursive = FALSE, full.names = TRUE)
@@ -458,15 +474,18 @@ inspect_model_checkpoint <- function(path, model_size) {
           file.exists(file.path(candidates, "run_config.yaml"))
       ]
       stopifnot(
-        "checkpoint has no direct run_config.yaml or valid iter_* checkpoint" =
-          length(candidates) > 0L
+        "checkpoint has no direct run_config.yaml or valid iter_* checkpoint" = length(
+          candidates
+        ) >
+          0L
       )
       iterations <- sub("^iter_", "", basename(candidates))
       iterations <- sub("^0+", "", iterations)
       iterations[!nzchar(iterations)] <- "0"
       stopifnot(
-        "checkpoint contains duplicate numeric iteration directories" =
-          !anyDuplicated(iterations)
+        "checkpoint contains duplicate numeric iteration directories" = !anyDuplicated(
+          iterations
+        )
       )
       order <- order(nchar(iterations), iterations, basename(candidates))
       resolved_path <- candidates[[order[[length(order)]]]]
@@ -479,22 +498,28 @@ inspect_model_checkpoint <- function(path, model_size) {
   assert_mbridge_dcp_weights(resolved_path)
   config <- yaml::read_yaml(run_config)
   stopifnot(
-    "checkpoint run_config.yaml must contain a mapping" =
-      is.list(config) && !is.null(names(config))
+    "checkpoint run_config.yaml must contain a mapping" = is.list(config) &&
+      !is.null(names(config))
   )
   details <- checkpoint_config_inspection(config, resolved_path)
   stopifnot(
-    "checkpoint run_config.yaml does not identify a supported model size" =
-      is_scalar_string(details$model_size),
-    "checkpoint model size does not match the requested model" =
-      identical(details$model_size, model_size)
+    "checkpoint run_config.yaml does not identify a supported model size" = is_scalar_string(
+      details$model_size
+    ),
+    "checkpoint model size does not match the requested model" = identical(
+      details$model_size,
+      model_size
+    )
   )
-  c(list(
-    path = path,
-    resolved_path = resolved_path,
-    run_config = run_config,
-    config = config
-  ), details)
+  c(
+    list(
+      path = path,
+      resolved_path = resolved_path,
+      run_config = run_config,
+      config = config
+    ),
+    details
+  )
 }
 
 register_model_checkpoint <- function(inspection, record) {
@@ -503,8 +528,10 @@ register_model_checkpoint <- function(inspection, record) {
   if (file.exists(manifest_path)) {
     manifest <- read_checkpoint_manifest(path, manifest_path)
     stopifnot(
-      "checkpoint manifest model size does not match the requested model" =
-        identical(manifest$model_size, record$model_size)
+      "checkpoint manifest model size does not match the requested model" = identical(
+        manifest$model_size,
+        record$model_size
+      )
     )
     return(checkpoint_from_manifest(path, manifest, manifest_path))
   }
@@ -512,15 +539,16 @@ register_model_checkpoint <- function(inspection, record) {
   recipe <- evo2_recipe()
   kind <- inspection$kind
   stopifnot(
-    "checkpoint kind must be dense, LoRA, training, or weights-only" =
-      kind %in% c("dense", "lora", "training", "weights_only")
+    "checkpoint kind must be dense, LoRA, training, or weights-only" = kind %in%
+      c("dense", "lora", "training", "weights_only")
   )
   source_revision <- inspection$source_revision %||% path_digest(path)
   base_checkpoint <- inspection$base_checkpoint
   if (identical(kind, "lora")) {
     stopifnot(
-      "LoRA checkpoint run_config.yaml must identify its base checkpoint" =
-        is_scalar_string(base_checkpoint)
+      "LoRA checkpoint run_config.yaml must identify its base checkpoint" = is_scalar_string(
+        base_checkpoint
+      )
     )
   }
   base_checkpoint_digest <- NULL
@@ -554,9 +582,8 @@ register_model_checkpoint <- function(inspection, record) {
     source_trust = "not-required",
     source_verified = FALSE,
     tokenizer = checkpoint_inspection$tokenizer,
-    mixed_precision_recipe =
-      inspection$mixed_precision_recipe %||%
-        record$mixed_precision_recipe,
+    mixed_precision_recipe = inspection$mixed_precision_recipe %||%
+      record$mixed_precision_recipe,
     base_checkpoint_path = base_checkpoint,
     base_checkpoint_digest = base_checkpoint_digest,
     base_checkpoint_source = inspection$base_checkpoint_source %||% NULL,
@@ -600,22 +627,25 @@ evo2 <- function(
     "mixed_precision_recipe"
   )
   stopifnot(
-    "checkpoint must be NULL, one path, or a BioNeMo checkpoint" =
-      is.null(checkpoint) ||
-        is_scalar_string(checkpoint) ||
-        S7_inherits(checkpoint, BioNeMoCheckpoint),
-    "revision must be 'recommended' or a full commit SHA" =
-      identical(revision, "recommended") ||
-        is_scalar_string(revision) &&
-          grepl("^[0-9a-fA-F]{40}$", revision),
-    "config must be a named list" =
-      is.list(config) &&
-        (length(config) == 0L ||
-          !is.null(names(config)) &&
-            all(nzchar(names(config))) &&
-            !anyDuplicated(names(config))),
-    "config contains an unsupported model setting" =
-      all(names(config) %in% allowed_config)
+    "checkpoint must be NULL, one path, or a BioNeMo checkpoint" = is.null(
+      checkpoint
+    ) ||
+      is_scalar_string(checkpoint) ||
+      S7_inherits(checkpoint, BioNeMoCheckpoint),
+    "revision must be 'recommended' or a full commit SHA" = identical(
+      revision,
+      "recommended"
+    ) ||
+      is_scalar_string(revision) &&
+        grepl("^[0-9a-fA-F]{40}$", revision),
+    "config must be a named list" = is.list(config) &&
+      (length(config) == 0L ||
+        !is.null(names(config)) &&
+          all(nzchar(names(config))) &&
+          !anyDuplicated(names(config))),
+    "config contains an unsupported model setting" = all(
+      names(config) %in% allowed_config
+    )
   )
 
   if (is_scalar_string(checkpoint)) {
@@ -625,12 +655,15 @@ evo2 <- function(
   if (S7_inherits(checkpoint, BioNeMoCheckpoint)) {
     checkpoint_record <- evo2_model_record(checkpoint@variant)
     stopifnot(
-      "checkpoint family must be 'evo2'" =
-        identical(checkpoint@family, "evo2"),
-      "checkpoint must be in MBridge format" =
-        identical(checkpoint@format, "mbridge"),
-      "checkpoint model size does not match the requested model" =
-        identical(checkpoint_record$name, record$name)
+      "checkpoint family must be 'evo2'" = identical(checkpoint@family, "evo2"),
+      "checkpoint must be in MBridge format" = identical(
+        checkpoint@format,
+        "mbridge"
+      ),
+      "checkpoint model size does not match the requested model" = identical(
+        checkpoint_record$name,
+        record$name
+      )
     )
   }
 
@@ -663,11 +696,11 @@ evo2 <- function(
 #' @export
 evo2_models <- function(compute = NULL, compatible = FALSE) {
   stopifnot(
-    "compute must be NULL or a BioNeMo compute descriptor" =
-      is.null(compute) || S7_inherits(compute, BioNeMoCompute),
+    "compute must be NULL or a BioNeMo compute descriptor" = is.null(compute) ||
+      S7_inherits(compute, BioNeMoCompute),
     "compatible must be TRUE or FALSE" = is_scalar_logical(compatible),
-    "compute is required when compatible is TRUE" =
-      !compatible || !is.null(compute)
+    "compute is required when compatible is TRUE" = !compatible ||
+      !is.null(compute)
   )
   registry <- evo2_model_registry()
   registry$prepared <- FALSE
@@ -742,7 +775,12 @@ method(print, BioNeMoModel) <- function(x, ...) {
       "\n",
       sep = ""
     )
-    cat("Ready:      ", if (is.null(checkpoint)) "no" else "yes", "\n", sep = "")
+    cat(
+      "Ready:      ",
+      if (is.null(checkpoint)) "no" else "yes",
+      "\n",
+      sep = ""
+    )
     return(invisible(x))
   }
   cat("<BioNeMo model>\n", sep = "")
@@ -774,8 +812,8 @@ method(as.data.frame, BioNeMoPrediction) <- function(
   ...
 ) {
   stopifnot(
-    "this prediction is not tabular" =
-      is.data.frame(x@data) || is.matrix(x@data)
+    "this prediction is not tabular" = is.data.frame(x@data) ||
+      is.matrix(x@data)
   )
   base::as.data.frame(
     x@data,

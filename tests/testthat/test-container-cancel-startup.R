@@ -34,10 +34,14 @@ test_that("container cancellation stops the process group during startup", {
   compute <- bionemo_compute(
     workspace = workspace,
     image = paste0("example/evo2@sha256:", strrep("a", 64L)),
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 

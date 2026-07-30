@@ -83,11 +83,15 @@ test_that("terminal jobs persist complete redacted run provenance", {
   expect_true(length(manifest$inputs) >= 1L)
   expect_true(length(manifest$outputs) >= 1L)
   files <- c(manifest$inputs, manifest$outputs)
-  expect_true(all(vapply(files, function(file) {
-    identical(file$digest$algorithm, "md5") &&
-      is.character(file$digest$value) &&
-      nzchar(file$digest$value)
-  }, logical(1))))
+  expect_true(all(vapply(
+    files,
+    function(file) {
+      identical(file$digest$algorithm, "md5") &&
+        is.character(file$digest$value) &&
+        nzchar(file$digest$value)
+    },
+    logical(1)
+  )))
   expect_true(any(grepl("non-ACGT", unlist(manifest$warnings))))
 
   persisted <- list.files(run_path, recursive = TRUE, full.names = TRUE)

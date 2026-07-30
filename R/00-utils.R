@@ -42,15 +42,13 @@ argument_origin_map <- function(
   auto_resolved = character()
 ) {
   stopifnot(
-    "values must be a named list" =
-      is.list(values) &&
-        !is.null(names(values)) &&
-        all(nzchar(names(values))),
+    "values must be a named list" = is.list(values) &&
+      !is.null(names(values)) &&
+      all(nzchar(names(values))),
     "call must be a matched call" = is.call(call),
-    "argument map must name request fields" =
-      is.character(argument_map) &&
-        !is.null(names(argument_map)) &&
-        all(nzchar(names(argument_map)))
+    "argument map must name request fields" = is.character(argument_map) &&
+      !is.null(names(argument_map)) &&
+      all(nzchar(names(argument_map)))
   )
   supplied <- setdiff(names(call), c("", "..."))
   origins <- stats::setNames(
@@ -66,8 +64,9 @@ argument_origin_map <- function(
   origins[intersect(adapter_defaults, names(origins))] <- "adapter_default"
   origins[intersect(auto_resolved, names(origins))] <- "auto_resolved"
   stopifnot(
-    "value origin is unsupported" =
-      all(unlist(origins, use.names = FALSE) %in% value_origin_codes)
+    "value origin is unsupported" = all(
+      unlist(origins, use.names = FALSE) %in% value_origin_codes
+    )
   )
   as.list(origins)
 }
@@ -87,16 +86,17 @@ object_value_origins <- function(object, fallback = "user_requested") {
 
 bionemor_abort <- function(code, message, ..., call = NULL) {
   stopifnot(
-    "code must be a registered BioNeMo condition code" =
-      is_scalar_string(code) && code %in% bionemor_condition_codes,
+    "code must be a registered BioNeMo condition code" = is_scalar_string(
+      code
+    ) &&
+      code %in% bionemor_condition_codes,
     "message must be one non-empty string" = is_scalar_string(message)
   )
   fields <- list(...)
   stopifnot(
-    "condition fields must be named" =
-      length(fields) == 0L ||
-        !is.null(names(fields)) &&
-          all(nzchar(names(fields)))
+    "condition fields must be named" = length(fields) == 0L ||
+      !is.null(names(fields)) &&
+        all(nzchar(names(fields)))
   )
   fields <- fields[!vapply(fields, is.null, logical(1))]
   condition <- structure(
@@ -198,8 +198,9 @@ credential_environment_variables <- c(
 
 process_environment <- function(allow = character()) {
   stopifnot(
-    "allow contains an unsupported credential environment variable" =
-      all(allow %in% credential_environment_variables)
+    "allow contains an unsupported credential environment variable" = all(
+      allow %in% credential_environment_variables
+    )
   )
   environment <- Sys.getenv()
   excluded <- setdiff(credential_environment_variables, allow)
@@ -277,7 +278,11 @@ prop_integer <- function(default = NULL, min = NULL, allow_null = FALSE) {
         return(NULL)
       }
       if (!is_scalar_integerish(value, min = min)) {
-        if (is.null(min)) "must be one integer" else paste0("must be at least ", min)
+        if (is.null(min)) {
+          "must be one integer"
+        } else {
+          paste0("must be at least ", min)
+        }
       }
     }
   )
@@ -320,8 +325,7 @@ atomic_write_lines <- function(text, path) {
   on.exit(unlink(temporary), add = TRUE)
   writeLines(text, temporary, useBytes = TRUE)
   stopifnot(
-    "failed to atomically replace output file" =
-      file.rename(temporary, path)
+    "failed to atomically replace output file" = file.rename(temporary, path)
   )
   invisible(path)
 }
@@ -352,8 +356,8 @@ read_json_file <- function(path, simplify = TRUE) {
 
 safe_name <- function(name, prefix) {
   stopifnot(
-    "prefix must be one safe name" =
-      is_scalar_string(prefix) && grepl("^[A-Za-z0-9_.-]+$", prefix)
+    "prefix must be one safe name" = is_scalar_string(prefix) &&
+      grepl("^[A-Za-z0-9_.-]+$", prefix)
   )
   if (is.null(name)) {
     stamp <- format(Sys.time(), "%Y%m%dT%H%M%S", tz = "UTC")
@@ -361,10 +365,9 @@ safe_name <- function(name, prefix) {
     return(paste(prefix, stamp, suffix, sep = "-"))
   }
   stopifnot(
-    "name must be one safe name" =
-      is_scalar_string(name) &&
-        grepl("^[A-Za-z0-9_.-]+$", name) &&
-        !(name %in% c(".", ".."))
+    "name must be one safe name" = is_scalar_string(name) &&
+      grepl("^[A-Za-z0-9_.-]+$", name) &&
+      !(name %in% c(".", ".."))
   )
   name
 }
@@ -399,8 +402,7 @@ path_digest <- function(path) {
 
 stable_partition_value <- function(seed, id) {
   stopifnot(
-    "seed must be a non-negative integer" =
-      is_scalar_integerish(seed, min = 0),
+    "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0),
     "id must be one non-empty string" = is_scalar_string(id)
   )
   values <- utf8ToInt(paste0(as.integer(seed), "\r", id))

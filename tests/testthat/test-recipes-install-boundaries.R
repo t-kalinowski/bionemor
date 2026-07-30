@@ -73,15 +73,18 @@ test_that("installation plans verify explicit images without rebuilding them", {
 
   expect_equal(ids[[1L]], "image-inspect")
   expect_true("image-labels" %in% ids)
-  expect_false(any(c(
-    "source-init",
-    "source-fetch",
-    "source-checkout",
-    "dockerfile-verify",
-    "base-image-pull",
-    "base-image-verify",
-    "image-build"
-  ) %in% ids))
+  expect_false(any(
+    c(
+      "source-init",
+      "source-fetch",
+      "source-checkout",
+      "dockerfile-verify",
+      "base-image-pull",
+      "base-image-verify",
+      "image-build"
+    ) %in%
+      ids
+  ))
 })
 
 test_that("the NGC base image builds a distinct derived recipe image", {
@@ -175,15 +178,19 @@ test_that("installation builds from locked source and immutable image inputs", {
       "materialize-evo2.py"
     )
   }
-  helper_revision <- trimws(processx::run(
-    real_git,
-    c("hash-object", helper)
-  )$stdout)
+  helper_revision <- trimws(
+    processx::run(
+      real_git,
+      c("hash-object", helper)
+    )$stdout
+  )
   labels <- as.list(c(
     "org.opencontainers.image.source" = recipe@repository,
     "org.opencontainers.image.revision" = recipe@revision,
-    "org.opencontainers.image.version" =
-      paste0("evo2-recipe-", recipe@recipe_version),
+    "org.opencontainers.image.version" = paste0(
+      "evo2-recipe-",
+      recipe@recipe_version
+    ),
     "io.bionemor.helper.revision" = helper_revision,
     "io.bionemor.base.image" = recipe@base_image,
     "io.bionemor.base.digest" = recipe@base_image_digest,

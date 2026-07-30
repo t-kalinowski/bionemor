@@ -55,10 +55,8 @@ install_paths <- function(compute) {
 
 recipe_image_requires_build <- function(compute) {
   compute@recipe@verified &&
-    (
-      identical(compute@image, default_recipe_image(compute@recipe)) ||
-        identical(compute@image, compute@recipe@base_image)
-    )
+    (identical(compute@image, default_recipe_image(compute@recipe)) ||
+      identical(compute@image, compute@recipe@base_image))
 }
 
 install_step <- function(id, purpose, command, expected = list()) {
@@ -77,8 +75,10 @@ expected_container_image_labels <- function(
   c(
     "org.opencontainers.image.source" = recipe@repository,
     "org.opencontainers.image.revision" = recipe@revision,
-    "org.opencontainers.image.version" =
-      paste0("evo2-recipe-", recipe@recipe_version),
+    "org.opencontainers.image.version" = paste0(
+      "evo2-recipe-",
+      recipe@recipe_version
+    ),
     "io.bionemor.helper.revision" = helper_revision,
     "io.bionemor.base.image" = recipe@base_image,
     "io.bionemor.base.digest" = recipe@base_image_digest %||% "",
@@ -119,12 +119,13 @@ runtime_probe_command <- function(
   immutable = TRUE
 ) {
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute),
-    "probe executable must be one command name" =
-      is_scalar_string(executable),
-    "probe arguments must be a character vector" =
-      is.character(args) && !anyNA(args),
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "probe executable must be one command name" = is_scalar_string(executable),
+    "probe arguments must be a character vector" = is.character(args) &&
+      !anyNA(args),
     "gpus must be TRUE or FALSE" = is_scalar_logical(gpus),
     "immutable must be TRUE or FALSE" = is_scalar_logical(immutable)
   )
@@ -146,11 +147,9 @@ runtime_probe_command <- function(
     }
     if (
       !is_scalar_string(image) ||
-        (
-          immutable &&
-            !grepl("^sha256:[0-9a-fA-F]{64}$", image) &&
-            !grepl("@sha256:[0-9a-fA-F]{64}$", image)
-        )
+        (immutable &&
+          !grepl("^sha256:[0-9a-fA-F]{64}$", image) &&
+          !grepl("@sha256:[0-9a-fA-F]{64}$", image))
     ) {
       bionemor_abort(
         "BN_RUNTIME_MISSING",
@@ -163,10 +162,13 @@ runtime_probe_command <- function(
     return(command_spec(
       engine,
       c(
-        "run", "--rm",
+        "run",
+        "--rm",
         if (gpus) c("--gpus", "all"),
-        "-v", paste0(compute@workspace, ":", compute@workspace),
-        "-w", compute@workspace,
+        "-v",
+        paste0(compute@workspace, ":", compute@workspace),
+        "-w",
+        compute@workspace,
         image,
         executable,
         args
@@ -179,8 +181,10 @@ runtime_probe_command <- function(
     c(
       "exec",
       if (gpus) "--nv",
-      "--bind", paste0(compute@workspace, ":", compute@workspace),
-      "--pwd", compute@workspace,
+      "--bind",
+      paste0(compute@workspace, ":", compute@workspace),
+      "--pwd",
+      compute@workspace,
       compute@image,
       executable,
       args
@@ -226,8 +230,10 @@ runtime_install_steps <- function(compute, target = "all") {
 #' @export
 bionemo_install_plan <- function(compute) {
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute)
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    )
   )
   paths <- install_paths(compute)
   recipe <- compute@recipe
@@ -310,8 +316,11 @@ bionemo_install_plan <- function(compute) {
       command_spec(
         "git",
         c(
-          "-C", paths$source,
-          "fetch", "--depth", "1",
+          "-C",
+          paths$source,
+          "fetch",
+          "--depth",
+          "1",
           recipe@repository,
           recipe@revision
         )
@@ -371,8 +380,10 @@ bionemo_install_plan <- function(compute) {
         container_engine,
         c(
           "build",
-          "--file", file.path(paths$context, "Dockerfile"),
-          "--tag", default_recipe_image(recipe),
+          "--file",
+          file.path(paths$context, "Dockerfile"),
+          "--tag",
+          default_recipe_image(recipe),
           "--build-arg",
           paste0("BIONEMOR_RECIPE_REVISION=", recipe@revision),
           "--build-arg",
@@ -508,7 +519,10 @@ fetch_recipe_source <- function(paths, recipe, lock) {
   temporary <- tempfile("source-", tmpdir = paths$root)
   dir.create(temporary)
   complete <- FALSE
-  on.exit(if (!complete) unlink(temporary, recursive = TRUE, force = TRUE), add = TRUE)
+  on.exit(
+    if (!complete) unlink(temporary, recursive = TRUE, force = TRUE),
+    add = TRUE
+  )
   run_install_command(
     "git",
     c("-C", temporary, "init"),
@@ -518,8 +532,11 @@ fetch_recipe_source <- function(paths, recipe, lock) {
   run_install_command(
     "git",
     c(
-      "-C", temporary,
-      "fetch", "--depth", "1",
+      "-C",
+      temporary,
+      "fetch",
+      "--depth",
+      "1",
       recipe@repository,
       recipe@revision
     ),
@@ -560,9 +577,11 @@ prepare_recipe_build_context <- function(paths, recipe) {
     )
   }
   stopifnot(
-    "build context must be inside the installation root" =
-      path_is_within(paths$context, paths$root) &&
-        !identical(paths$context, paths$root)
+    "build context must be inside the installation root" = path_is_within(
+      paths$context,
+      paths$root
+    ) &&
+      !identical(paths$context, paths$root)
   )
   if (!recipe@verified || !is_scalar_string(recipe@base_image_digest)) {
     bionemor_abort(
@@ -595,7 +614,8 @@ prepare_recipe_build_context <- function(paths, recipe) {
   run_install_command(
     "git",
     c(
-      "-C", paths$source,
+      "-C",
+      paths$source,
       "archive",
       "--format=tar",
       paste0("--output=", archive),
@@ -781,12 +801,10 @@ verify_container_image_labels <- function(compute) {
 
 verify_base_image_digest <- function(engine, recipe) {
   stopifnot(
-    "container engine must be one command name" =
-      is_scalar_string(engine),
-    "recipe must be a BioNeMo recipe" =
-      S7_inherits(recipe, BioNeMoRecipe),
-    "verified recipes require a locked base-image digest" =
-      !recipe@verified || is_scalar_string(recipe@base_image_digest)
+    "container engine must be one command name" = is_scalar_string(engine),
+    "recipe must be a BioNeMo recipe" = S7_inherits(recipe, BioNeMoRecipe),
+    "verified recipes require a locked base-image digest" = !recipe@verified ||
+      is_scalar_string(recipe@base_image_digest)
   )
   if (is.null(recipe@base_image_digest)) {
     return(invisible(recipe))
@@ -845,8 +863,10 @@ bionemo_install <- function(
   keep_source = FALSE
 ) {
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute),
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
     "rebuild must be TRUE or FALSE" = is_scalar_logical(rebuild),
     "pull must be TRUE or FALSE" = is_scalar_logical(pull),
     "keep_source must be TRUE or FALSE" = is_scalar_logical(keep_source)
@@ -904,8 +924,10 @@ bionemo_install <- function(
       engine,
       c(
         "build",
-        "--file", file.path(paths$context, "Dockerfile"),
-        "--tag", default_recipe_image(compute@recipe),
+        "--file",
+        file.path(paths$context, "Dockerfile"),
+        "--tag",
+        default_recipe_image(compute@recipe),
         "--build-arg",
         paste0("BIONEMOR_RECIPE_REVISION=", compute@recipe@revision),
         "--build-arg",
@@ -1019,7 +1041,10 @@ slurm_runtime_probe <- function(
   if (length(missing) > 0L) {
     bionemor_abort(
       "BN_RUNTIME_MISSING",
-      paste("required Slurm command is not available:", paste(missing, collapse = ", ")),
+      paste(
+        "required Slurm command is not available:",
+        paste(missing, collapse = ", ")
+      ),
       operation = "runtime-probe",
       recipe_revision = compute@recipe@revision,
       hint = "Load the Slurm client commands before probing the runtime."
@@ -1104,14 +1129,17 @@ slurm_runtime_probe <- function(
     record <- slurm_probe_record(id)
     if (!is.null(record)) {
       state <- sub("[+ ].*$", "", toupper(trimws(record[[2L]])))
-      if (state %in% c(
-        "COMPLETED",
-        "CANCELLED",
-        "FAILED",
-        "TIMEOUT",
-        "OUT_OF_MEMORY",
-        "NODE_FAIL"
-      )) {
+      if (
+        state %in%
+          c(
+            "COMPLETED",
+            "CANCELLED",
+            "FAILED",
+            "TIMEOUT",
+            "OUT_OF_MEMORY",
+            "NODE_FAIL"
+          )
+      ) {
         break
       }
     }
@@ -1156,7 +1184,12 @@ slurm_runtime_probe <- function(
   )
 }
 
-runtime_probe <- function(compute, executable, args = character(), gpus = FALSE) {
+runtime_probe <- function(
+  compute,
+  executable,
+  args = character(),
+  gpus = FALSE
+) {
   if (compute@backend == "slurm") {
     return(slurm_runtime_probe(
       compute,
@@ -1183,8 +1216,10 @@ runtime_probe <- function(compute, executable, args = character(), gpus = FALSE)
 
 runtime_capabilities <- function(compute, refresh = FALSE) {
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute),
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
     "refresh must be TRUE or FALSE" = is_scalar_logical(refresh)
   )
   cached <- compute@config$capabilities
@@ -1482,21 +1517,25 @@ doctor_runtime_rows <- function(report, compute) {
   gpu_detail <- paste(gpu_count, "GPU(s)")
   gpus <- runtime$gpus
   if (is.data.frame(gpus) && nrow(gpus) > 0L) {
-    details <- vapply(seq_len(nrow(gpus)), function(index) {
-      major <- gpus$compute_capability_major[[index]]
-      minor <- gpus$compute_capability_minor[[index]]
-      memory <- as.double(gpus$total_memory_bytes[[index]]) / 1024^3
-      paste0(
-        gpus$name[[index]],
-        " compute ",
-        major,
-        ".",
-        minor,
-        ", ",
-        format(round(memory, 1), nsmall = 1),
-        " GiB"
-      )
-    }, character(1))
+    details <- vapply(
+      seq_len(nrow(gpus)),
+      function(index) {
+        major <- gpus$compute_capability_major[[index]]
+        minor <- gpus$compute_capability_minor[[index]]
+        memory <- as.double(gpus$total_memory_bytes[[index]]) / 1024^3
+        paste0(
+          gpus$name[[index]],
+          " compute ",
+          major,
+          ".",
+          minor,
+          ", ",
+          format(round(memory, 1), nsmall = 1),
+          " GiB"
+        )
+      },
+      character(1)
+    )
     gpu_detail <- paste(
       paste(details, collapse = "; "),
       "driver",
@@ -1622,8 +1661,7 @@ doctor_capabilities <- function(compute, target, model = NULL) {
     models <- evo2_models(compatible_compute)
     selected <- models[models$name == model@size, , drop = FALSE]
     stopifnot(
-      "model is missing from the compatibility registry" =
-        nrow(selected) == 1L
+      "model is missing from the compatibility registry" = nrow(selected) == 1L
     )
     rows[[length(rows) + 1L]] <- doctor_row(
       "model compatibility",
@@ -1722,10 +1760,12 @@ bionemo_doctor <- function(
 ) {
   target <- match.arg(target)
   stopifnot(
-    "compute must be a BioNeMo compute descriptor" =
-      S7_inherits(compute, BioNeMoCompute),
-    "model must be NULL or an Evo 2 model" =
-      is.null(model) || S7_inherits(model, Evo2Model),
+    "compute must be a BioNeMo compute descriptor" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "model must be NULL or an Evo 2 model" = is.null(model) ||
+      S7_inherits(model, Evo2Model),
     "verbose must be TRUE or FALSE" = is_scalar_logical(verbose)
   )
   checks <- rbind(

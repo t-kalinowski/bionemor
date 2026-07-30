@@ -96,48 +96,54 @@ normalize_sequence_values <- function(x, normalize) {
     }
     return(x)
   }
-  values <- vapply(seq_along(x), function(index) {
-    value <- x[[index]]
-    request_id <- names(x)[[index]]
-    tag <- ""
-    sequence <- value
-    if (startsWith(value, "|")) {
-      closing <- regexpr("|", substring(value, 2L), fixed = TRUE)[[1L]]
-      if (closing <= 0L) {
+  values <- vapply(
+    seq_along(x),
+    function(index) {
+      value <- x[[index]]
+      request_id <- names(x)[[index]]
+      tag <- ""
+      sequence <- value
+      if (startsWith(value, "|")) {
+        closing <- regexpr("|", substring(value, 2L), fixed = TRUE)[[1L]]
+        if (closing <= 0L) {
+          abort_invalid_sequence(
+            "Evo 2 phylogenetic prompt tag is not closed",
+            request_id = request_id
+          )
+        }
+        closing <- closing + 1L
+        tag <- substring(value, 1L, closing)
+        sequence <- substring(value, closing + 1L)
+        valid_tag <- grepl(
+          paste0(
+            "^\\|D__[^;|]*;P__[^;|]*;C__[^;|]*;",
+            "O__[^;|]*;F__[^;|]*;G__[^;|]*;S__[^;|]*\\|$"
+          ),
+          tag
+        )
+        if (!valid_tag) {
+          abort_invalid_sequence(
+            "Evo 2 phylogenetic prompt tag has an invalid rank layout",
+            request_id = request_id
+          )
+        }
+      }
+      sequence <- gsub("[ \t\f\v]", "", sequence)
+      if (
+        nzchar(sequence) &&
+          !grepl("^[ACGTRYSWKMBDHVN]+$", sequence)
+      ) {
         abort_invalid_sequence(
-          "Evo 2 phylogenetic prompt tag is not closed",
+          paste0(
+            "Evo 2 prompts may contain a phylogenetic tag followed by IUPAC DNA"
+          ),
           request_id = request_id
         )
       }
-      closing <- closing + 1L
-      tag <- substring(value, 1L, closing)
-      sequence <- substring(value, closing + 1L)
-      valid_tag <- grepl(
-        paste0(
-          "^\\|D__[^;|]*;P__[^;|]*;C__[^;|]*;",
-          "O__[^;|]*;F__[^;|]*;G__[^;|]*;S__[^;|]*\\|$"
-        ),
-        tag
-      )
-      if (!valid_tag) {
-        abort_invalid_sequence(
-          "Evo 2 phylogenetic prompt tag has an invalid rank layout",
-          request_id = request_id
-        )
-      }
-    }
-    sequence <- gsub("[ \t\f\v]", "", sequence)
-    if (nzchar(sequence) &&
-        !grepl("^[ACGTRYSWKMBDHVN]+$", sequence)) {
-      abort_invalid_sequence(
-        paste0(
-          "Evo 2 prompts may contain a phylogenetic tag followed by IUPAC DNA"
-        ),
-        request_id = request_id
-      )
-    }
-    paste0(tag, sequence)
-  }, character(1))
+      paste0(tag, sequence)
+    },
+    character(1)
+  )
   names(values) <- names(x)
   values
 }
@@ -191,13 +197,17 @@ read_fasta <- function(path) {
       path = path
     )
   }
-  sequences <- Map(function(start, end) {
-    if (start == end) {
-      ""
-    } else {
-      paste0(lines[seq.int(start + 1L, end)], collapse = "")
-    }
-  }, headers, ends)
+  sequences <- Map(
+    function(start, end) {
+      if (start == end) {
+        ""
+      } else {
+        paste0(lines[seq.int(start + 1L, end)], collapse = "")
+      }
+    },
+    headers,
+    ends
+  )
   as_sequences(stats::setNames(unlist(sequences, use.names = FALSE), ids))
 }
 
@@ -212,7 +222,11 @@ prepare_sequence_input <- function(
   if (!is.null(name)) {
     run_path <- file.path(run_path, ".bionemor", "jobs", name)
   }
-  dir.create(file.path(run_path, "inputs"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(
+    file.path(run_path, "inputs"),
+    recursive = TRUE,
+    showWarnings = FALSE
+  )
 
   source <- "memory"
   source_path <- NULL
@@ -281,23 +295,26 @@ validate_sequence_context <- function(
   max_sequence_length = NULL
 ) {
   stopifnot(
-    "input must be a prepared sequence input" =
-      is.list(input) &&
-        is.character(input$ids) &&
-        is.character(input$sequences),
+    "input must be a prepared sequence input" = is.list(input) &&
+      is.character(input$ids) &&
+      is.character(input$sequences),
     "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
-    "operation must be one inference operation" =
-      operation %in% c("generation", "score", "profile", "embedding"),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "operation must be one inference operation" = operation %in%
+      c("generation", "score", "profile", "embedding"),
     "run path must exist" = is_scalar_string(run_path) && dir.exists(run_path),
-    "checkpoint must be one non-empty string" =
-      is_scalar_string(checkpoint),
-    "additional tokens must be a non-negative integer" =
-      is_scalar_integerish(additional_tokens, min = 0),
-    "maximum sequence length must be NULL or a positive integer" =
-      is.null(max_sequence_length) ||
-        is_scalar_integerish(max_sequence_length, min = 1)
+    "checkpoint must be one non-empty string" = is_scalar_string(checkpoint),
+    "additional tokens must be a non-negative integer" = is_scalar_integerish(
+      additional_tokens,
+      min = 0
+    ),
+    "maximum sequence length must be NULL or a positive integer" = is.null(
+      max_sequence_length
+    ) ||
+      is_scalar_integerish(max_sequence_length, min = 1)
   )
   model_context_length <- as.integer(object@context_length)
   context_length <- if (is.null(max_sequence_length)) {
@@ -343,9 +360,12 @@ validate_sequence_context <- function(
 
 write_jsonl_rows <- function(rows, path) {
   stopifnot(
-    "rows must be a list of named records" =
-      is.list(rows) &&
-        all(vapply(rows, function(x) is.list(x) && !is.null(names(x)), logical(1)))
+    "rows must be a list of named records" = is.list(rows) &&
+      all(vapply(
+        rows,
+        function(x) is.list(x) && !is.null(names(x)),
+        logical(1)
+      ))
   )
   lines <- vapply(
     rows,
@@ -375,22 +395,37 @@ read_jsonl_rows <- function(path) {
 
 reverse_complement <- function(x, request_id = NULL) {
   complement <- c(
-    A = "T", C = "G", G = "C", T = "A",
-    R = "Y", Y = "R", S = "S", W = "W",
-    K = "M", M = "K", B = "V", D = "H",
-    H = "D", V = "B", N = "N"
+    A = "T",
+    C = "G",
+    G = "C",
+    T = "A",
+    R = "Y",
+    Y = "R",
+    S = "S",
+    W = "W",
+    K = "M",
+    M = "K",
+    B = "V",
+    D = "H",
+    H = "D",
+    V = "B",
+    N = "N"
   )
-  vapply(strsplit(x, "", fixed = TRUE), function(bases) {
-    if (!all(bases %in% names(complement))) {
-      abort_invalid_sequence(
-        paste0(
-          "reverse-complement input may contain only uppercase IUPAC DNA symbols"
-        ),
-        request_id = request_id
-      )
-    }
-    paste0(rev(unname(complement[bases])), collapse = "")
-  }, character(1))
+  vapply(
+    strsplit(x, "", fixed = TRUE),
+    function(bases) {
+      if (!all(bases %in% names(complement))) {
+        abort_invalid_sequence(
+          paste0(
+            "reverse-complement input may contain only uppercase IUPAC DNA symbols"
+          ),
+          request_id = request_id
+        )
+      }
+      paste0(rev(unname(complement[bases])), collapse = "")
+    },
+    character(1)
+  )
 }
 
 prepare_stranded_input <- function(input, run_path, strand) {
@@ -470,18 +505,16 @@ evo2_phylo_tag <- function(
     s = species
   )
   stopifnot(
-    "taxonomy ranks must be NULL or one non-empty string" =
-      all(vapply(
-        ranks,
-        function(x) is.null(x) || is_scalar_string(x),
-        logical(1)
-      )),
-    "taxonomy ranks must not contain separators or line breaks" =
-      all(vapply(
-        ranks,
-        function(x) is.null(x) || !grepl("[;|\r\n]", x),
-        logical(1)
-      )),
+    "taxonomy ranks must be NULL or one non-empty string" = all(vapply(
+      ranks,
+      function(x) is.null(x) || is_scalar_string(x),
+      logical(1)
+    )),
+    "taxonomy ranks must not contain separators or line breaks" = all(vapply(
+      ranks,
+      function(x) is.null(x) || !grepl("[;|\r\n]", x),
+      logical(1)
+    )),
     "uppercase must be TRUE or FALSE" = is_scalar_logical(uppercase)
   )
   values <- vapply(ranks, function(x) x %||% "None", character(1))
@@ -523,13 +556,11 @@ inference_checkpoint_defaults <- function(checkpoint, manifest = NULL) {
     error = function(...) NULL
   )
   list(
-    mixed_precision_recipe =
-      manifest$mixed_precision_recipe %||%
-        record$mixed_precision_recipe %||%
-        NULL,
+    mixed_precision_recipe = manifest$mixed_precision_recipe %||%
+      record$mixed_precision_recipe %||%
+      NULL,
     precision_policy = record$precision_policy %||% NULL,
-    vortex_style_fp8 =
-      isTRUE(manifest$inspection$vortex_style_fp8)
+    vortex_style_fp8 = isTRUE(manifest$inspection$vortex_style_fp8)
   )
 }
 
@@ -539,7 +570,9 @@ verified_hopper_runtime <- function(compute) {
     report <- runtime_capabilities(compute, refresh = TRUE)
   }
   gpus <- report$runtime$gpus
-  majors <- if (is.data.frame(gpus) && "compute_capability_major" %in% names(gpus)) {
+  majors <- if (
+    is.data.frame(gpus) && "compute_capability_major" %in% names(gpus)
+  ) {
     as.integer(gpus$compute_capability_major)
   } else if (is.list(gpus)) {
     vapply(
@@ -570,10 +603,8 @@ resolved_inference_control <- function(
   defaults <- inference_checkpoint_defaults(checkpoint, checkpoint_manifest)
   vortex_setting <- control_property(control, "vortex_style_fp8", "auto")
   automatic_vortex <- identical(vortex_setting, "auto") &&
-    (
-      isTRUE(defaults$vortex_style_fp8) ||
-        identical(defaults$precision_policy, "vortex-fp8-on-hopper")
-    )
+    (isTRUE(defaults$vortex_style_fp8) ||
+      identical(defaults$precision_policy, "vortex-fp8-on-hopper"))
   vortex <- switch(
     vortex_setting,
     yes = TRUE,
@@ -594,8 +625,9 @@ resolved_inference_control <- function(
   }
   if (automatic_vortex) {
     stopifnot(
-      "automatic Vortex FP8 requires a verified Hopper GPU capability report" =
-        verified_hopper_runtime(compute)
+      "automatic Vortex FP8 requires a verified Hopper GPU capability report" = verified_hopper_runtime(
+        compute
+      )
     )
   }
   subquadratic <- control_property(control, "subquadratic_ops", FALSE)
@@ -606,19 +638,22 @@ resolved_inference_control <- function(
   world_size <- as.integer(compute@gpus * compute@nodes)
   model_parallel <- as.integer(tensor * pipeline * context)
   stopifnot(
-    "tensor parallelism must be a positive integer" =
-      is_scalar_integerish(tensor, min = 1),
-    "pipeline parallelism must equal one" =
-      identical(as.integer(pipeline), 1L),
-    "context parallelism must be a positive integer" =
-      is_scalar_integerish(context, min = 1),
-    "model parallelism cannot exceed the allocated world size" =
-      model_parallel <= world_size
+    "tensor parallelism must be a positive integer" = is_scalar_integerish(
+      tensor,
+      min = 1
+    ),
+    "pipeline parallelism must equal one" = identical(as.integer(pipeline), 1L),
+    "context parallelism must be a positive integer" = is_scalar_integerish(
+      context,
+      min = 1
+    ),
+    "model parallelism cannot exceed the allocated world size" = model_parallel <=
+      world_size
   )
   if (operation == "generation") {
     stopifnot(
-      "generation world size must equal the model-parallel product" =
-        model_parallel == world_size
+      "generation world size must equal the model-parallel product" = model_parallel ==
+        world_size
     )
   }
   list(
@@ -691,17 +726,24 @@ prediction_extra_args <- function(extra) {
     no_sequence_parallel = "--no-sequence-parallel",
     min_length = "--min-length"
   )
-  unlist(Map(function(name, value) {
-    flag <- unname(mapping[[name]])
-    if (is.logical(value)) {
-      if (isTRUE(value)) flag else character()
-    } else {
-      c(
-        flag,
-        if (is.numeric(value)) format_number(value) else as.character(value)
-      )
-    }
-  }, names(extra), extra), use.names = FALSE)
+  unlist(
+    Map(
+      function(name, value) {
+        flag <- unname(mapping[[name]])
+        if (is.logical(value)) {
+          if (isTRUE(value)) flag else character()
+        } else {
+          c(
+            flag,
+            if (is.numeric(value)) format_number(value) else as.character(value)
+          )
+        }
+      },
+      names(extra),
+      extra
+    ),
+    use.names = FALSE
+  )
 }
 
 prediction_ignored_extra_fields <- c(
@@ -713,10 +755,16 @@ prediction_ignored_extra_fields <- c(
 
 validate_generation_control <- function(control) {
   stopifnot(
-    "control micro_batch_size is unsupported; use max_batch_size for generation" =
-      identical(control_property(control, "micro_batch_size", 1L), 1L),
-    "inference extra settings are not supported for generation" =
-      length(control_property(control, "extra", list())) == 0L
+    "control micro_batch_size is unsupported; use max_batch_size for generation" = identical(
+      control_property(control, "micro_batch_size", 1L),
+      1L
+    ),
+    "inference extra settings are not supported for generation" = length(control_property(
+      control,
+      "extra",
+      list()
+    )) ==
+      0L
   )
   invisible(control)
 }
@@ -747,8 +795,10 @@ validate_prediction_control <- function(control) {
     )
   }
   stopifnot(
-    "control micro_batch_size is unsupported; use the task-specific batch_size argument" =
-      identical(control_property(control, "micro_batch_size", 1L), 1L)
+    "control micro_batch_size is unsupported; use the task-specific batch_size argument" = identical(
+      control_property(control, "micro_batch_size", 1L),
+      1L
+    )
   )
   invisible(control)
 }
@@ -793,20 +843,29 @@ evo2_generation_plan <- function(
     checkpoint_manifest
   )
   args <- c(
-    "--ckpt-dir", checkpoint,
-    "--prompt-file", prompts,
-    "--max-new-tokens", as.character(num_tokens),
-    "--temperature", format_number(temperature),
-    "--top-k", as.character(top_k),
-    "--top-p", format_number(top_p),
-    "--output-file", upstream,
+    "--ckpt-dir",
+    checkpoint,
+    "--prompt-file",
+    prompts,
+    "--max-new-tokens",
+    as.character(num_tokens),
+    "--temperature",
+    format_number(temperature),
+    "--top-k",
+    as.character(top_k),
+    "--top-p",
+    format_number(top_p),
+    "--output-file",
+    upstream,
     parallel_command_args(resolved),
     precision_command_args(resolved),
     if (!is.null(resolved$max_sequence_length)) {
       c("--max-seq-length", as.character(resolved$max_sequence_length))
     },
-    "--max-batch-size", as.character(resolved$max_batch_size),
-    "--cuda-graph-impl", resolved$cuda_graphs,
+    "--max-batch-size",
+    as.character(resolved$max_batch_size),
+    "--cuda-graph-impl",
+    resolved$cuda_graphs,
     if (resolved$subquadratic_ops) "--use-subquadratic-ops",
     if (resolved$chunked_prefill) "--enable-chunked-prefill",
     if (!is.null(resolved$dynamic_max_tokens)) {
@@ -822,13 +881,20 @@ evo2_generation_plan <- function(
   )
   validation_args <- c(
     "validate-generation",
-    "--input", upstream,
-    "--prompts", prompts,
-    "--output", portable,
-    "--fasta", fasta,
-    "--validation", validation,
-    "--num-tokens", as.character(num_tokens),
-    "--validate", validate,
+    "--input",
+    upstream,
+    "--prompts",
+    prompts,
+    "--output",
+    portable,
+    "--fasta",
+    fasta,
+    "--validation",
+    validation,
+    "--num-tokens",
+    as.character(num_tokens),
+    "--validate",
+    validate,
     if (return_probabilities) "--return-probabilities"
   )
   command_plan(
@@ -868,8 +934,8 @@ evo2_prediction_plan <- function(
   checkpoint_manifest = NULL
 ) {
   stopifnot(
-    "prediction mode is unsupported" =
-      mode %in% c(
+    "prediction mode is unsupported" = mode %in%
+      c(
         "score",
         "profile",
         "embedding-pooled",
@@ -884,25 +950,37 @@ evo2_prediction_plan <- function(
     checkpoint_manifest
   )
   stopifnot(
-    "max_sequence_length is supported only for generation" =
-      is.null(resolved$max_sequence_length),
-    "max_batch_size is supported only for generation" =
-      identical(resolved$max_batch_size, 1L),
-    "CUDA graph controls are supported only for generation" =
-      identical(control_property(control, "cuda_graphs", "auto"), "auto"),
-    "chunked prefill is supported only for generation" =
-      !resolved$chunked_prefill,
-    "dynamic_max_tokens is supported only for generation" =
-      is.null(resolved$dynamic_max_tokens),
-    "dynamic_block_size is supported only for generation" =
-      identical(resolved$dynamic_block_size, 256L)
+    "max_sequence_length is supported only for generation" = is.null(
+      resolved$max_sequence_length
+    ),
+    "max_batch_size is supported only for generation" = identical(
+      resolved$max_batch_size,
+      1L
+    ),
+    "CUDA graph controls are supported only for generation" = identical(
+      control_property(control, "cuda_graphs", "auto"),
+      "auto"
+    ),
+    "chunked prefill is supported only for generation" = !resolved$chunked_prefill,
+    "dynamic_max_tokens is supported only for generation" = is.null(
+      resolved$dynamic_max_tokens
+    ),
+    "dynamic_block_size is supported only for generation" = identical(
+      resolved$dynamic_block_size,
+      256L
+    )
   )
   predict_args <- c(
-    "--fasta", input$path,
-    "--ckpt-dir", checkpoint,
-    "--output-dir", upstream,
-    "--micro-batch-size", as.character(batch_size),
-    "--write-interval", "epoch",
+    "--fasta",
+    input$path,
+    "--ckpt-dir",
+    checkpoint,
+    "--output-dir",
+    upstream,
+    "--micro-batch-size",
+    as.character(batch_size),
+    "--write-interval",
+    "epoch",
     parallel_command_args(resolved),
     precision_command_args(resolved),
     if (resolved$subquadratic_ops) "--use-subquadratic-ops",
@@ -913,30 +991,37 @@ evo2_prediction_plan <- function(
     predict_args <- c(
       predict_args,
       "--output-log-prob-seqs",
-      "--log-prob-collapse-option", "per_token"
+      "--log-prob-collapse-option",
+      "per_token"
     )
   } else if (mode == "profile") {
     predict_args <- c(
       predict_args,
       "--output-log-prob-seqs",
-      "--log-prob-collapse-option", "per_token"
+      "--log-prob-collapse-option",
+      "per_token"
     )
   } else {
     predict_args <- c(
       predict_args,
-      "--embedding-layer", as.character(layer)
+      "--embedding-layer",
+      as.character(layer)
     )
   }
   helper_args <- c(
     "materialize-predictions",
-    "--mode", mode,
-    "--input", upstream,
-    "--sequence-map", file.path(
+    "--mode",
+    mode,
+    "--input",
+    upstream,
+    "--sequence-map",
+    file.path(
       dirname(dirname(input$path)),
       "inputs",
       "sequence-map.json"
     ),
-    "--output", portable,
+    "--output",
+    portable,
     if (mode == "score") c("--reduction", reduction),
     if (!is.null(pool)) c("--pool", pool)
   )

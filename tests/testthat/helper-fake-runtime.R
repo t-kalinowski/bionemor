@@ -382,22 +382,25 @@ fake_container_runtime <- function(bin, engine = "docker") {
       "materialize-evo2.py"
     )
   }
-  helper_revision <- trimws(processx::run(
-    "git",
-    c("hash-object", helper)
-  )$stdout)
+  helper_revision <- trimws(
+    processx::run(
+      "git",
+      c("hash-object", helper)
+    )$stdout
+  )
   recipe <- evo2_recipe()
   labels <- jsonlite::toJSON(
     as.list(c(
       "org.opencontainers.image.source" = recipe@repository,
       "org.opencontainers.image.revision" = recipe@revision,
-      "org.opencontainers.image.version" =
-        paste0("evo2-recipe-", recipe@recipe_version),
+      "org.opencontainers.image.version" = paste0(
+        "evo2-recipe-",
+        recipe@recipe_version
+      ),
       "io.bionemor.helper.revision" = helper_revision,
       "io.bionemor.base.image" = recipe@base_image,
       "io.bionemor.base.digest" = recipe@base_image_digest,
-      "io.bionemor.bridge.protocol" =
-        as.character(recipe@bridge_protocol)
+      "io.bionemor.bridge.protocol" = as.character(recipe@bridge_protocol)
     )),
     auto_unbox = TRUE
   )

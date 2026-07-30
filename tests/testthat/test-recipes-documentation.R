@@ -4,12 +4,15 @@ test_that("installed metadata and exports describe the Recipes runtime", {
 
   expect_match(text, "BioNeMo Recipes", fixed = TRUE)
   expect_match(text, "MBridge", fixed = TRUE)
-  expect_true(all(c(
-    "bionemo_install",
-    "evo2_generate",
-    "evo2_score",
-    "evo2_finetune"
-  ) %in% getNamespaceExports("bionemor")))
+  expect_true(all(
+    c(
+      "bionemo_install",
+      "evo2_generate",
+      "evo2_score",
+      "evo2_finetune"
+    ) %in%
+      getNamespaceExports("bionemor")
+  ))
   expect_false(grepl("reticulate", description$Imports, fixed = TRUE))
 })
 

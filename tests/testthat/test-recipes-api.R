@@ -98,21 +98,27 @@ test_that("a Savanna checkpoint is converted once and registered as MBridge", {
 
   expect_s3_class(checkpoint, "bionemor::BioNeMoCheckpoint")
   expect_equal(checkpoint@format, "mbridge")
-  expect_true(file.exists(file.path(checkpoint_path(checkpoint), "run_config.yaml")))
+  expect_true(file.exists(file.path(
+    checkpoint_path(checkpoint),
+    "run_config.yaml"
+  )))
   args <- readLines(log)
   expect_equal(sum(args == "convert"), 1L)
-  expect_true(all(c(
-    "--savanna-ckpt-path",
-    "arcinstitute/savanna_evo2_7b",
-    "--mbridge-ckpt-dir",
-    checkpoint_path(checkpoint),
-    "--model-size",
-    "evo2_7b",
-    "--seq-length",
-    "1048576",
-    "--revision",
-    "9e69aeeaacf4d11fdbabfa73da65a770e5031f02"
-  ) %in% args))
+  expect_true(all(
+    c(
+      "--savanna-ckpt-path",
+      "arcinstitute/savanna_evo2_7b",
+      "--mbridge-ckpt-dir",
+      checkpoint_path(checkpoint),
+      "--model-size",
+      "evo2_7b",
+      "--seq-length",
+      "1048576",
+      "--revision",
+      "9e69aeeaacf4d11fdbabfa73da65a770e5031f02"
+    ) %in%
+      args
+  ))
 
   manifest <- checkpoint_manifest(checkpoint)
   expect_equal(manifest$source, "hf://arcinstitute/savanna_evo2_7b")
@@ -301,10 +307,14 @@ test_that("inference uses the checkpoint iteration selected by its manifest", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
 
   generated <- evo2_generate(model, "ACGT", compute, num_tokens = 4L)
@@ -394,12 +404,28 @@ test_that("generation batches prompts and returns portable R results", {
   expect_s3_class(generated, "data.frame")
   expect_false(inherits(generated, "bionemor::BioNeMoPrediction"))
   expect_equal(generated$id, c("first::1", "second::1"))
-  expect_named(generated, c(
-    "id", "input_id", "sample", "prompt", "completion", "sequence",
-    "finish_reason", "prompt_tokens", "generated_tokens", "total_tokens",
-    "log_probabilities", "probabilities", "generated_bases", "gc_fraction",
-    "ambiguous_fraction", "longest_homopolymer", "validation_warnings"
-  ))
+  expect_named(
+    generated,
+    c(
+      "id",
+      "input_id",
+      "sample",
+      "prompt",
+      "completion",
+      "sequence",
+      "finish_reason",
+      "prompt_tokens",
+      "generated_tokens",
+      "total_tokens",
+      "log_probabilities",
+      "probabilities",
+      "generated_bases",
+      "gc_fraction",
+      "ambiguous_fraction",
+      "longest_homopolymer",
+      "validation_warnings"
+    )
+  )
 
   invocations <- readLines(log)
   expect_equal(sum(invocations == "infer_evo2"), 1L)
@@ -608,28 +634,43 @@ test_that("scoring returns ordered portable results and predict delegates", {
 
   expect_s3_class(scores, "evo2_scores")
   expect_equal(scores$id, names(sequences))
-  expect_named(scores, c(
-    "id", "sequence_length", "tokens_scored", "score", "forward_score",
-    "reverse_score", "reduction", "strand"
-  ))
+  expect_named(
+    scores,
+    c(
+      "id",
+      "sequence_length",
+      "tokens_scored",
+      "score",
+      "forward_score",
+      "reverse_score",
+      "reduction",
+      "strand"
+    )
+  )
   invocations <- readLines(log)
   expect_equal(sum(invocations == "predict_evo2"), 1L)
-  expect_true(all(c(
-    "--output-log-prob-seqs",
-    "--log-prob-collapse-option",
-    "per_token"
-  ) %in% invocations))
+  expect_true(all(
+    c(
+      "--output-log-prob-seqs",
+      "--log-prob-collapse-option",
+      "per_token"
+    ) %in%
+      invocations
+  ))
   plan <- jsonlite::read_json(
     file.path(attr(scores, "provenance")$run_path, "plan.json"),
     simplifyVector = TRUE
   )
   tokens <- unlist(plan$steps, use.names = FALSE)
-  expect_true(all(c(
-    "materialize-predictions",
-    "--input",
-    "--reduction",
-    "mean"
-  ) %in% tokens))
+  expect_true(all(
+    c(
+      "materialize-predictions",
+      "--input",
+      "--reduction",
+      "mean"
+    ) %in%
+      tokens
+  ))
   expect_equal(sum(tokens == "materialize-predictions", na.rm = TRUE), 1L)
   expect_false(any(endsWith(as.character(unlist(scores)), ".pt"), na.rm = TRUE))
   run_path <- attr(scores, "provenance")$run_path
@@ -709,10 +750,19 @@ test_that("asynchronous jobs can be reopened from their run directory", {
   reopened <- bionemo_job(path)
 
   expect_s3_class(reopened, "bionemor::BioNeMoJob")
-  expect_true(all(file.exists(file.path(path, c(
-    "request.json", "plan.json", "state.json", "stdout.log", "stderr.log"
-  )))))
-  expect_true(job_status(reopened) %in% c("submitted", "starting", "running", "succeeded"))
+  expect_true(all(file.exists(file.path(
+    path,
+    c(
+      "request.json",
+      "plan.json",
+      "state.json",
+      "stdout.log",
+      "stderr.log"
+    )
+  ))))
+  expect_true(
+    job_status(reopened) %in% c("submitted", "starting", "running", "succeeded")
+  )
 
   waited <- job_wait(reopened, poll = 0.01, timeout = 10)
   expect_s3_class(waited, "evo2_generation")

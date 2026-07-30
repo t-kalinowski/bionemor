@@ -5,13 +5,16 @@ dataset_records <- function(x, id_col, sequence_col) {
   if (is.data.frame(x)) {
     stopifnot(
       "data must contain the configured ID column" = id_col %in% names(x),
-      "data must contain the configured sequence column" =
-        sequence_col %in% names(x)
+      "data must contain the configured sequence column" = sequence_col %in%
+        names(x)
     )
     ids <- as.character(x[[id_col]])
     sequences <- as.character(x[[sequence_col]])
-  } else if (is.character(x) && length(x) > 1L ||
-             is.character(x) && length(x) == 1L && !file.exists(x)) {
+  } else if (
+    is.character(x) &&
+      length(x) > 1L ||
+      is.character(x) && length(x) == 1L && !file.exists(x)
+  ) {
     sequences <- as.character(x)
     ids <- names(sequences)
     if (is.null(ids)) {
@@ -22,13 +25,16 @@ dataset_records <- function(x, id_col, sequence_col) {
   }
   stopifnot(
     "dataset must contain at least one sequence" = length(sequences) > 0L,
-    "dataset IDs must be non-empty and unique" =
-      !anyNA(ids) && all(nzchar(ids)) && !anyDuplicated(ids),
-    "dataset sequences must be non-empty" =
-      !anyNA(sequences) && all(nzchar(sequences)),
-    "dataset IDs and sequences must not contain line breaks" =
-      !any(grepl("[\r\n]", ids)) &&
-        !any(grepl("[\r\n]", sequences))
+    "dataset IDs must be non-empty and unique" = !anyNA(ids) &&
+      all(nzchar(ids)) &&
+      !anyDuplicated(ids),
+    "dataset sequences must be non-empty" = !anyNA(sequences) &&
+      all(nzchar(sequences)),
+    "dataset IDs and sequences must not contain line breaks" = !any(grepl(
+      "[\r\n]",
+      ids
+    )) &&
+      !any(grepl("[\r\n]", sequences))
   )
   stats::setNames(sequences, ids)
 }
@@ -39,8 +45,10 @@ dataset_source <- function(x, id_col, sequence_col) {
     return(records)
   }
   stopifnot(
-    "dataset input must be in memory or an existing FASTA path" =
-      is_scalar_string(x) && file.exists(x)
+    "dataset input must be in memory or an existing FASTA path" = is_scalar_string(
+      x
+    ) &&
+      file.exists(x)
   )
   normalizePath(x, mustWork = TRUE)
 }
@@ -65,20 +73,16 @@ evo2_dataset <- function(
   sequence_col = "sequence"
 ) {
   stopifnot(
-    "split must name train, validation, and test" =
-      is.numeric(split) &&
-        setequal(names(split), c("train", "validation", "test")),
-    "split values must be finite and non-negative" =
-      length(split) == 3L &&
-        !anyNA(split) &&
-        all(is.finite(split)) &&
-        all(split >= 0),
+    "split must name train, validation, and test" = is.numeric(split) &&
+      setequal(names(split), c("train", "validation", "test")),
+    "split values must be finite and non-negative" = length(split) == 3L &&
+      !anyNA(split) &&
+      all(is.finite(split)) &&
+      all(split >= 0),
     "split must sum to one" = abs(sum(split) - 1) < 1e-8,
-    "seed must be a non-negative integer" =
-      is_scalar_integerish(seed, min = 0),
+    "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0),
     "id_col must be one non-empty string" = is_scalar_string(id_col),
-    "sequence_col must be one non-empty string" =
-      is_scalar_string(sequence_col)
+    "sequence_col must be one non-empty string" = is_scalar_string(sequence_col)
   )
   split <- split[c("train", "validation", "test")]
   train <- dataset_source(train, id_col, sequence_col)
@@ -99,10 +103,12 @@ evo2_dataset <- function(
   }
 
   partition_method <- "explicit"
-  if (is.character(train) &&
+  if (
+    is.character(train) &&
       length(train) > 1L &&
       is.null(validation) &&
-      is.null(test)) {
+      is.null(test)
+  ) {
     partition_method <- "stable-hash"
     values <- vapply(
       names(train),
@@ -149,14 +155,15 @@ write_dataset_fasta <- function(x, path) {
       return(write_fasta(read_fasta(x), path))
     }
     stopifnot(
-      "failed to copy FASTA input" =
-        file.copy(x, path, overwrite = TRUE)
+      "failed to copy FASTA input" = file.copy(x, path, overwrite = TRUE)
     )
     return(path)
   }
   stopifnot(
-    "prepared in-memory datasets must be named character vectors" =
-      is.character(x) && !is.null(names(x))
+    "prepared in-memory datasets must be named character vectors" = is.character(
+      x
+    ) &&
+      !is.null(names(x))
   )
   lines <- unlist(
     Map(
@@ -191,13 +198,12 @@ normalize_taxonomy_data <- function(taxonomy) {
   }
   if (is.data.frame(taxonomy)) {
     stopifnot(
-      "taxonomy data frame must contain an id column" =
-        "id" %in% names(taxonomy),
-      "taxonomy IDs must be non-empty and unique" =
-        is.character(taxonomy$id) &&
-          !anyNA(taxonomy$id) &&
-          all(nzchar(taxonomy$id)) &&
-          !anyDuplicated(taxonomy$id)
+      "taxonomy data frame must contain an id column" = "id" %in%
+        names(taxonomy),
+      "taxonomy IDs must be non-empty and unique" = is.character(taxonomy$id) &&
+        !anyNA(taxonomy$id) &&
+        all(nzchar(taxonomy$id)) &&
+        !anyDuplicated(taxonomy$id)
     )
     ids <- taxonomy$id
     taxonomy$id <- NULL
@@ -207,12 +213,13 @@ normalize_taxonomy_data <- function(taxonomy) {
     names(taxonomy) <- ids
   }
   stopifnot(
-    "taxonomy must be a named mapping of sequence IDs to lineages" =
-      is.list(taxonomy) &&
-        length(taxonomy) > 0L &&
-        !is.null(names(taxonomy)) &&
-        all(nzchar(names(taxonomy))) &&
-        !anyDuplicated(names(taxonomy))
+    "taxonomy must be a named mapping of sequence IDs to lineages" = is.list(
+      taxonomy
+    ) &&
+      length(taxonomy) > 0L &&
+      !is.null(names(taxonomy)) &&
+      all(nzchar(names(taxonomy))) &&
+      !anyDuplicated(names(taxonomy))
   )
   allowed <- c(
     "domain",
@@ -226,27 +233,33 @@ normalize_taxonomy_data <- function(taxonomy) {
   )
   lapply(taxonomy, function(lineage) {
     stopifnot(
-      "each taxonomy lineage must be a named list" =
-        is.list(lineage) &&
-          !is.null(names(lineage)) &&
-          all(nzchar(names(lineage))),
-      "taxonomy lineage contains an unsupported rank" =
-        all(names(lineage) %in% allowed),
-      "taxonomy lineage must not contain both class and clazz" =
-        !all(c("class", "clazz") %in% names(lineage))
+      "each taxonomy lineage must be a named list" = is.list(lineage) &&
+        !is.null(names(lineage)) &&
+        all(nzchar(names(lineage))),
+      "taxonomy lineage contains an unsupported rank" = all(
+        names(lineage) %in% allowed
+      ),
+      "taxonomy lineage must not contain both class and clazz" = !all(
+        c("class", "clazz") %in% names(lineage)
+      )
     )
     names(lineage)[names(lineage) == "class"] <- "clazz"
-    lineage <- lineage[!vapply(
-      lineage,
-      function(value) {
-        is.null(value) ||
-          length(value) == 1L && is.atomic(value) && is.na(value)
-      },
-      logical(1)
-    )]
+    lineage <- lineage[
+      !vapply(
+        lineage,
+        function(value) {
+          is.null(value) ||
+            length(value) == 1L && is.atomic(value) && is.na(value)
+        },
+        logical(1)
+      )
+    ]
     stopifnot(
-      "taxonomy rank values must be non-empty strings" =
-        all(vapply(lineage, is_scalar_string, logical(1)))
+      "taxonomy rank values must be non-empty strings" = all(vapply(
+        lineage,
+        is_scalar_string,
+        logical(1)
+      ))
     )
     lineage
   })
@@ -340,11 +353,15 @@ evo2_prepare <- function(
   invocation <- match.call(expand.dots = FALSE)
   stopifnot(
     "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
     "path must be one non-empty string" = is_scalar_string(path),
-    "control must be an Evo2PreprocessControl" =
-      S7_inherits(control, Evo2PreprocessControl),
+    "control must be an Evo2PreprocessControl" = S7_inherits(
+      control,
+      Evo2PreprocessControl
+    ),
     "overwrite must be TRUE or FALSE" = is_scalar_logical(overwrite),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
@@ -353,11 +370,11 @@ evo2_prepare <- function(
   }
   destination <- normalize_path(path, base = compute@workspace)
   stopifnot(
-    "container dataset output must be inside the compute workspace" =
-      compute@engine != "container" ||
-        path_is_within(destination, compute@workspace),
-    "prepared dataset destination exists; use overwrite = TRUE" =
-      overwrite || !file.exists(destination)
+    "container dataset output must be inside the compute workspace" = compute@engine !=
+      "container" ||
+      path_is_within(destination, compute@workspace),
+    "prepared dataset destination exists; use overwrite = TRUE" = overwrite ||
+      !file.exists(destination)
   )
   if (file.exists(destination) && overwrite) {
     unlink(destination, recursive = TRUE)
@@ -496,8 +513,7 @@ evo2_prepare <- function(
       tokenizer_revision = record$tokenizer_revision,
       model_size = model@model_size,
       partitions = names(fasta),
-      partition_method =
-        data@provenance$partition_method %||% "explicit",
+      partition_method = data@provenance$partition_method %||% "explicit",
       partition_seed = data@seed,
       inputs = input_manifest,
       preprocessing = control_manifest,
@@ -545,10 +561,10 @@ evo2_prepare <- function(
 
 materialize_prepare_job <- function(job, descriptor) {
   stopifnot(
-    "prepared-data result descriptor is invalid" =
-      is.list(descriptor) && identical(descriptor$type, "prepare"),
-    "prepared-data path is missing" =
-      is_scalar_string(descriptor$path) && dir.exists(descriptor$path)
+    "prepared-data result descriptor is invalid" = is.list(descriptor) &&
+      identical(descriptor$type, "prepare"),
+    "prepared-data path is missing" = is_scalar_string(descriptor$path) &&
+      dir.exists(descriptor$path)
   )
   config <- yaml::read_yaml(descriptor$manifest$dataset_config)
   prefixes <- vapply(
@@ -557,11 +573,10 @@ materialize_prepare_job <- function(job, descriptor) {
     character(1)
   )
   stopifnot(
-    "preprocessing did not create every indexed dataset" =
-      all(file.exists(c(
-        paste0(prefixes, ".bin"),
-        paste0(prefixes, ".idx")
-      )))
+    "preprocessing did not create every indexed dataset" = all(file.exists(c(
+      paste0(prefixes, ".bin"),
+      paste0(prefixes, ".idx")
+    )))
   )
   output_paths <- c(
     paste0(prefixes, ".bin"),
@@ -600,9 +615,8 @@ materialize_prepare_job <- function(job, descriptor) {
 
 evo2_finetune_preflight <- function(compute, record) {
   stopifnot(
-    "fine-tuning model record is invalid" =
-      is.list(record) &&
-        is_scalar_string(record$training_precision_policy)
+    "fine-tuning model record is invalid" = is.list(record) &&
+      is_scalar_string(record$training_precision_policy)
   )
   policy <- record$training_precision_policy
   if (identical(policy, "unverified")) {
@@ -630,8 +644,8 @@ evo2_finetune_preflight <- function(compute, record) {
     )
   }
   stopifnot(
-    "model registry contains an unsupported training precision policy" =
-      policy %in% c("bf16", "bf16-or-fp8")
+    "model registry contains an unsupported training precision policy" = policy %in%
+      c("bf16", "bf16-or-fp8")
   )
   compute <- evo2_compute_with_gpu_capabilities(compute)
   advertisement <- evo2_gpu_advertisement(compute)
@@ -668,10 +682,11 @@ evo2_finetune_preflight <- function(compute, record) {
 
 resolve_fit_precision <- function(control, model_record) {
   stopifnot(
-    "model record must contain a verified training precision policy" =
-      is.list(model_record) &&
-        model_record$training_precision_policy %in%
-          c("bf16", "bf16-or-fp8")
+    "model record must contain a verified training precision policy" = is.list(
+      model_record
+    ) &&
+      model_record$training_precision_policy %in%
+        c("bf16", "bf16-or-fp8")
   )
   precision <- if (!is.null(control@mixed_precision_recipe)) {
     control@mixed_precision_recipe
@@ -716,30 +731,48 @@ lora_module_names <- function(method) {
 
 fit_control_args <- function(control, model_record) {
   args <- c(
-    "--seq-length", as.character(control@sequence_length),
-    "--global-batch-size", as.character(control@global_batch_size),
-    "--micro-batch-size", as.character(control@micro_batch_size),
+    "--seq-length",
+    as.character(control@sequence_length),
+    "--global-batch-size",
+    as.character(control@global_batch_size),
+    "--micro-batch-size",
+    as.character(control@micro_batch_size),
     "--tensor-model-parallel-size",
     as.character(control@tensor_parallel_size),
     "--pipeline-model-parallel-size",
     as.character(control@pipeline_parallel_size),
     "--context-parallel-size",
     as.character(control@context_parallel_size),
-    "--mixed-precision-recipe", resolve_fit_precision(control, model_record),
-    "--lr", format_number(control@learning_rate),
-    "--min-lr", format_number(control@minimum_learning_rate),
-    "--warmup-steps", as.character(control@warmup_steps),
-    "--constant-steps", as.character(control@constant_steps),
-    "--wd", format_number(control@weight_decay),
-    "--eval-interval", as.character(control@eval_interval),
-    "--eval-iters", as.character(control@eval_iters),
-    "--log-interval", as.character(control@log_interval),
-    "--clip-grad", format_number(control@clip_gradient),
-    "--hidden-dropout", format_number(control@hidden_dropout),
-    "--attention-dropout", format_number(control@attention_dropout),
-    "--seed", as.character(control@seed),
-    "--workers", as.character(control@workers),
-    "--most-recent-k", as.character(control@keep_checkpoints)
+    "--mixed-precision-recipe",
+    resolve_fit_precision(control, model_record),
+    "--lr",
+    format_number(control@learning_rate),
+    "--min-lr",
+    format_number(control@minimum_learning_rate),
+    "--warmup-steps",
+    as.character(control@warmup_steps),
+    "--constant-steps",
+    as.character(control@constant_steps),
+    "--wd",
+    format_number(control@weight_decay),
+    "--eval-interval",
+    as.character(control@eval_interval),
+    "--eval-iters",
+    as.character(control@eval_iters),
+    "--log-interval",
+    as.character(control@log_interval),
+    "--clip-grad",
+    format_number(control@clip_gradient),
+    "--hidden-dropout",
+    format_number(control@hidden_dropout),
+    "--attention-dropout",
+    format_number(control@attention_dropout),
+    "--seed",
+    as.character(control@seed),
+    "--workers",
+    as.character(control@workers),
+    "--most-recent-k",
+    as.character(control@keep_checkpoints)
   )
   if (!is.null(control@decay_steps)) {
     args <- c(args, "--decay-steps", as.character(control@decay_steps))
@@ -796,19 +829,28 @@ fit_control_args <- function(control, model_record) {
     enable_preemption = "--enable-preemption",
     no_renormalize_loss = "--no-renormalize-loss"
   )
-  extra_args <- unlist(Map(function(name, value) {
-    if (identical(name, "fp32_residual_connection") &&
-        is.logical(value) &&
-        !value) {
-      return("--no-fp32-residual-connection")
-    }
-    flag <- unname(extra_mapping[[name]])
-    if (is.logical(value)) {
-      if (value) flag else character()
-    } else {
-      c(flag, format_number(value))
-    }
-  }, names(control@extra), control@extra), use.names = FALSE)
+  extra_args <- unlist(
+    Map(
+      function(name, value) {
+        if (
+          identical(name, "fp32_residual_connection") &&
+            is.logical(value) &&
+            !value
+        ) {
+          return("--no-fp32-residual-connection")
+        }
+        flag <- unname(extra_mapping[[name]])
+        if (is.logical(value)) {
+          if (value) flag else character()
+        } else {
+          c(flag, format_number(value))
+        }
+      },
+      names(control@extra),
+      control@extra
+    ),
+    use.names = FALSE
+  )
   args <- c(args, extra_args)
   args
 }
@@ -843,18 +885,19 @@ evo2_finetune <- function(
   invocation <- match.call(expand.dots = FALSE)
   stopifnot(
     "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
-    "compute must be a BioNeMo compute specification" =
-      S7_inherits(compute, BioNeMoCompute),
-    "steps must be a positive integer" =
-      is_scalar_integerish(steps, min = 1),
-    "method must be an Evo2FineTuneMethod" =
-      S7_inherits(method, Evo2FineTuneMethod),
-    "control must be an Evo2FitControl" =
-      S7_inherits(control, Evo2FitControl),
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "steps must be a positive integer" = is_scalar_integerish(steps, min = 1),
+    "method must be an Evo2FineTuneMethod" = S7_inherits(
+      method,
+      Evo2FineTuneMethod
+    ),
+    "control must be an Evo2FitControl" = S7_inherits(control, Evo2FitControl),
     "async must be TRUE or FALSE" = is_scalar_logical(async),
-    "timeout must be positive" =
-      identical(timeout, Inf) ||
-        is_scalar_number(timeout) && timeout > 0
+    "timeout must be positive" = identical(timeout, Inf) ||
+      is_scalar_number(timeout) && timeout > 0
   )
   if (control@sequence_length > object@context_length) {
     bionemor_abort(
@@ -876,10 +919,12 @@ evo2_finetune <- function(
   }
   checkpoint <- object@checkpoint
   stopifnot(
-    "fine-tuning requires an explicit MBridge checkpoint" =
-      S7_inherits(checkpoint, BioNeMoCheckpoint) &&
-        checkpoint@format == "mbridge" &&
-        dir.exists(checkpoint@path)
+    "fine-tuning requires an explicit MBridge checkpoint" = S7_inherits(
+      checkpoint,
+      BioNeMoCheckpoint
+    ) &&
+      checkpoint@format == "mbridge" &&
+      dir.exists(checkpoint@path)
   )
   checkpoint_record <- checkpoint_manifest(checkpoint)
   resolved_checkpoint <- checkpoint_manifest_resolved_path(
@@ -888,22 +933,35 @@ evo2_finetune <- function(
   )
   model_record <- evo2_model_record(object@size)
   stopifnot(
-    "checkpoint family does not match the model" =
-      identical(checkpoint@family, "evo2"),
-    "checkpoint variant does not match the model" =
-      identical(checkpoint@variant, object@size),
-    "checkpoint model size does not match the model" =
-      identical(checkpoint_record$model_size, object@model_size),
-    "checkpoint recipe revision does not match the compute recipe" =
-      identical(checkpoint@recipe_revision, compute@recipe@revision),
-    "LoRA-on-LoRA fine-tuning is not supported" =
-      !S7_inherits(method, Evo2LoRA) ||
-        !identical(checkpoint@kind, "lora"),
-    "full fine-tuning from a LoRA checkpoint is not supported" =
-      !S7_inherits(method, Evo2FullFineTune) ||
-        !identical(checkpoint@kind, "lora"),
-    "Vortex-style MBridge checkpoints cannot be fine-tuned by train_evo2" =
-      !isTRUE(checkpoint_record$inspection$vortex_style_fp8)
+    "checkpoint family does not match the model" = identical(
+      checkpoint@family,
+      "evo2"
+    ),
+    "checkpoint variant does not match the model" = identical(
+      checkpoint@variant,
+      object@size
+    ),
+    "checkpoint model size does not match the model" = identical(
+      checkpoint_record$model_size,
+      object@model_size
+    ),
+    "checkpoint recipe revision does not match the compute recipe" = identical(
+      checkpoint@recipe_revision,
+      compute@recipe@revision
+    ),
+    "LoRA-on-LoRA fine-tuning is not supported" = !S7_inherits(
+      method,
+      Evo2LoRA
+    ) ||
+      !identical(checkpoint@kind, "lora"),
+    "full fine-tuning from a LoRA checkpoint is not supported" = !S7_inherits(
+      method,
+      Evo2FullFineTune
+    ) ||
+      !identical(checkpoint@kind, "lora"),
+    "Vortex-style MBridge checkpoints cannot be fine-tuned by train_evo2" = !isTRUE(
+      checkpoint_record$inspection$vortex_style_fp8
+    )
   )
   assert_checkpoint_manifest_weights(checkpoint@path, checkpoint_record)
   preflight <- evo2_finetune_preflight(
@@ -931,25 +989,28 @@ evo2_finetune <- function(
     )
   }
   stopifnot(
-    "prepared data path does not exist" =
-      is_scalar_string(data@path) && dir.exists(data@path),
-    "prepared data model size does not match the model" =
-      identical(data@manifest$model_size, object@model_size),
-    "prepared data tokenizer does not match the model registry" =
-      identical(data@manifest$tokenizer, tokenizer),
-    "prepared data tokenizer revision does not match the model registry" =
-      identical(
-        data@manifest$tokenizer_revision,
-        model_record$tokenizer_revision
-      ),
-    "prepared data recipe revision does not match the compute recipe" =
-      identical(
-        data@manifest$recipe_revision,
-        compute@recipe@revision
-      ),
-    "prepared data manifest is missing" =
-      is_scalar_string(data@manifest$manifest_path) &&
-        file.exists(data@manifest$manifest_path)
+    "prepared data path does not exist" = is_scalar_string(data@path) &&
+      dir.exists(data@path),
+    "prepared data model size does not match the model" = identical(
+      data@manifest$model_size,
+      object@model_size
+    ),
+    "prepared data tokenizer does not match the model registry" = identical(
+      data@manifest$tokenizer,
+      tokenizer
+    ),
+    "prepared data tokenizer revision does not match the model registry" = identical(
+      data@manifest$tokenizer_revision,
+      model_record$tokenizer_revision
+    ),
+    "prepared data recipe revision does not match the compute recipe" = identical(
+      data@manifest$recipe_revision,
+      compute@recipe@revision
+    ),
+    "prepared data manifest is missing" = is_scalar_string(
+      data@manifest$manifest_path
+    ) &&
+      file.exists(data@manifest$manifest_path)
   )
 
   name <- safe_name(name, "evo2-finetune")
@@ -958,12 +1019,12 @@ evo2_finetune <- function(
     base = compute@workspace
   )
   stopifnot(
-    "container fine-tuning output must be inside the compute workspace" =
-      compute@engine != "container" ||
-        path_is_within(output, compute@workspace),
-    "fine-tuning checkpoint must be inside the compute workspace" =
-      compute@engine != "container" ||
-        path_is_within(resolved_checkpoint, compute@workspace)
+    "container fine-tuning output must be inside the compute workspace" = compute@engine !=
+      "container" ||
+      path_is_within(output, compute@workspace),
+    "fine-tuning checkpoint must be inside the compute workspace" = compute@engine !=
+      "container" ||
+      path_is_within(resolved_checkpoint, compute@workspace)
   )
   dir.create(output, recursive = TRUE, showWarnings = FALSE)
   world_size <- compute@gpus
@@ -971,14 +1032,16 @@ evo2_finetune <- function(
     control@pipeline_parallel_size *
     control@context_parallel_size
   stopifnot(
-    "GPU count must be divisible by model parallelism" =
-      world_size %% model_parallel == 0
+    "GPU count must be divisible by model parallelism" = world_size %%
+      model_parallel ==
+      0
   )
   data_parallel <- world_size %/% model_parallel
   denominator <- control@micro_batch_size * data_parallel
   stopifnot(
-    "global batch size must be divisible by micro batch size and data parallelism" =
-      control@global_batch_size %% denominator == 0
+    "global batch size must be divisible by micro batch size and data parallelism" = control@global_batch_size %%
+      denominator ==
+      0
   )
   accumulation <- control@global_batch_size %/% denominator
   precision_recipe <- resolve_fit_precision(control, model_record)
@@ -1030,26 +1093,40 @@ evo2_finetune <- function(
     request_origins = request_origins
   )
   args <- c(
-    "--nproc-per-node", as.character(compute@gpus),
-    "--no-python", "train_evo2",
-    "--dataset-config", data@manifest$dataset_config,
-    "--dataset-dir", data@path,
-    "--model-size", object@model_size,
-    "--hf-tokenizer-model-path", tokenizer,
-    "--max-steps", as.character(as.integer(steps)),
-    "--result-dir", output,
-    "--experiment-name", name,
-    "--finetune-ckpt-dir", resolved_checkpoint,
+    "--nproc-per-node",
+    as.character(compute@gpus),
+    "--no-python",
+    "train_evo2",
+    "--dataset-config",
+    data@manifest$dataset_config,
+    "--dataset-dir",
+    data@path,
+    "--model-size",
+    object@model_size,
+    "--hf-tokenizer-model-path",
+    tokenizer,
+    "--max-steps",
+    as.character(as.integer(steps)),
+    "--result-dir",
+    output,
+    "--experiment-name",
+    name,
+    "--finetune-ckpt-dir",
+    resolved_checkpoint,
     fit_control_args(control, model_record)
   )
   if (S7_inherits(method, Evo2LoRA)) {
     args <- c(
       args,
       "--lora-finetune",
-      "--lora-dim", as.character(method@rank),
-      "--lora-alpha", format_number(method@alpha),
-      "--lora-dropout", format_number(method@dropout),
-      "--lora-target-modules", paste(lora_module_names(method), collapse = ",")
+      "--lora-dim",
+      as.character(method@rank),
+      "--lora-alpha",
+      format_number(method@alpha),
+      "--lora-dropout",
+      format_number(method@dropout),
+      "--lora-target-modules",
+      paste(lora_module_names(method), collapse = ",")
     )
     if (length(method@fully_trainable) > 0L) {
       args <- c(
@@ -1138,22 +1215,28 @@ evo2_finetune <- function(
 
 materialize_finetune_job <- function(job, descriptor) {
   stopifnot(
-    "fine-tuning result descriptor is invalid" =
-      is.list(descriptor) && identical(descriptor$type, "fine-tune"),
-    "fine-tuning checkpoint inspection is missing" =
-      is_scalar_string(descriptor$inspection) &&
-        file.exists(descriptor$inspection)
+    "fine-tuning result descriptor is invalid" = is.list(descriptor) &&
+      identical(descriptor$type, "fine-tune"),
+    "fine-tuning checkpoint inspection is missing" = is_scalar_string(
+      descriptor$inspection
+    ) &&
+      file.exists(descriptor$inspection)
   )
   inspection <- read_json_file(descriptor$inspection)
   stopifnot(
-    "fine-tuning inspector did not resolve an MBridge checkpoint" =
-      is_scalar_string(inspection$path) &&
-        dir.exists(inspection$path),
-    "fine-tuning checkpoint has the wrong model size" =
-      identical(inspection$model_size, descriptor$model_size),
-    "fine-tuning checkpoint kind does not match the requested method" =
-      !identical(descriptor$checkpoint_kind, "lora") ||
-        identical(inspection$kind, "lora")
+    "fine-tuning inspector did not resolve an MBridge checkpoint" = is_scalar_string(
+      inspection$path
+    ) &&
+      dir.exists(inspection$path),
+    "fine-tuning checkpoint has the wrong model size" = identical(
+      inspection$model_size,
+      descriptor$model_size
+    ),
+    "fine-tuning checkpoint kind does not match the requested method" = !identical(
+      descriptor$checkpoint_kind,
+      "lora"
+    ) ||
+      identical(inspection$kind, "lora")
   )
   root <- descriptor$checkpoint_root
   manifest_path <- checkpoint_manifest_path(root, "mbridge")
@@ -1161,8 +1244,9 @@ materialize_finetune_job <- function(job, descriptor) {
     NULL
   } else {
     stopifnot(
-      "fine-tuning base checkpoint is missing" =
-        dir.exists(descriptor$base_checkpoint)
+      "fine-tuning base checkpoint is missing" = dir.exists(
+        descriptor$base_checkpoint
+      )
     )
     path_digest(descriptor$base_checkpoint)
   }
@@ -1184,10 +1268,8 @@ materialize_finetune_job <- function(job, descriptor) {
     base_checkpoint_path = descriptor$base_checkpoint,
     base_checkpoint_digest = base_digest,
     base_checkpoint_source = descriptor$base_checkpoint_source,
-    base_checkpoint_source_trust =
-      descriptor$base_checkpoint_source_trust,
-    base_checkpoint_source_verified =
-      descriptor$base_checkpoint_source_verified,
+    base_checkpoint_source_trust = descriptor$base_checkpoint_source_trust,
+    base_checkpoint_source_verified = descriptor$base_checkpoint_source_verified,
     inspection = inspection,
     provenance = list(
       run_path = descriptor$run_path,

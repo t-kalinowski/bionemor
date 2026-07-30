@@ -127,10 +127,14 @@ test_that("documented 1B BF16 fine-tuning is independent of inference policy", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 8L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 8L)
+        )
+      )
+    )
   )
 
   fitted <- evo2_finetune(
@@ -176,10 +180,14 @@ test_that("full fine-tuning cannot use a LoRA checkpoint as its base", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
 
   expect_error(
@@ -229,10 +237,14 @@ test_that("Vortex-style MBridge training fails before recipe execution", {
   compute <- bionemo_compute(
     engine = "external",
     workspace = workspace,
-    config = list(capabilities = list(runtime = list(
-      gpu_count = 1L,
-      gpus = data.frame(compute_capability_major = 9L)
-    )))
+    config = list(
+      capabilities = list(
+        runtime = list(
+          gpu_count = 1L,
+          gpus = data.frame(compute_capability_major = 9L)
+        )
+      )
+    )
   )
 
   expect_error(
