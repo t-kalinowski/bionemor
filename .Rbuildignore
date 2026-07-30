@@ -6,3 +6,7 @@
 ^\.ruff_cache$
 ^bionemor_[^/]+\.tar\.gz$
 ^bionemor\.Rcheck$
+^.*\.Rproj$
+^\.Rproj\.user$
+^[.]?air[.]toml$
+^\.vscode$
