@@ -157,6 +157,7 @@ test_that("installation builds from locked source and immutable image inputs", {
   writeLines(
     c(
       paste("FROM", recipe@base_image),
+      "#COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/",
       "RUN printf 'locked source\\n'"
     ),
     file.path(archive_source, "Dockerfile")
@@ -287,11 +288,15 @@ test_that("installation builds from locked source and immutable image inputs", {
       "fi",
       "if [[ \"${1:-}\" != \"run\" ]]; then exit 94; fi",
       "shift",
+      "entrypoint=\"\"",
       "while [[ $# -gt 0 ]]; do",
       "  case \"$1\" in",
       "    --rm|--ipc=host) shift ;;",
-      "    --gpus|--name|-v|-w|-e) shift 2 ;;",
+      "    --gpus|--user|--name|-v|-w|-e) shift 2 ;;",
+      "    --entrypoint) entrypoint=\"$2\"; shift 2 ;;",
       "    *) shift",
+      "       if [[ -n \"$entrypoint\" && \"${1:-}\" == \"--help\" ]]; then printf 'help\\n'; exit; fi",
+      "       if [[ -n \"$entrypoint\" ]]; then exec \"$entrypoint\" \"$@\"; fi",
       "       if [[ \"${2:-}\" == \"--help\" ]]; then printf 'help\\n'; exit; fi",
       "       exec \"$@\" ;;",
       "  esac",
@@ -322,6 +327,15 @@ test_that("installation builds from locked source and immutable image inputs", {
     readLines(captured_dockerfile, warn = FALSE)[[1L]],
     base_reference,
     fixed = TRUE
+  )
+  dockerfile <- readLines(captured_dockerfile, warn = FALSE)
+  expect_true(
+    "COPY --from=ghcr.io/astral-sh/uv:0.12.0@sha256:606e70c71c852d03f611b1e56a195d08648507018a7057fab82c4974c4eae105 /uv /uvx /bin/" %in%
+      dockerfile
+  )
+  expect_false(
+    "#COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/" %in%
+      dockerfile
   )
   expect_false(file.exists(file.path(
     workspace,

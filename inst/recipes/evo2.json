@@ -8,6 +8,8 @@
   "dockerfile_blob": "93ee109724fb44effb35262c0cd2279707c7c3a6",
   "base_image": "nvcr.io/nvidia/pytorch:26.06-py3",
   "base_image_digest": "sha256:abd110b23600e877173dafc3078385b7c13ddacd7e0c6a6acb0a864586d59622",
+  "uv_image": "ghcr.io/astral-sh/uv:0.12.0",
+  "uv_image_digest": "sha256:606e70c71c852d03f611b1e56a195d08648507018a7057fab82c4974c4eae105",
   "bridge_protocol": 1,
   "model_registry_version": 1
 }

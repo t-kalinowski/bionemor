@@ -476,7 +476,10 @@ inspect_model_checkpoint <- function(path, model_size) {
   resolved_path <- normalizePath(resolved_path, mustWork = TRUE)
   run_config <- normalizePath(run_config, mustWork = TRUE)
   assert_mbridge_dcp_weights(resolved_path)
-  config <- yaml::read_yaml(run_config)
+  config <- yaml::read_yaml(
+    run_config,
+    handlers = list(int = as.numeric)
+  )
   if (!is.list(config) || is.null(names(config))) {
     stop("checkpoint run_config.yaml must contain a mapping")
   }

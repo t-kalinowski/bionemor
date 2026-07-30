@@ -13,8 +13,10 @@ only informed a few generation defaults and output checks.
 The package locks BioNeMo Recipes to an exact source revision. The default
 container is built from the verified upstream Evo 2 Dockerfile. Its `FROM`
 image is bound to the locked digest before the package helper and provenance
-labels are appended. The NGC PyTorch base image alone does not contain the
-recipe commands.
+labels are appended. The package also activates the Dockerfile's documented
+`uv` fallback with a digest-pinned image because the locked NGC base does not
+contain `uv`. The NGC PyTorch base image alone does not contain the recipe
+commands.
 
 The local container path requires Git, `tar`, and an NVIDIA GPU exposed through
 Docker.
@@ -137,6 +139,11 @@ job_status(run)
 job_logs(run, tail = 50L)
 fitted <- job_wait(run)
 ```
+
+Complete worked examples:
+
+- [Fine-tune Evo 2 and retain the checkpoint](vignettes/evo2-finetune.Rmd)
+- [Load an Evo 2 checkpoint for inference](vignettes/evo2-inference.Rmd)
 
 The documented original 1B fine-tuning path uses BF16 even though inference
 from that source requires Vortex-style FP8. `train_evo2` does not expose a

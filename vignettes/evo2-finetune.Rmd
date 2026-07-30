@@ -1,0 +1,234 @@
+---
+title: "Fine-tune Evo 2 and retain the checkpoint"
+output: rmarkdown::html_vignette
+vignette: |
+  %\VignetteIndexEntry{Fine-tune Evo 2 and retain the checkpoint}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This example prepares a small dataset, runs two LoRA optimizer steps, retains
+the fitted MBridge checkpoint, and loads it for a generation and scoring smoke
+check. It exercises the training and checkpoint-loading path; two steps on
+repeated toy sequences do not produce a useful biological model.
+
+The example requires an NVIDIA GPU, the locked BioNeMo Recipes runtime, and
+enough storage for the Evo 2 7B dense checkpoint. The exact two-step
+configuration was exercised on one NVIDIA L40S.
+
+## Configure the runtime and dense checkpoint
+
+```{r runtime}
+library(bionemor)
+
+workspace <- normalizePath("~/evo2-work", mustWork = FALSE)
+
+compute <- bionemo_compute(
+  backend = "local",
+  engine = "container",
+  workspace = workspace
+)
+compute <- bionemo_install(compute)
+
+base_checkpoint <- evo2_checkpoint(
+  evo2("7b"),
+  source = "recommended",
+  format = "savanna",
+  path = "checkpoints/evo2-7b-mbridge",
+  compute = compute
+)
+model <- evo2("7b", checkpoint = base_checkpoint)
+
+training_checks <- as.data.frame(
+  bionemo_doctor(
+    compute,
+    model = model,
+    target = "training",
+    verbose = FALSE
+  )
+)
+stopifnot(!any(training_checks$status == "fail"))
+training_checks
+```
+
+`evo2_checkpoint()` reuses a complete destination when its manifest matches
+the requested source and locked recipe. Constructing `evo2()` alone never
+downloads or loads weights.
+
+## Prepare a tiny dataset
+
+The nucleotide tokenizer uses one token per base. Each input below contains
+127 bases, and preprocessing appends the end-of-document token to produce the
+128-token samples requested by the fitting control.
+
+```{r data}
+sequence_127 <- function(pattern) {
+  stopifnot(
+    is.character(pattern),
+    length(pattern) == 1L,
+    !is.na(pattern),
+    nzchar(pattern)
+  )
+  substr(
+    strrep(pattern, ceiling(127 / nchar(pattern))),
+    1L,
+    127L
+  )
+}
+
+train <- c(
+  train_1 = sequence_127("ACGT"),
+  train_2 = sequence_127("TGCA"),
+  train_3 = sequence_127("GATTACA"),
+  train_4 = sequence_127("CCGTA")
+)
+validation <- c(validation_1 = sequence_127("AGCT"))
+test <- c(test_1 = sequence_127("TGCAT"))
+
+stopifnot(all(nchar(c(train, validation, test)) == 127L))
+
+data <- evo2_dataset(
+  train = train,
+  validation = validation,
+  test = test
+)
+
+prepared <- evo2_prepare(
+  data,
+  model,
+  compute,
+  path = "datasets/tiny-evo2-128",
+  control = evo2_preprocess_control(
+    append_eod = TRUE,
+    sample_length = 128L,
+    workers = 1L,
+    seed = 17L
+  )
+)
+```
+
+Use independent biological sequences and held-out splits for real work. The
+explicit validation and test inputs keep this small example deterministic.
+
+## Run two LoRA steps
+
+```{r fit}
+run <- evo2_finetune(
+  model,
+  prepared,
+  compute = compute,
+  steps = 2L,
+  method = evo2_lora(
+    rank = 4L,
+    alpha = 8,
+    dropout = 0
+  ),
+  control = evo2_fit_control(
+    sequence_length = 128L,
+    global_batch_size = 1L,
+    micro_batch_size = 1L,
+    learning_rate = 1e-4,
+    minimum_learning_rate = 0,
+    warmup_steps = 0L,
+    decay_steps = 2L,
+    constant_steps = 0L,
+    eval_interval = 1L,
+    eval_iters = 1L,
+    log_interval = 1L,
+    precision = "bf16",
+    keep_checkpoints = 1L,
+    workers = 1L,
+    seed = 17L,
+    dataset_seed = 17L
+  ),
+  path = "artifacts",
+  name = "tiny-evo2-lora",
+  async = TRUE,
+  timeout = 3600
+)
+
+writeLines(
+  job_path(run),
+  file.path(workspace, "fine-tune-run.txt")
+)
+
+job_status(run)
+job_logs(run, tail = 50L)
+fitted <- job_wait(run, timeout = 3600)
+```
+
+`job_wait()` returns the fitted `Evo2Model`. Its timeout only stops the R
+process from waiting; it does not cancel training. Use `job_cancel()` when the
+external job itself should stop.
+
+## Record the fitted checkpoint
+
+```{r checkpoint}
+fitted_checkpoint <- checkpoint_path(fitted)
+manifest <- checkpoint_manifest(fitted)
+
+stopifnot(
+  dir.exists(fitted_checkpoint),
+  identical(manifest$format, "mbridge"),
+  identical(manifest$kind, "lora"),
+  dir.exists(manifest$base_checkpoint_path)
+)
+
+writeLines(
+  fitted_checkpoint,
+  file.path(workspace, "fitted-checkpoint.txt")
+)
+```
+
+The checkpoint already exists on disk when `job_wait()` returns. The text file
+is only a convenient pointer for a later R session. Keep the checkpoint root
+returned by `checkpoint_path()`, which contains `bionemor-checkpoint.json`;
+do not select an `iter_*` directory manually.
+
+A LoRA checkpoint records the exact dense base checkpoint and its digest.
+Inference requires both the adapter and that base checkpoint to remain at
+their recorded paths.
+
+## Smoke-check fitted inference
+
+```{r smoke}
+probe <- c(probe = sequence_127("ACGTGCAA"))
+
+scores <- evo2_score(
+  fitted,
+  probe,
+  compute = compute,
+  reduction = "mean",
+  strand = "forward"
+)
+
+generated <- evo2_generate(
+  fitted,
+  probe,
+  compute = compute,
+  num_tokens = 8L,
+  seed = 1L
+)
+
+stopifnot(
+  nrow(scores) == 1L,
+  is.finite(scores$score[[1L]]),
+  nrow(generated) == 1L,
+  generated$generated_tokens[[1L]] == 8L,
+  nzchar(generated$completion[[1L]])
+)
+
+scores
+generated[c("prompt", "completion", "finish_reason")]
+```
+
+The smoke check verifies that the fitted checkpoint loads and returns
+well-formed results. It deliberately does not require two training steps to
+improve a score or generate exact bases.
+
+See [Load an Evo 2 checkpoint for inference](evo2-inference.html) for the
+fresh-session workflow.

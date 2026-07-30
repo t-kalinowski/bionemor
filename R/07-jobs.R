@@ -16,6 +16,26 @@ command_probe <- function(
   )
 }
 
+local_container_user <- function() {
+  ids <- vapply(
+    c("-u", "-g"),
+    function(argument) {
+      result <- command_probe("id", argument)
+      value <- trimws(result$stdout)
+      if (result$status != 0L || !grepl("^[0-9]+$", value)) {
+        stop("local container execution requires numeric user and group IDs")
+      }
+      value
+    },
+    character(1)
+  )
+  paste(ids, collapse = ":")
+}
+
+local_container_user_args <- function() {
+  c("--user", local_container_user(), "-e", "HOME=/tmp/bionemor")
+}
+
 command_spec <- function(
   executable,
   args = character(),
@@ -495,6 +515,7 @@ wrap_backend_command <- function(command, compute, run_id) {
         "--gpus",
         "all",
         "--ipc=host",
+        local_container_user_args(),
         "--name",
         container_name,
         "-v",
@@ -721,6 +742,12 @@ process_identity_value <- function(pid) {
     },
     no_such_process = function(error) NULL,
     zombie_process = function(error) NULL,
+    os_error = function(error) {
+      if (identical(error$errno, 2L)) {
+        return(NULL)
+      }
+      stop(error)
+    },
     access_denied = function(error) {
       list(
         schema_version = 1L,

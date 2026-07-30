@@ -1113,6 +1113,8 @@ evo2_finetune <- function(
   if (S7_inherits(method, Evo2LoRA)) {
     args <- c(
       args,
+      # The locked Bridge logger reads `main_grad` from frozen LoRA parameters.
+      "--disable-tensorboard-logger",
       "--lora-finetune",
       "--lora-dim",
       as.character(method@rank),

@@ -311,6 +311,11 @@ test_that("container probes use GPUs and mount the workspace", {
     workspace = workspace,
     image = paste0("example/evo2@sha256:", strrep("a", 64L))
   )
+  user <- paste0(
+    trimws(processx::run("id", "-u")$stdout),
+    ":",
+    trimws(processx::run("id", "-g")$stdout)
+  )
   capabilities <- bionemo_capabilities(compute, refresh = TRUE)
   expect_equal(capabilities$runtime$gpu_count, 1L)
   invocation <- readLines(log, warn = FALSE)
@@ -321,6 +326,11 @@ test_that("container probes use GPUs and mount the workspace", {
       "--rm",
       "--gpus",
       "all",
+      "--user",
+      user,
+      "-e",
+      "HOME=/tmp/bionemor",
+      "--entrypoint",
       "-v",
       paste0(compute@workspace, ":", compute@workspace),
       "-w",
@@ -332,6 +342,15 @@ test_that("container probes use GPUs and mount the workspace", {
     ) %in%
       invocation
   ))
+  entrypoint <- which(invocation == "--entrypoint")
+  image <- which(invocation == compute@image)
+  expect_length(entrypoint, 1L)
+  expect_equal(invocation[[entrypoint + 1L]], "bionemor-evo2-helper")
+  expect_lt(entrypoint, image)
+  expect_equal(
+    invocation[seq.int(image + 1L, length(invocation))],
+    c("capabilities", "--json")
+  )
 
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   doctor <- bionemo_doctor(compute, model, target = "inference")
@@ -350,7 +369,12 @@ test_that("container probes use GPUs and mount the workspace", {
     num_tokens = 4L
   )
   expect_s3_class(generated, "evo2_generation")
-  expect_equal(readLines(log, warn = FALSE)[[1L]], "podman")
+  podman_invocation <- readLines(log, warn = FALSE)
+  expect_equal(podman_invocation[[1L]], "podman")
+  expect_true(all(
+    c("--user", user, "-e", "HOME=/tmp/bionemor") %in%
+      podman_invocation
+  ))
 })
 
 test_that("installation verifies an existing recipe image", {

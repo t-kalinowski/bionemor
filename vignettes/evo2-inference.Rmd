@@ -1,0 +1,158 @@
+---
+title: "Load an Evo 2 checkpoint for inference"
+output: rmarkdown::html_vignette
+vignette: |
+  %\VignetteIndexEntry{Load an Evo 2 checkpoint for inference}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+This example starts from a fresh R session, registers the LoRA checkpoint
+created in [Fine-tune Evo 2 and retain the checkpoint](evo2-finetune.html),
+and runs scoring and generation. The same `evo2()` call registers a dense
+MBridge checkpoint.
+
+## Recreate the compute description
+
+The runtime and checkpoint must use the same pinned BioNeMo Recipes revision.
+`pull = FALSE` avoids another registry pull when the locked image is already
+installed, while retaining the image-label and runtime-command checks.
+
+```{r runtime}
+library(bionemor)
+
+workspace <- normalizePath("~/evo2-work", mustWork = TRUE)
+
+compute <- bionemo_compute(
+  backend = "local",
+  engine = "container",
+  workspace = workspace
+)
+compute <- bionemo_install(compute, pull = FALSE)
+```
+
+## Register the checkpoint
+
+```{r checkpoint}
+fitted_checkpoint <- readLines(
+  file.path(workspace, "fitted-checkpoint.txt"),
+  n = 1L,
+  warn = FALSE
+)
+
+stopifnot(
+  length(fitted_checkpoint) == 1L,
+  dir.exists(fitted_checkpoint)
+)
+
+manifest <- checkpoint_manifest(fitted_checkpoint)
+stopifnot(
+  identical(manifest$format, "mbridge"),
+  identical(manifest$kind, "lora"),
+  dir.exists(manifest$base_checkpoint_path)
+)
+
+model <- evo2("7b", checkpoint = fitted_checkpoint)
+
+checks <- as.data.frame(
+  bionemo_doctor(
+    compute,
+    model = model,
+    target = "inference",
+    verbose = FALSE
+  )
+)
+stopifnot(!any(checks$status == "fail"))
+checks
+```
+
+Pass the checkpoint root containing `bionemor-checkpoint.json`, not one of its
+`iter_*` directories. A LoRA adapter is not standalone: its manifest refers
+to the exact dense base iteration used during fitting. Moving only the adapter
+is rejected before inference starts.
+
+## Score sequences
+
+```{r score}
+sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+)
+
+scores <- evo2_score(
+  model,
+  sequences,
+  compute = compute,
+  reduction = "mean",
+  strand = "forward"
+)
+
+stopifnot(
+  nrow(scores) == length(sequences),
+  identical(scores$id, names(sequences)),
+  all(is.finite(scores$score))
+)
+scores
+```
+
+## Generate continuations
+
+```{r generate}
+generated <- evo2_generate(
+  model,
+  sequences,
+  compute = compute,
+  num_tokens = 8L,
+  seed = 1L
+)
+
+stopifnot(
+  nrow(generated) == length(sequences),
+  all(generated$generated_tokens == 8L),
+  all(nzchar(generated$completion))
+)
+generated[c("input_id", "prompt", "completion", "finish_reason")]
+```
+
+Generation currently supports one sample per prompt. Use a positive seed and
+set at most one of `top_k` and `top_p` to a positive value.
+
+## Reopen an asynchronous inference run
+
+For a longer batch, save the run path before leaving the R session:
+
+```{r async}
+run <- evo2_generate(
+  model,
+  sequences,
+  compute = compute,
+  num_tokens = 8L,
+  seed = 1L,
+  name = "fitted-generation",
+  async = TRUE
+)
+
+run_path <- job_path(run)
+writeLines(
+  run_path,
+  file.path(workspace, "inference-run.txt")
+)
+
+# Run this in a later R session with the same workspace.
+run_path <- readLines(
+  file.path(workspace, "inference-run.txt"),
+  n = 1L,
+  warn = FALSE
+)
+same_run <- bionemo_job(run_path)
+job_status(same_run)
+job_logs(same_run, tail = 50L)
+generated <- job_wait(same_run, timeout = 600)
+```
+
+Every run keeps its request, command plan, logs, portable outputs, and
+provenance under `.bionemor/runs` in the compute workspace.

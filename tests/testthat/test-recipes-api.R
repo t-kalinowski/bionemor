@@ -132,6 +132,57 @@ test_that("a Savanna checkpoint is converted once and registered as MBridge", {
   )
 })
 
+test_that("checkpoint destinations are prepared before submission", {
+  workspace <- tempfile("bionemor-checkpoint-destination-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  fake_slurm_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  capabilities <- bionemo_capabilities(
+    bionemo_compute(engine = "external", workspace = workspace),
+    refresh = TRUE
+  )
+  compute <- bionemo_compute(
+    backend = "slurm",
+    engine = "external",
+    workspace = workspace,
+    config = list(capabilities = capabilities)
+  )
+  destination <- file.path(workspace, "checkpoints", "evo2-7b")
+
+  job <- evo2_checkpoint(
+    evo2("7b"),
+    source = "hf://arcinstitute/savanna_evo2_7b",
+    format = "savanna",
+    path = destination,
+    compute = compute,
+    revision = "9e69aeeaacf4d11fdbabfa73da65a770e5031f02",
+    async = TRUE
+  )
+
+  expect_s3_class(job, "bionemor::BioNeMoJob")
+  expect_true(dir.exists(destination))
+})
+
+test_that("checkpoint configs retain numeric values beyond integer range", {
+  workspace <- tempfile("bionemor-large-checkpoint-number-")
+  dir.create(workspace)
+  checkpoint <- make_mbridge_checkpoint(workspace)
+  write(
+    c("optimizer:", "  initial_loss_scale: 4294967296"),
+    file = file.path(checkpoint, "run_config.yaml"),
+    append = TRUE
+  )
+
+  expect_no_warning(model <- evo2("7b", checkpoint = checkpoint))
+  expect_s3_class(model, "bionemor::Evo2Model")
+})
+
 test_that("custom remote pickle-based checkpoints require explicit trust", {
   workspace <- tempfile("bionemor-custom-remote-")
   bin <- tempfile("bionemor-bin-")

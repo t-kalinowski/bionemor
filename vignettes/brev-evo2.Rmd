@@ -15,8 +15,11 @@ This guide provisions one Brev L40S instance, builds the locked BioNeMo
 Recipes Evo 2 image, and runs R on the host against that container. NIM is not
 used.
 
-The prior package revision was tested with a retired runtime. Treat this
-workflow as opt-in until the revised recipe acceptance run has completed.
+The locked 7B workflow was exercised on one Brev L40S on July 30, 2026. The
+acceptance run converted and registered an MBridge checkpoint, scored a probe,
+completed two LoRA optimizer steps, and ran scoring and generation through the
+fitted checkpoint. The provisioning commands below remain opt-in because they
+start billable compute.
 
 ## Inspect before provisioning
 

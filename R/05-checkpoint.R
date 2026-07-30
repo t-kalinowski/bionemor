@@ -1062,7 +1062,7 @@ evo2_checkpoint <- function(
     unlink(checkpoint_manifest_path(destination, "mbridge"), force = TRUE)
     unlink(checkpoint_completion_path(destination, "mbridge"), force = TRUE)
   }
-  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  dir.create(destination, recursive = TRUE, showWarnings = FALSE)
 
   source_request <- if (S7_inherits(source, BioNeMoCheckpoint)) {
     checkpoint_path(source)

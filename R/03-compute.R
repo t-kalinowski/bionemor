@@ -9,6 +9,13 @@ evo2_recipe_lock <- function() {
   if (!identical(lock$schema_version, 1L)) {
     stop("unsupported Evo 2 recipe lock schema")
   }
+  if (
+    !is_scalar_string(lock$uv_image) ||
+      !is_scalar_string(lock$uv_image_digest) ||
+      !grepl("^sha256:[0-9a-f]{64}$", lock$uv_image_digest)
+  ) {
+    stop("Evo 2 recipe lock has an invalid uv image")
+  }
   lock
 }
 
@@ -98,6 +105,10 @@ recipe_base_image_reference <- function(recipe) {
   }
   base <- sub("@sha256:[0-9a-fA-F]{64}$", "", recipe@base_image)
   paste0(base, "@", recipe@base_image_digest)
+}
+
+recipe_uv_image_reference <- function(lock = evo2_recipe_lock()) {
+  paste0(lock$uv_image, "@", lock$uv_image_digest)
 }
 
 default_recipe_image <- function(recipe) {

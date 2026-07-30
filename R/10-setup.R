@@ -165,12 +165,14 @@ runtime_probe_command <- function(
         "run",
         "--rm",
         if (gpus) c("--gpus", "all"),
+        local_container_user_args(),
+        "--entrypoint",
+        executable,
         "-v",
         paste0(compute@workspace, ":", compute@workspace),
         "-w",
         compute@workspace,
         image,
-        executable,
         args
       ),
       cwd = compute@workspace
@@ -399,6 +401,7 @@ bionemo_install_plan <- function(compute) {
         official_dockerfile = file.path(recipe@subdirectory, "Dockerfile"),
         dockerfile_blob = lock$dockerfile_blob,
         base_image_reference = recipe_base_image_reference(recipe),
+        uv_image_reference = recipe_uv_image_reference(lock),
         helper_revision = helper_revision,
         image = default_recipe_image(recipe)
       )
@@ -563,7 +566,7 @@ fetch_recipe_source <- function(paths, recipe, lock) {
   paths$source
 }
 
-prepare_recipe_build_context <- function(paths, recipe) {
+prepare_recipe_build_context <- function(paths, recipe, lock) {
   if (!dir.exists(paths$source)) {
     bionemor_abort(
       "BN_RECIPE_MISSING",
@@ -669,6 +672,22 @@ prepare_recipe_build_context <- function(paths, recipe) {
     recipe_base_image_reference(recipe),
     lines[[from]],
     fixed = TRUE
+  )
+  uv_fallback <- "#COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/"
+  uv <- which(instructions == uv_fallback)
+  if (length(uv) != 1L) {
+    bionemor_abort(
+      "BN_RECIPE_MISMATCH",
+      "locked recipe Dockerfile does not contain the expected uv fallback",
+      operation = "install",
+      recipe_revision = recipe@revision,
+      hint = "Remove the cached recipe source and run bionemo_install() again."
+    )
+  }
+  lines[[uv]] <- paste0(
+    "COPY --from=",
+    recipe_uv_image_reference(lock),
+    " /uv /uvx /bin/"
   )
   appendage <- package_asset(
     "docker",
@@ -897,7 +916,7 @@ bionemo_install <- function(
   if (build && (rebuild || !container_image_exists(compute))) {
     lock <- recipe_install_lock(compute@recipe)
     fetch_recipe_source(paths, compute@recipe, lock)
-    prepare_recipe_build_context(paths, compute@recipe)
+    prepare_recipe_build_context(paths, compute@recipe, lock)
     if (pull) {
       run_install_command(
         engine,

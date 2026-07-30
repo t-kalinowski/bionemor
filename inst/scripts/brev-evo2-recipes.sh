@@ -58,11 +58,13 @@ writeLines(c(
   lock$dockerfile_blob,
   lock$base_image,
   lock$base_image_digest,
+  lock$uv_image,
+  lock$uv_image_digest,
   lock$bridge_protocol
 ))
 RSCRIPT
 )
-if [[ "${#lock[@]}" -ne 8 ]]; then
+if [[ "${#lock[@]}" -ne 10 ]]; then
   echo "the Evo 2 recipe lock is incomplete" >&2
   exit 1
 fi
@@ -74,7 +76,9 @@ subdirectory="${lock[3]}"
 dockerfile_blob="${lock[4]}"
 base_image="${lock[5]}"
 base_image_digest="${lock[6]}"
-bridge_protocol="${lock[7]}"
+uv_image="${lock[7]}"
+uv_image_digest="${lock[8]}"
+bridge_protocol="${lock[9]}"
 image="${BIONEMOR_EVO2_IMAGE:-bionemor/evo2:${revision:0:12}}"
 
 if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
@@ -89,7 +93,12 @@ if [[ ! "$base_image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
   echo "the recipe lock base-image digest is invalid" >&2
   exit 1
 fi
+if [[ ! "$uv_image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  echo "the recipe lock uv-image digest is invalid" >&2
+  exit 1
+fi
 base_image_reference="${base_image}@${base_image_digest}"
+uv_image_reference="${uv_image}@${uv_image_digest}"
 
 source_dir="$source_root/bionemo-recipes"
 mkdir "$source_dir"
@@ -148,6 +157,21 @@ if [[ "$from_count" -ne 1 ]]; then
   exit 1
 fi
 awk -v expected="$expected" -v replacement="$replacement" \
+  '$0 == expected { print replacement; next } { print }' \
+  "$context/Dockerfile" > "$context/Dockerfile.tmp"
+mv "$context/Dockerfile.tmp" "$context/Dockerfile"
+uv_fallback="#COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/"
+uv_replacement="COPY --from=$uv_image_reference /uv /uvx /bin/"
+uv_count="$(
+  awk -v expected="$uv_fallback" \
+    '$0 == expected { count++ } END { print count + 0 }' \
+    "$context/Dockerfile"
+)"
+if [[ "$uv_count" -ne 1 ]]; then
+  echo "the locked recipe Dockerfile has an unexpected uv fallback" >&2
+  exit 1
+fi
+awk -v expected="$uv_fallback" -v replacement="$uv_replacement" \
   '$0 == expected { print replacement; next } { print }' \
   "$context/Dockerfile" > "$context/Dockerfile.tmp"
 mv "$context/Dockerfile.tmp" "$context/Dockerfile"

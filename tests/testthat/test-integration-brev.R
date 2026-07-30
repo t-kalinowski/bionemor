@@ -42,6 +42,16 @@ test_that("Brev acceptance uses the locked image build and requires inference", 
   )
   expect_match(
     build,
+    'uv_image_reference="${uv_image}@${uv_image_digest}"',
+    fixed = TRUE
+  )
+  expect_match(
+    build,
+    'uv_replacement="COPY --from=$uv_image_reference /uv /uvx /bin/"',
+    fixed = TRUE
+  )
+  expect_match(
+    build,
     'image_id="$(docker image inspect --format',
     fixed = TRUE
   )

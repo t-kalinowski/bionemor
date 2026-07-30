@@ -142,6 +142,10 @@ job_logs(run, tail = 50L)
 fitted <- job_wait(run)
 ```
 
+For complete examples, see
+[Fine-tune Evo 2 and retain the checkpoint](evo2-finetune.html) and
+[Load an Evo 2 checkpoint for inference](evo2-inference.html).
+
 The LoRA checkpoint manifest records its dense base checkpoint. Inference
 fails before launch when that base is unavailable.
 

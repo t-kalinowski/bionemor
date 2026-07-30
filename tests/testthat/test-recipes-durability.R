@@ -456,6 +456,50 @@ test_that("terminal state waits for log redactors to exit", {
   expect_equal(job_status(job), "succeeded")
 })
 
+test_that("terminal status survives a runner exit during process inspection", {
+  workspace <- tempfile("bionemor-process-exit-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
+  job <- evo2_generate(
+    model,
+    "ACGT",
+    compute,
+    num_tokens = 4L,
+    name = "runner-exit-during-inspection",
+    async = TRUE
+  )
+  job_wait(job, poll = 0.01, timeout = 5)
+  finalizing <- file.path(job_path(job), "finalizing")
+  file.create(finalizing)
+
+  testthat::local_mocked_bindings(
+    ps_handle = function(pid) pid,
+    ps_is_running = function(handle) TRUE,
+    ps_create_time = function(handle) {
+      stop(structure(
+        list(
+          message = "No such file or directory",
+          errno = 2L,
+          pid = NA_integer_
+        ),
+        class = c("os_error", "ps_error", "error", "condition")
+      ))
+    },
+    .package = "ps"
+  )
+
+  expect_equal(job_status(bionemo_job(job_path(job))), "succeeded")
+  expect_false(file.exists(finalizing))
+})
+
 test_that("force cancellation recovers a hung terminal log drain", {
   workspace <- tempfile("bionemor-hung-redactor-")
   bin <- tempfile("bionemor-bin-")

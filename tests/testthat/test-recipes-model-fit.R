@@ -458,6 +458,7 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
       "--adam-eps",
       "--hf-tokenizer-model-path",
       tokenizer,
+      "--disable-tensorboard-logger",
       "--lora-finetune",
       "--lora-dim"
     ) %in%
