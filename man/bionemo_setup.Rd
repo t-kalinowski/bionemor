@@ -2,30 +2,18 @@
 % Please edit documentation in R/10-setup.R
 \name{bionemo_setup}
 \alias{bionemo_setup}
-\title{Generate a BioNeMo environment-check plan}
+\title{Deprecated recipe setup alias}
 \usage{
-bionemo_setup(
-  compute,
-  model = NULL,
-  target = c("training", "inference"),
-  path = ".bionemo",
-  execute = FALSE
-)
+bionemo_setup(compute, ...)
 }
 \arguments{
-\item{compute}{A BioNeMo compute specification.}
+\item{compute}{A BioNeMo compute descriptor.}
 
-\item{model}{Optional Evo 2 model.}
-
-\item{target}{Operation target.}
-
-\item{path}{Directory for generated files.}
-
-\item{execute}{Whether to execute the generated probe.}
+\item{...}{Unused.}
 }
 \value{
-An S7 \code{BioNeMoSetupPlan}.
+A \code{BioNeMoSetupPlan}.
 }
 \description{
-Generate a BioNeMo environment-check plan
+Deprecated recipe setup alias
 }

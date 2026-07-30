@@ -1,0 +1,22 @@
+
+# Package-owned additions. The instructions above come from the locked
+# BioNeMo Recipes Evo 2 Dockerfile. Its verified FROM image is bound to the
+# package's locked digest before these instructions are appended.
+ARG BIONEMOR_RECIPE_REVISION
+ARG BIONEMOR_HELPER_REVISION
+ARG BIONEMOR_BASE_IMAGE
+ARG BIONEMOR_BASE_IMAGE_DIGEST
+
+ENV BIONEMOR_RECIPE_REVISION="${BIONEMOR_RECIPE_REVISION}"
+
+RUN install -m 0755 \
+    /workspace/bionemo/bionemor-helper/materialize-evo2.py \
+    /usr/local/bin/bionemor-evo2-helper
+
+LABEL org.opencontainers.image.source="https://github.com/NVIDIA-BioNeMo/bionemo-recipes" \
+      org.opencontainers.image.revision="${BIONEMOR_RECIPE_REVISION}" \
+      org.opencontainers.image.version="evo2-recipe-2.4" \
+      io.bionemor.helper.revision="${BIONEMOR_HELPER_REVISION}" \
+      io.bionemor.base.image="${BIONEMOR_BASE_IMAGE}" \
+      io.bionemor.base.digest="${BIONEMOR_BASE_IMAGE_DIGEST}" \
+      io.bionemor.bridge.protocol="1"

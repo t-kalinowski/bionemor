@@ -1,8 +1,8 @@
 ---
-title: "Run BioNeMo jobs with Slurm"
+title: "Run BioNeMo Recipes jobs with Slurm"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Run BioNeMo jobs with Slurm}
+  %\VignetteIndexEntry{Run BioNeMo Recipes jobs with Slurm}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -12,18 +12,30 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
 The Slurm backend submits one-node jobs with `sbatch`, reads allocation state
-with `sacct`, and cancels with `scancel`. The workspace must be shared between
-the R login process and the allocated node.
+with `sacct`, and cancels with `scancel`. The R process, compute nodes, and
+container must see the same workspace paths.
 
-## Installed Python environment
+`bionemo_install()` verifies the runtime from a synchronous Slurm allocation.
+It writes a strict probe script below the shared workspace, submits it with
+`sbatch --parsable`, waits for its terminal `sacct` record, and reads the
+capability JSON from the shared filesystem. It does not run GPU or Apptainer
+probes on the login host.
 
-Use `engine = "python"` when BioNeMo Framework 2.6.3 and its CLI commands are
-already installed on compute nodes:
+The compute-node environment must provide `bash`, `awk`, `mkfifo`, and the
+same `Rscript` path used by the submitting R process. It must also provide
+`sha256sum` when a local SIF is used. That R installation must have `jsonlite`
+available. Generated job scripts use these host tools to verify the SIF,
+redact streamed logs, and finalize terminal manifests.
 
-```{r slurm-python, eval = FALSE}
+## Administrator-managed external runtime
+
+Use `engine = "external"` when the pinned BioNeMo Recipes commands and package
+helper are already available on compute nodes:
+
+```{r slurm-external, eval = FALSE}
 compute <- bionemo_compute(
   backend = "slurm",
-  engine = "python",
+  engine = "external",
   workspace = "/shared/projects/evo2",
   gpus = 4L,
   queue = "gpu",
@@ -31,49 +43,56 @@ compute <- bionemo_compute(
   walltime = "01:00:00"
 )
 
+compute <- bionemo_install(compute)
 bionemo_doctor(compute, target = "training", verbose = FALSE)
 ```
 
 ## Apptainer
 
-Use `engine = "container"` for an Apptainer image visible on compute nodes:
+Use `engine = "container"` with an existing Apptainer image that was built
+from the verified upstream Evo 2 recipe Dockerfile with its base image bound to
+the release-lock digest:
 
 ```{r slurm-apptainer, eval = FALSE}
-container_compute <- bionemo_compute(
+compute <- bionemo_compute(
   backend = "slurm",
   engine = "container",
-  image = "/shared/images/bionemo-framework-2.6.3.sif",
+  image = "/shared/images/bionemor-evo2-e8e7f597.sif",
   workspace = "/shared/projects/evo2",
   gpus = 4L,
   queue = "gpu"
 )
+
+compute <- bionemo_install(compute)
 ```
 
-The generated allocation runs `apptainer exec --nv`. `bionemor` does not
-build the SIF or select a cluster-specific module configuration.
+For a local SIF path, `bionemo_install()` computes and records its SHA-256
+digest before submitting verification probes. The image must therefore be a
+readable file on the shared filesystem. A digest-qualified image URI records
+the supplied digest.
 
-## Submit and control a job
+Version 1 does not build a SIF on a compute node or select cluster modules.
+The allocation environment must provide `apptainer`.
+
+## Submit and reopen a job
 
 ```{r slurm-job, eval = FALSE}
-model <- evo2("7b", checkpoint = "/shared/models/evo2-7b-1m")
+model <- evo2("7b", checkpoint = "/shared/models/evo2-7b-mbridge")
 
-job <- predict(
+job <- evo2_score(
   model,
   candidate_sequences,
-  type = "score",
   compute = compute,
   async = TRUE
 )
 
-job_status(job)               # queries sacct
+path <- job_path(job)
+job_status(job)
 job_logs(job, tail = 100L)
+
+job <- bionemo_job(path)
 result <- job_wait(job, timeout = 600)
 ```
 
-A `job_wait()` timeout does not cancel a Slurm allocation. Call
-`job_cancel(job)` to issue `scancel`. Unknown scheduler states are reported
-with the original state string.
-
-Checkpoint conversion also uses one `sbatch --wait` allocation. The
-destination and any local source checkpoint must be inside the shared
-workspace.
+A `job_wait()` timeout does not cancel the allocation. Call `job_cancel()` to
+issue `scancel`.

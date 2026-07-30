@@ -4,7 +4,7 @@
 \alias{job_wait}
 \title{Wait for a BioNeMo job}
 \usage{
-job_wait(x, poll = 10, timeout = Inf)
+job_wait(x, poll = 2, timeout = Inf)
 }
 \arguments{
 \item{x}{A BioNeMo job.}

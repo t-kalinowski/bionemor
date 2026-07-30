@@ -4,10 +4,12 @@
 \alias{job_cancel}
 \title{Cancel a BioNeMo job}
 \usage{
-job_cancel(x)
+job_cancel(x, force = FALSE)
 }
 \arguments{
 \item{x}{A BioNeMo job.}
+
+\item{force}{Whether to use immediate termination.}
 }
 \value{
 The updated job, invisibly.

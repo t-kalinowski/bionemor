@@ -1,8 +1,8 @@
 ---
-title: "Test Evo 2 on a Brev L40S instance"
+title: "Test the Evo 2 recipe on Brev"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Test Evo 2 on a Brev L40S instance}
+  %\VignetteIndexEntry{Test the Evo 2 recipe on Brev}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -11,69 +11,62 @@ vignette: |
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-This guide runs `bionemor` on one Brev L40S instance. It uses BioNeMo
-Framework 2.6.3 and public Evo 2 checkpoints from Hugging Face. The workflow
-does not require an NGC key and does not start or test a NIM service.
+This guide provisions one Brev L40S instance, builds the locked BioNeMo
+Recipes Evo 2 image, and runs R on the host against that container. NIM is not
+used.
 
-The 7B smoke test covers diagnostics, generation, scoring, and raw logits. The
-1B acceptance workflow covers public checkpoint conversion, baseline
-inference, three full fitting steps, and fitted inference.
+The prior package revision was tested with a retired runtime. Treat this
+workflow as opt-in until the revised recipe acceptance run has completed.
 
 ## Inspect before provisioning
 
-Install and authenticate the Brev CLI, then run the provisioning script from
-the repository root. It performs a dry run by default:
+The provisioning script performs a dry run by default:
 
 ```{bash, eval = FALSE}
 ./inst/scripts/brev-evo2-create.sh
 ```
 
-The default type is `l40s-48gb.1x`. Brev availability and pricing can change,
-so inspect the dry-run output and the current catalog before creating an
-instance. There is no GPU-type fallback.
-
-Create only after confirming the exact instance:
+Inspect the current Brev catalog and price, then request the exact instance:
 
 ```{bash, eval = FALSE}
 ./inst/scripts/brev-evo2-create.sh --create bionemor-evo2
 ```
 
-## Run individual checks
+There is no GPU-type fallback.
 
-Copy the repository and run the 7B smoke test:
+## Build and run
+
+The smoke test requires an existing 7B MBridge checkpoint. Place it under the
+remote workspace before running the build:
 
 ```{bash, eval = FALSE}
 brev copy ./ bionemor-evo2:/home/ubuntu/bionemor/
 brev exec bionemor-evo2 \
-  "bash /home/ubuntu/bionemor/inst/scripts/brev-evo2-framework.sh"
-```
-
-Run the 1B fitting workflow:
-
-```{bash, eval = FALSE}
+  "mkdir -p /home/ubuntu/bionemor-workspace/checkpoints/evo2-7b"
+brev copy /path/to/evo2-7b/ \
+  bionemor-evo2:/home/ubuntu/bionemor-workspace/checkpoints/evo2-7b/
 brev exec bionemor-evo2 \
-  "bash /home/ubuntu/bionemor/inst/scripts/brev-evo2-finetune.sh"
+  "BIONEMOR_EVO2_CHECKPOINT=/home/ubuntu/bionemor-workspace/checkpoints/evo2-7b bash /home/ubuntu/bionemor/inst/scripts/brev-evo2-recipes.sh"
 ```
 
-The training phase has a hard 300-second container boundary. It includes FASTA
-preprocessing and `train_evo2`. If it reaches the limit, the script removes the
-training container and fails.
+The script checks out the locked upstream source, verifies the official Evo 2
+Dockerfile, binds its base image to the release-lock digest, and appends the
+package helper. It installs the R package on the host, verifies the checkpoint,
+and runs generation, scoring, and pooled embedding extraction.
 
-Stop the instance after individual runs:
+Stop the instance after an individual run:
 
 ```{bash, eval = FALSE}
 brev stop bionemor-evo2
 ```
 
-## Opt-in acceptance runner
-
-The explicit runner provisions, copies, runs both workflows, and stops the
-instance from an `EXIT` trap:
+The explicit runner provisions, copies, runs, and stops the instance from an
+`EXIT` trap:
 
 ```{bash, eval = FALSE}
-./inst/scripts/brev-evo2-run.sh --run bionemor-evo2
+BIONEMOR_EVO2_CHECKPOINT_SOURCE=/path/to/evo2-7b \
+  ./inst/scripts/brev-evo2-run.sh --run bionemor-evo2
 ```
 
-`--run` is required because this action provisions billable compute. The trap
-stops the instance after success or failure. Stopping preserves the converted
-checkpoints and run artifacts on the instance disk.
+The runner uploads that checkpoint to the remote workspace. `--run` is
+required because the command provisions billable compute.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/05-checkpoint.R
 \name{checkpoint_manifest}
 \alias{checkpoint_manifest}
-\title{Read checkpoint conversion provenance}
+\title{Read checkpoint provenance}
 \usage{
 checkpoint_manifest(x)
 }
@@ -13,5 +13,5 @@ checkpoint_manifest(x)
 A named list.
 }
 \description{
-Read checkpoint conversion provenance
+Read checkpoint provenance
 }

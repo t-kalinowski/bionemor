@@ -4,30 +4,142 @@ looks_like_path <- function(x) {
       grepl("\\.(fa|fasta|fna|fas)(\\.gz)?$", x, ignore.case = TRUE))
 }
 
-as_sequences <- function(x) {
+abort_invalid_sequence <- function(message, request_id = NULL, path = NULL) {
+  bionemor_abort(
+    "BN_INVALID_SEQUENCE",
+    message,
+    request_id = request_id,
+    operation = "sequence-input",
+    path = path
+  )
+}
+
+as_sequences <- function(x, column = "sequence") {
   if (inherits(x, "XStringSet")) {
     x <- as.character(x)
   }
-  stopifnot(
-    "sequences must be a non-empty character vector or XStringSet" =
-      is.character(x) && length(x) > 0L,
-    "sequences must not contain missing or empty values" =
-      !anyNA(x) && all(nzchar(x))
-  )
+  if (is.data.frame(x)) {
+    if (!(column %in% names(x))) {
+      abort_invalid_sequence("data must contain the requested sequence column")
+    }
+    values <- x[[column]]
+    if ("id" %in% names(x)) {
+      names(values) <- as.character(x$id)
+    }
+    x <- values
+  }
+  if (!is.character(x) || length(x) == 0L) {
+    abort_invalid_sequence(
+      "sequences must be a non-empty character vector or XStringSet"
+    )
+  }
   ids <- names(x)
   if (is.null(ids)) {
-    ids <- as.character(seq_along(x))
-  } else {
-    empty <- is.na(ids) | !nzchar(ids)
-    ids[empty] <- as.character(which(empty))
+    ids <- paste0("seq_", seq_along(x))
+  } else if (anyNA(ids) || any(!nzchar(ids))) {
+    abort_invalid_sequence("sequence IDs must not be missing or empty")
   }
-  stopifnot(
-    "sequence IDs must be unique" = !anyDuplicated(ids),
-    "FASTA IDs and sequences must not contain line breaks" =
-      !any(grepl("[\r\n]", ids)) && !any(grepl("[\r\n]", x))
-  )
+  invalid_value <- which(is.na(x) | !nzchar(x))
+  if (length(invalid_value)) {
+    abort_invalid_sequence(
+      "sequences must not contain missing or empty values",
+      request_id = ids[[invalid_value[[1L]]]]
+    )
+  }
+  duplicate <- which(duplicated(ids))
+  if (length(duplicate)) {
+    abort_invalid_sequence(
+      "sequence IDs must be unique",
+      request_id = ids[[duplicate[[1L]]]]
+    )
+  }
+  invalid_id <- which(grepl("[\r\n]", ids))
+  if (length(invalid_id)) {
+    abort_invalid_sequence(
+      "sequence IDs must not contain line breaks",
+      request_id = ids[[invalid_id[[1L]]]]
+    )
+  }
+  invalid_value <- which(grepl("[\r\n]", x))
+  if (length(invalid_value)) {
+    abort_invalid_sequence(
+      "sequences must not contain line breaks",
+      request_id = ids[[invalid_value[[1L]]]]
+    )
+  }
   names(x) <- ids
   x
+}
+
+normalize_sequence_values <- function(x, normalize) {
+  normalize <- match.arg(normalize, c("dna", "evo2", "none"))
+  utf8 <- enc2utf8(x)
+  invalid <- which(!validEnc(x) | is.na(utf8))
+  if (length(invalid)) {
+    abort_invalid_sequence(
+      "sequences must be valid UTF-8",
+      request_id = names(x)[[invalid[[1L]]]]
+    )
+  }
+  if (normalize == "none") {
+    return(utf8)
+  }
+  x <- toupper(x)
+  if (normalize == "dna") {
+    x <- gsub("[ \t\f\v]", "", enc2utf8(x))
+    invalid <- which(!grepl("^[ACGTRYSWKMBDHVN]+$", x))
+    if (length(invalid)) {
+      abort_invalid_sequence(
+        "DNA sequences may contain only IUPAC DNA symbols",
+        request_id = names(x)[[invalid[[1L]]]]
+      )
+    }
+    return(x)
+  }
+  values <- vapply(seq_along(x), function(index) {
+    value <- x[[index]]
+    request_id <- names(x)[[index]]
+    tag <- ""
+    sequence <- value
+    if (startsWith(value, "|")) {
+      closing <- regexpr("|", substring(value, 2L), fixed = TRUE)[[1L]]
+      if (closing <= 0L) {
+        abort_invalid_sequence(
+          "Evo 2 phylogenetic prompt tag is not closed",
+          request_id = request_id
+        )
+      }
+      closing <- closing + 1L
+      tag <- substring(value, 1L, closing)
+      sequence <- substring(value, closing + 1L)
+      valid_tag <- grepl(
+        paste0(
+          "^\\|D__[^;|]*;P__[^;|]*;C__[^;|]*;",
+          "O__[^;|]*;F__[^;|]*;G__[^;|]*;S__[^;|]*\\|$"
+        ),
+        tag
+      )
+      if (!valid_tag) {
+        abort_invalid_sequence(
+          "Evo 2 phylogenetic prompt tag has an invalid rank layout",
+          request_id = request_id
+        )
+      }
+    }
+    sequence <- gsub("[ \t\f\v]", "", sequence)
+    if (nzchar(sequence) &&
+        !grepl("^[ACGTRYSWKMBDHVN]+$", sequence)) {
+      abort_invalid_sequence(
+        paste0(
+          "Evo 2 prompts may contain a phylogenetic tag followed by IUPAC DNA"
+        ),
+        request_id = request_id
+      )
+    }
+    paste0(tag, sequence)
+  }, character(1))
+  names(values) <- names(x)
+  values
 }
 
 write_fasta <- function(sequences, path) {
@@ -40,6 +152,7 @@ write_fasta <- function(sequences, path) {
     ),
     use.names = FALSE
   )
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   writeLines(lines, path, useBytes = TRUE)
   path
 }
@@ -53,15 +166,31 @@ read_fasta <- function(path) {
   on.exit(close(connection), add = TRUE)
   lines <- readLines(connection, warn = FALSE)
   headers <- which(startsWith(lines, ">"))
-  stopifnot(
-    "FASTA data must contain at least one record" = length(headers) > 0L,
-    "FASTA data must start with a header" = headers[[1L]] == 1L
-  )
+  if (length(headers) == 0L) {
+    abort_invalid_sequence(
+      "FASTA data must contain at least one record",
+      path = path
+    )
+  }
+  if (headers[[1L]] != 1L) {
+    abort_invalid_sequence(
+      "FASTA data must start with a header",
+      path = path
+    )
+  }
   ends <- c(headers[-1L] - 1L, length(lines))
   ids <- substring(lines[headers], 2L)
-  stopifnot(
-    "FASTA record IDs must not be empty" = all(nzchar(ids))
-  )
+  if (any(!nzchar(ids))) {
+    abort_invalid_sequence("FASTA record IDs must not be empty", path = path)
+  }
+  duplicate <- which(duplicated(ids))
+  if (length(duplicate)) {
+    abort_invalid_sequence(
+      "FASTA record IDs must be unique",
+      request_id = ids[[duplicate[[1L]]]],
+      path = path
+    )
+  }
   sequences <- Map(function(start, end) {
     if (start == end) {
       ""
@@ -72,42 +201,763 @@ read_fasta <- function(path) {
   as_sequences(stats::setNames(unlist(sequences, use.names = FALSE), ids))
 }
 
-prepare_sequence_input <- function(data, workspace, name) {
-  if (is.character(data) && length(data) == 1L) {
-    candidate <- normalize_path(data, base = workspace)
-    if (file.exists(candidate)) {
-      path <- normalizePath(candidate, mustWork = TRUE)
-      sequences <- read_fasta(path)
-      return(list(
-        path = path,
-        ids = names(sequences),
-        sequences = sequences,
-        source = "fasta"
-      ))
-    }
-    if (looks_like_path(data)) {
-      stop("data path does not exist: ", data, call. = FALSE)
-    }
+prepare_sequence_input <- function(
+  data,
+  run_path,
+  name = NULL,
+  normalize = "dna",
+  column = "sequence",
+  filename = "sequences.fasta"
+) {
+  if (!is.null(name)) {
+    run_path <- file.path(run_path, ".bionemor", "jobs", name)
   }
-  source <- if (is.data.frame(data)) "data.frame" else "memory"
-  if (is.data.frame(data)) {
-    stopifnot("data must contain a sequence column" = "sequence" %in% names(data))
-    sequences <- data$sequence
-    if ("id" %in% names(data)) {
-      names(sequences) <- as.character(data$id)
+  dir.create(file.path(run_path, "inputs"), recursive = TRUE, showWarnings = FALSE)
+
+  source <- "memory"
+  source_path <- NULL
+  if (is.character(data) && length(data) == 1L) {
+    path_like <- looks_like_path(data)
+    candidate <- if (
+      path_like ||
+        nchar(data, type = "bytes") <= 255L
+    ) {
+      normalize_path(data)
+    } else {
+      NULL
+    }
+    if (!is.null(candidate) && file.exists(candidate)) {
+      source <- "fasta"
+      source_path <- normalizePath(candidate, mustWork = TRUE)
+      sequences <- read_fasta(source_path)
+    } else {
+      if (path_like) {
+        bionemor_abort(
+          "BN_INVALID_SEQUENCE",
+          paste0("data path does not exist: ", data),
+          operation = "sequence-input",
+          path = data
+        )
+      }
+      sequences <- as_sequences(data, column = column)
     }
   } else {
-    sequences <- data
+    source <- if (is.data.frame(data)) "data.frame" else "memory"
+    sequences <- as_sequences(data, column = column)
   }
-  sequences <- as_sequences(sequences)
-  root <- file.path(workspace, ".bionemor", "jobs", name)
-  dir.create(root, recursive = TRUE, showWarnings = FALSE)
-  path <- write_fasta(sequences, file.path(root, "sequences.fasta"))
+  source_digest <- if (is.null(source_path)) NULL else path_digest(source_path)
+  sequences <- normalize_sequence_values(sequences, normalize)
+  path <- write_fasta(
+    sequences,
+    file.path(run_path, "inputs", filename)
+  )
+  materialized_digest <- path_digest(path)
+  input_source <- list(
+    source = source,
+    path = source_path,
+    digest = source_digest %||% materialized_digest
+  )
   list(
-    path = path,
+    path = normalize_path(path),
     ids = names(sequences),
     sequences = sequences,
-    source = source
+    source = source,
+    source_path = source_path,
+    digest = input_source$digest,
+    materialized_digest = materialized_digest,
+    input_source = input_source,
+    normalize = normalize
+  )
+}
+
+validate_sequence_context <- function(
+  input,
+  object,
+  compute,
+  operation,
+  run_path,
+  checkpoint,
+  additional_tokens = 0L,
+  max_sequence_length = NULL
+) {
+  stopifnot(
+    "input must be a prepared sequence input" =
+      is.list(input) &&
+        is.character(input$ids) &&
+        is.character(input$sequences),
+    "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
+    "compute must be a BioNeMo compute specification" =
+      S7_inherits(compute, BioNeMoCompute),
+    "operation must be one inference operation" =
+      operation %in% c("generation", "score", "profile", "embedding"),
+    "run path must exist" = is_scalar_string(run_path) && dir.exists(run_path),
+    "checkpoint must be one non-empty string" =
+      is_scalar_string(checkpoint),
+    "additional tokens must be a non-negative integer" =
+      is_scalar_integerish(additional_tokens, min = 0),
+    "maximum sequence length must be NULL or a positive integer" =
+      is.null(max_sequence_length) ||
+        is_scalar_integerish(max_sequence_length, min = 1)
+  )
+  model_context_length <- as.integer(object@context_length)
+  context_length <- if (is.null(max_sequence_length)) {
+    model_context_length
+  } else {
+    min(model_context_length, as.integer(max_sequence_length))
+  }
+  sequence_lengths <- nchar(input$sequences, type = "chars")
+  required_lengths <- sequence_lengths + as.integer(additional_tokens)
+  invalid <- which(required_lengths > context_length)
+  if (length(invalid)) {
+    index <- invalid[[1L]]
+    bionemor_abort(
+      "BN_CONTEXT_LIMIT",
+      paste0(
+        operation,
+        " request '",
+        input$ids[[index]],
+        "' requires ",
+        required_lengths[[index]],
+        " tokens but the context limit is ",
+        context_length
+      ),
+      run_path = run_path,
+      request_id = input$ids[[index]],
+      operation = operation,
+      model = object@size,
+      checkpoint = checkpoint,
+      recipe_revision = compute@recipe@revision,
+      context_length = as.integer(context_length),
+      model_context_length = model_context_length,
+      sequence_length = as.integer(sequence_lengths[[index]]),
+      additional_tokens = as.integer(additional_tokens),
+      required_length = as.integer(required_lengths[[index]]),
+      hint = paste0(
+        "shorten the input",
+        if (additional_tokens > 0L) " or request fewer generated tokens" else ""
+      )
+    )
+  }
+  invisible(input)
+}
+
+write_jsonl_rows <- function(rows, path) {
+  stopifnot(
+    "rows must be a list of named records" =
+      is.list(rows) &&
+        all(vapply(rows, function(x) is.list(x) && !is.null(names(x)), logical(1)))
+  )
+  lines <- vapply(
+    rows,
+    jsonlite::toJSON,
+    character(1),
+    auto_unbox = TRUE,
+    null = "null",
+    na = "null",
+    digits = NA
+  )
+  atomic_write_lines(lines, path)
+  invisible(path)
+}
+
+read_jsonl_rows <- function(path) {
+  stopifnot("JSONL file does not exist" = file.exists(path))
+  lines <- readLines(path, warn = FALSE)
+  lines <- lines[nzchar(trimws(lines))]
+  lapply(
+    lines,
+    jsonlite::fromJSON,
+    simplifyVector = TRUE,
+    simplifyDataFrame = FALSE,
+    simplifyMatrix = FALSE
+  )
+}
+
+reverse_complement <- function(x, request_id = NULL) {
+  complement <- c(
+    A = "T", C = "G", G = "C", T = "A",
+    R = "Y", Y = "R", S = "S", W = "W",
+    K = "M", M = "K", B = "V", D = "H",
+    H = "D", V = "B", N = "N"
+  )
+  vapply(strsplit(x, "", fixed = TRUE), function(bases) {
+    if (!all(bases %in% names(complement))) {
+      abort_invalid_sequence(
+        paste0(
+          "reverse-complement input may contain only uppercase IUPAC DNA symbols"
+        ),
+        request_id = request_id
+      )
+    }
+    paste0(rev(unname(complement[bases])), collapse = "")
+  }, character(1))
+}
+
+prepare_stranded_input <- function(input, run_path, strand) {
+  strand <- match.arg(strand, c("forward", "reverse", "both"))
+  records <- vector("list", 0L)
+  sequences <- character()
+  for (index in seq_along(input$sequences)) {
+    id <- input$ids[[index]]
+    sequence <- unname(input$sequences[[index]])
+    selected <- switch(
+      strand,
+      forward = "forward",
+      reverse = "reverse",
+      both = c("forward", "reverse")
+    )
+    for (direction in selected) {
+      derived_id <- if (strand == "forward") {
+        id
+      } else {
+        paste0(id, "::", direction)
+      }
+      derived <- if (direction == "forward") {
+        sequence
+      } else {
+        reverse_complement(sequence, request_id = id)
+      }
+      sequences[[derived_id]] <- derived
+      records[[length(records) + 1L]] <- list(
+        derived_id = derived_id,
+        id = id,
+        input_index = as.integer(index),
+        strand = direction,
+        sequence = derived,
+        sequence_length = nchar(sequence, type = "chars")
+      )
+    }
+  }
+  input$path <- write_fasta(
+    sequences,
+    file.path(run_path, "inputs", "sequences.fasta")
+  )
+  input$derived_sequences <- sequences
+  input$map <- records
+  atomic_write_json(
+    records,
+    file.path(run_path, "inputs", "sequence-map.json"),
+    auto_unbox = TRUE
+  )
+  input
+}
+
+#' Construct an Evo 2 phylogenetic prompt tag
+#'
+#' @param domain,phylum,class,order,family,genus,species Optional taxonomy
+#'   ranks.
+#' @param uppercase Whether to uppercase the serialized tag.
+#'
+#' @return One Evo 2 phylogenetic prompt tag.
+#' @export
+evo2_phylo_tag <- function(
+  domain = NULL,
+  phylum = NULL,
+  class = NULL,
+  order = NULL,
+  family = NULL,
+  genus = NULL,
+  species = NULL,
+  uppercase = TRUE
+) {
+  ranks <- list(
+    d = domain,
+    p = phylum,
+    c = class,
+    o = order,
+    f = family,
+    g = genus,
+    s = species
+  )
+  stopifnot(
+    "taxonomy ranks must be NULL or one non-empty string" =
+      all(vapply(
+        ranks,
+        function(x) is.null(x) || is_scalar_string(x),
+        logical(1)
+      )),
+    "taxonomy ranks must not contain separators or line breaks" =
+      all(vapply(
+        ranks,
+        function(x) is.null(x) || !grepl("[;|\r\n]", x),
+        logical(1)
+      )),
+    "uppercase must be TRUE or FALSE" = is_scalar_logical(uppercase)
+  )
+  values <- vapply(ranks, function(x) x %||% "None", character(1))
+  tag <- paste0(
+    "|",
+    paste0(names(values), "__", values, collapse = ";"),
+    "|"
+  )
+  if (uppercase) toupper(tag) else tag
+}
+
+control_property <- function(control, name, default = NULL) {
+  tryCatch(S7::prop(control, name), error = function(...) default)
+}
+
+inference_checkpoint_defaults <- function(checkpoint, manifest = NULL) {
+  if (is.null(checkpoint) && is.null(manifest)) {
+    return(list(
+      mixed_precision_recipe = NULL,
+      precision_policy = NULL,
+      vortex_style_fp8 = NULL
+    ))
+  }
+  if (!is.list(manifest)) {
+    manifest <- tryCatch(
+      read_checkpoint_manifest(checkpoint),
+      error = function(...) NULL
+    )
+  }
+  if (!is.list(manifest)) {
+    return(list(
+      mixed_precision_recipe = NULL,
+      precision_policy = NULL,
+      vortex_style_fp8 = NULL
+    ))
+  }
+  record <- tryCatch(
+    evo2_model_record(manifest$variant),
+    error = function(...) NULL
+  )
+  list(
+    mixed_precision_recipe =
+      manifest$mixed_precision_recipe %||%
+        record$mixed_precision_recipe %||%
+        NULL,
+    precision_policy = record$precision_policy %||% NULL,
+    vortex_style_fp8 =
+      isTRUE(manifest$inspection$vortex_style_fp8)
+  )
+}
+
+verified_hopper_runtime <- function(compute) {
+  report <- compute@config$capabilities
+  if (!is.list(report)) {
+    report <- runtime_capabilities(compute, refresh = TRUE)
+  }
+  gpus <- report$runtime$gpus
+  majors <- if (is.data.frame(gpus) && "compute_capability_major" %in% names(gpus)) {
+    as.integer(gpus$compute_capability_major)
+  } else if (is.list(gpus)) {
+    vapply(
+      gpus,
+      function(gpu) as.integer(gpu$compute_capability_major %||% NA_integer_),
+      integer(1)
+    )
+  } else {
+    integer()
+  }
+  length(majors) >= compute@gpus &&
+    !anyNA(majors) &&
+    all(majors == 9L)
+}
+
+resolved_inference_control <- function(
+  control,
+  compute,
+  operation,
+  checkpoint = NULL,
+  checkpoint_manifest = NULL
+) {
+  tensor <- control_property(control, "tensor_parallel_size", 1L)
+  pipeline <- control_property(control, "pipeline_parallel_size", 1L)
+  context <- control_property(control, "context_parallel_size", 1L)
+  precision <- control_property(control, "precision", "auto")
+  mixed <- control_property(control, "mixed_precision_recipe", NULL)
+  defaults <- inference_checkpoint_defaults(checkpoint, checkpoint_manifest)
+  vortex_setting <- control_property(control, "vortex_style_fp8", "auto")
+  automatic_vortex <- identical(vortex_setting, "auto") &&
+    (
+      isTRUE(defaults$vortex_style_fp8) ||
+        identical(defaults$precision_policy, "vortex-fp8-on-hopper")
+    )
+  vortex <- switch(
+    vortex_setting,
+    yes = TRUE,
+    no = FALSE,
+    auto = automatic_vortex
+  )
+  if (is.null(mixed)) {
+    mixed <- switch(
+      precision,
+      auto = defaults$mixed_precision_recipe,
+      bf16 = "bf16_mixed",
+      fp8 = if (vortex) {
+        "bf16_mixed"
+      } else {
+        "bf16_with_fp8_current_scaling_mixed"
+      }
+    )
+  }
+  if (automatic_vortex) {
+    stopifnot(
+      "automatic Vortex FP8 requires a verified Hopper GPU capability report" =
+        verified_hopper_runtime(compute)
+    )
+  }
+  subquadratic <- control_property(control, "subquadratic_ops", FALSE)
+  cuda_graphs <- control_property(control, "cuda_graphs", "auto")
+  if (identical(cuda_graphs, "auto")) {
+    cuda_graphs <- if (subquadratic) "none" else "local"
+  }
+  world_size <- as.integer(compute@gpus * compute@nodes)
+  model_parallel <- as.integer(tensor * pipeline * context)
+  stopifnot(
+    "tensor parallelism must be a positive integer" =
+      is_scalar_integerish(tensor, min = 1),
+    "pipeline parallelism must equal one" =
+      identical(as.integer(pipeline), 1L),
+    "context parallelism must be a positive integer" =
+      is_scalar_integerish(context, min = 1),
+    "model parallelism cannot exceed the allocated world size" =
+      model_parallel <= world_size
+  )
+  if (operation == "generation") {
+    stopifnot(
+      "generation world size must equal the model-parallel product" =
+        model_parallel == world_size
+    )
+  }
+  list(
+    tensor_parallel_size = as.integer(tensor),
+    pipeline_parallel_size = as.integer(pipeline),
+    context_parallel_size = as.integer(context),
+    world_size = world_size,
+    processes_per_node = as.integer(world_size / compute@nodes),
+    precision = precision,
+    mixed_precision_recipe = mixed,
+    vortex_style_fp8 = vortex,
+    micro_batch_size = as.integer(
+      control_property(control, "micro_batch_size", 1L)
+    ),
+    max_sequence_length = control_property(
+      control,
+      "max_sequence_length",
+      NULL
+    ),
+    max_batch_size = as.integer(
+      control_property(control, "max_batch_size", 1L)
+    ),
+    cuda_graphs = cuda_graphs,
+    subquadratic_ops = subquadratic,
+    chunked_prefill = control_property(
+      control,
+      "chunked_prefill",
+      FALSE
+    ),
+    dynamic_max_tokens = control_property(
+      control,
+      "dynamic_max_tokens",
+      NULL
+    ),
+    dynamic_block_size = as.integer(
+      control_property(control, "dynamic_block_size", 256L)
+    ),
+    extra = control_property(control, "extra", list())
+  )
+}
+
+parallel_command_args <- function(resolved) {
+  c(
+    "--tensor-parallel-size",
+    as.character(resolved$tensor_parallel_size),
+    "--pipeline-model-parallel-size",
+    as.character(resolved$pipeline_parallel_size),
+    "--context-parallel-size",
+    as.character(resolved$context_parallel_size)
+  )
+}
+
+precision_command_args <- function(resolved) {
+  args <- character()
+  if (!is.null(resolved$mixed_precision_recipe)) {
+    args <- c(
+      args,
+      "--mixed-precision-recipe",
+      resolved$mixed_precision_recipe
+    )
+  }
+  if (isTRUE(resolved$vortex_style_fp8)) {
+    args <- c(args, "--vortex-style-fp8")
+  }
+  args
+}
+
+prediction_extra_args <- function(extra) {
+  mapping <- c(
+    no_sequence_parallel = "--no-sequence-parallel",
+    min_length = "--min-length"
+  )
+  unlist(Map(function(name, value) {
+    flag <- unname(mapping[[name]])
+    if (is.logical(value)) {
+      if (isTRUE(value)) flag else character()
+    } else {
+      c(
+        flag,
+        if (is.numeric(value)) format_number(value) else as.character(value)
+      )
+    }
+  }, names(extra), extra), use.names = FALSE)
+}
+
+prediction_ignored_extra_fields <- c(
+  "eden_tokenizer",
+  "hybrid_override_pattern",
+  "num_layers",
+  "seq_len_interpolation_factor"
+)
+
+validate_generation_control <- function(control) {
+  stopifnot(
+    "control micro_batch_size is unsupported; use max_batch_size for generation" =
+      identical(control_property(control, "micro_batch_size", 1L), 1L),
+    "inference extra settings are not supported for generation" =
+      length(control_property(control, "extra", list())) == 0L
+  )
+  invisible(control)
+}
+
+validate_prediction_control <- function(control) {
+  ignored_extra <- intersect(
+    names(control_property(control, "extra", list())),
+    prediction_ignored_extra_fields
+  )
+  if (length(ignored_extra)) {
+    bionemor_abort(
+      "BN_PROTOCOL",
+      paste0(
+        if (length(ignored_extra) > 1L) {
+          "prediction control settings "
+        } else {
+          "prediction control setting "
+        },
+        paste(ignored_extra, collapse = ", "),
+        if (length(ignored_extra) > 1L) {
+          " are not applied by the pinned prediction entry point"
+        } else {
+          " is not applied by the pinned prediction entry point"
+        }
+      ),
+      operation = "prediction",
+      settings = ignored_extra
+    )
+  }
+  stopifnot(
+    "control micro_batch_size is unsupported; use the task-specific batch_size argument" =
+      identical(control_property(control, "micro_batch_size", 1L), 1L)
+  )
+  invisible(control)
+}
+
+torchrun_command <- function(operation, args, resolved, cwd) {
+  command_spec(
+    executable = "torchrun",
+    args = c(
+      "--nproc-per-node",
+      as.character(resolved$processes_per_node),
+      "--no-python",
+      operation,
+      args
+    ),
+    cwd = cwd
+  )
+}
+
+evo2_generation_plan <- function(
+  checkpoint,
+  prompts,
+  upstream,
+  portable,
+  fasta,
+  validation,
+  compute,
+  control,
+  num_tokens,
+  temperature,
+  top_k,
+  top_p,
+  seed,
+  return_probabilities,
+  validate,
+  checkpoint_manifest = NULL
+) {
+  resolved <- resolved_inference_control(
+    control,
+    compute,
+    "generation",
+    checkpoint,
+    checkpoint_manifest
+  )
+  args <- c(
+    "--ckpt-dir", checkpoint,
+    "--prompt-file", prompts,
+    "--max-new-tokens", as.character(num_tokens),
+    "--temperature", format_number(temperature),
+    "--top-k", as.character(top_k),
+    "--top-p", format_number(top_p),
+    "--output-file", upstream,
+    parallel_command_args(resolved),
+    precision_command_args(resolved),
+    if (!is.null(resolved$max_sequence_length)) {
+      c("--max-seq-length", as.character(resolved$max_sequence_length))
+    },
+    "--max-batch-size", as.character(resolved$max_batch_size),
+    "--cuda-graph-impl", resolved$cuda_graphs,
+    if (resolved$subquadratic_ops) "--use-subquadratic-ops",
+    if (resolved$chunked_prefill) "--enable-chunked-prefill",
+    if (!is.null(resolved$dynamic_max_tokens)) {
+      c(
+        "--inference-dynamic-batching-max-tokens",
+        as.character(resolved$dynamic_max_tokens)
+      )
+    },
+    "--inference-dynamic-batching-block-size",
+    as.character(resolved$dynamic_block_size),
+    if (!is.null(seed)) c("--seed", as.character(seed)),
+    if (return_probabilities) "--return-log-probs"
+  )
+  validation_args <- c(
+    "validate-generation",
+    "--input", upstream,
+    "--prompts", prompts,
+    "--output", portable,
+    "--fasta", fasta,
+    "--validation", validation,
+    "--num-tokens", as.character(num_tokens),
+    "--validate", validate,
+    if (return_probabilities) "--return-probabilities"
+  )
+  command_plan(
+    list(
+      torchrun_command(
+        "infer_evo2",
+        args,
+        resolved,
+        compute@workspace
+      ),
+      command_spec(
+        "bionemor-evo2-helper",
+        validation_args,
+        cwd = compute@workspace
+      )
+    ),
+    metadata = list(
+      operation = "generation",
+      resolved_control = resolved
+    )
+  )
+}
+
+evo2_prediction_plan <- function(
+  mode,
+  checkpoint,
+  input,
+  upstream,
+  portable,
+  compute,
+  control,
+  batch_size,
+  reduction = NULL,
+  layer = NULL,
+  pool = NULL,
+  prepend_bos = FALSE,
+  checkpoint_manifest = NULL
+) {
+  stopifnot(
+    "prediction mode is unsupported" =
+      mode %in% c(
+        "score",
+        "profile",
+        "embedding-pooled",
+        "embedding-unpooled"
+      )
+  )
+  resolved <- resolved_inference_control(
+    control,
+    compute,
+    mode,
+    checkpoint,
+    checkpoint_manifest
+  )
+  stopifnot(
+    "max_sequence_length is supported only for generation" =
+      is.null(resolved$max_sequence_length),
+    "max_batch_size is supported only for generation" =
+      identical(resolved$max_batch_size, 1L),
+    "CUDA graph controls are supported only for generation" =
+      identical(control_property(control, "cuda_graphs", "auto"), "auto"),
+    "chunked prefill is supported only for generation" =
+      !resolved$chunked_prefill,
+    "dynamic_max_tokens is supported only for generation" =
+      is.null(resolved$dynamic_max_tokens),
+    "dynamic_block_size is supported only for generation" =
+      identical(resolved$dynamic_block_size, 256L)
+  )
+  predict_args <- c(
+    "--fasta", input$path,
+    "--ckpt-dir", checkpoint,
+    "--output-dir", upstream,
+    "--micro-batch-size", as.character(batch_size),
+    "--write-interval", "epoch",
+    parallel_command_args(resolved),
+    precision_command_args(resolved),
+    if (resolved$subquadratic_ops) "--use-subquadratic-ops",
+    prediction_extra_args(resolved$extra),
+    if (prepend_bos) "--prepend-bos"
+  )
+  if (mode == "score") {
+    predict_args <- c(
+      predict_args,
+      "--output-log-prob-seqs",
+      "--log-prob-collapse-option", "per_token"
+    )
+  } else if (mode == "profile") {
+    predict_args <- c(
+      predict_args,
+      "--output-log-prob-seqs",
+      "--log-prob-collapse-option", "per_token"
+    )
+  } else {
+    predict_args <- c(
+      predict_args,
+      "--embedding-layer", as.character(layer)
+    )
+  }
+  helper_args <- c(
+    "materialize-predictions",
+    "--mode", mode,
+    "--input", upstream,
+    "--sequence-map", file.path(
+      dirname(dirname(input$path)),
+      "inputs",
+      "sequence-map.json"
+    ),
+    "--output", portable,
+    if (mode == "score") c("--reduction", reduction),
+    if (!is.null(pool)) c("--pool", pool)
+  )
+  command_plan(
+    list(
+      torchrun_command(
+        "predict_evo2",
+        predict_args,
+        resolved,
+        compute@workspace
+      ),
+      command_spec(
+        "bionemor-evo2-helper",
+        helper_args,
+        cwd = compute@workspace
+      )
+    ),
+    metadata = list(
+      operation = mode,
+      resolved_control = resolved
+    )
   )
 }
 
@@ -118,316 +968,5 @@ format_number <- function(x) {
     trim = TRUE,
     digits = 15L,
     decimal.mark = "."
-  )
-}
-
-number_arg <- function(name, value) {
-  paste(name, format_number(value))
-}
-
-string_arg <- function(name, value) {
-  paste(name, shQuote(as.character(value)))
-}
-
-evo2_fit_configs <- function(input, compute, name, control) {
-  root <- file.path(compute@workspace, ".bionemor", "jobs", name)
-  preprocessed <- file.path(root, "preprocessed")
-  dir.create(root, recursive = TRUE, showWarnings = FALSE)
-
-  preprocess <- list(list(
-    datapaths = list(input$path),
-    output_dir = preprocessed,
-    output_prefix = "bionemor",
-    train_split = unname(control@split[["train"]]),
-    valid_split = unname(control@split[["validation"]]),
-    test_split = unname(control@split[["test"]]),
-    overwrite = FALSE,
-    embed_reverse_complement = FALSE,
-    random_reverse_complement = 0,
-    random_lineage_dropout = 0,
-    transcribe = "back_transcribe",
-    force_uppercase = TRUE,
-    indexed_dataset_dtype = "uint8",
-    tokenizer_type = "Byte-Level",
-    append_eod = TRUE,
-    workers = control@workers,
-    drop_empty_sequences = TRUE,
-    nnn_filter = FALSE,
-    seed = control@seed
-  ))
-  preprocess_path <- file.path(root, "preprocess.yaml")
-  yaml::write_yaml(preprocess, preprocess_path)
-
-  dataset <- lapply(
-    c(train = "train", validation = "val", test = "test"),
-    function(suffix) {
-      list(
-        dataset_prefix = file.path(
-          preprocessed,
-          paste0("bionemor_byte-level_", suffix)
-        ),
-        dataset_split = switch(
-          suffix,
-          train = "train",
-          val = "validation",
-          test = "test"
-        ),
-        dataset_weight = 1
-      )
-    }
-  )
-  dataset_path <- file.path(root, "dataset.yaml")
-  yaml::write_yaml(unname(dataset), dataset_path)
-  list(
-    preprocess = preprocess_path,
-    dataset = dataset_path,
-    directory = preprocessed
-  )
-}
-
-optional_number_arg <- function(name, value) {
-  if (is.null(value)) character() else number_arg(name, value)
-}
-
-evo2_train_command <- function(
-  object,
-  configs,
-  compute,
-  steps,
-  control,
-  output,
-  name
-) {
-  checkpoint <- model_checkpoint_path(object, base = compute@workspace)
-  args <- c(
-    string_arg("--dataset-config", configs$dataset),
-    string_arg("--dataset-dir", configs$directory),
-    number_arg("--num-nodes", compute@nodes),
-    number_arg("--devices", compute@gpus),
-    number_arg("--seq-length", control@sequence_length),
-    string_arg("--model-size", evo2_profile_size(object@size)),
-    string_arg("--result-dir", output),
-    string_arg("--experiment-name", name),
-    number_arg("--max-steps", steps),
-    number_arg("--lr", control@learning_rate),
-    number_arg("--micro-batch-size", control@micro_batch_size),
-    number_arg("--grad-acc-batches", control@gradient_accumulation),
-    if (!is.null(checkpoint)) string_arg("--ckpt-dir", checkpoint),
-    optional_number_arg("--min-lr", control@minimum_learning_rate),
-    optional_number_arg("--warmup-steps", control@warmup_steps),
-    if (control@precision == "fp8") "--fp8",
-    optional_number_arg("--clip-grad", control@clip_gradient),
-    optional_number_arg("--wd", control@weight_decay),
-    optional_number_arg("--attention-dropout", control@attention_dropout),
-    optional_number_arg("--hidden-dropout", control@hidden_dropout),
-    optional_number_arg("--val-check-interval", control@validation_interval),
-    optional_number_arg("--limit-val-batches", control@validation_batches),
-    optional_number_arg(
-      "--activation-checkpoint-recompute-num-layers",
-      control@activation_checkpoint_layers
-    ),
-    number_arg("--workers", control@workers),
-    number_arg("--seed", control@seed),
-    if (control@asynchronous_checkpoint) "--ckpt-async-save",
-    control@extra_args
-  )
-  checkpoint_root <- file.path(output, name, "checkpoints")
-  stable_checkpoint <- file.path(output, "checkpoint")
-  paste(
-    c(
-      paste("preprocess_evo2 --config", shQuote(configs$preprocess)),
-      paste(c("train_evo2", args), collapse = " "),
-      "shopt -s nullglob",
-      paste0("BIONEMOR_CHECKPOINTS=(", shQuote(checkpoint_root), "/*-last)"),
-      "test \"${#BIONEMOR_CHECKPOINTS[@]}\" -eq 1",
-      paste("ln -s \"${BIONEMOR_CHECKPOINTS[0]}\"", shQuote(stable_checkpoint))
-    ),
-    collapse = "\n"
-  )
-}
-
-validate_generation_controls <- function(
-  num_tokens,
-  temperature,
-  top_k,
-  top_p
-) {
-  stopifnot(
-    "num_tokens must be a positive integer" =
-      is_scalar_integerish(num_tokens, min = 1),
-    "temperature must be positive" =
-      is_scalar_number(temperature) && temperature > 0,
-    "top_k must be a non-negative integer" =
-      is_scalar_integerish(top_k, min = 0),
-    "top_p must be between zero and one" =
-      is_scalar_number(top_p) && top_p >= 0 && top_p <= 1
-  )
-  invisible(NULL)
-}
-
-validate_prediction_extra_args <- function(extra_args, precision) {
-  stopifnot(
-    "extra_args must be a character vector without missing values" =
-      is.character(extra_args) && !anyNA(extra_args)
-  )
-  argument_flags <- c(
-    input = "--fasta",
-    checkpoint = "--ckpt-dir",
-    output = "--output-dir",
-    output = "--output-file",
-    model_size = "--model-size",
-    parallelism = "--tensor-parallel-size",
-    parallelism = "--pipeline-model-parallel-size",
-    parallelism = "--context-parallel-size",
-    prompt = "--prompt",
-    num_tokens = "--max-new-tokens",
-    temperature = "--temperature",
-    top_k = "--top-k",
-    top_p = "--top-p",
-    precision = "--fp8",
-    precision = "--vortex-style-fp8",
-    flash_decode = "--flash-decode",
-    score_output = "--output-log-prob-seqs",
-    reduction = "--log-prob-collapse-option"
-  )
-  tokens <- extra_arg_tokens(extra_args)
-  duplicated_fields <- unique(names(argument_flags)[
-    argument_flags %in% tokens
-  ])
-  if (length(duplicated_fields) > 0L) {
-    stop(
-      "extra_args duplicates typed prediction argument ",
-      paste(duplicated_fields, collapse = ", "),
-      call. = FALSE
-    )
-  }
-  invisible(precision)
-  extra_args
-}
-
-evo2_predict_command <- function(
-  object,
-  input,
-  type,
-  compute,
-  output,
-  reduction,
-  num_tokens,
-  temperature,
-  top_k,
-  top_p,
-  precision,
-  extra_args,
-  helper
-) {
-  checkpoint <- model_checkpoint_path(object, base = compute@workspace)
-  parallel_args <- c(
-    number_arg("--tensor-parallel-size", compute@gpus),
-    number_arg("--pipeline-model-parallel-size", 1L),
-    number_arg("--context-parallel-size", 1L)
-  )
-  if (type == "response") {
-    files <- file.path(output, sprintf("%06d.txt", seq_along(input$sequences)))
-    commands <- Map(function(sequence, path) {
-      paste(c(
-        "infer_evo2",
-        string_arg("--prompt", sequence),
-        string_arg("--ckpt-dir", checkpoint),
-        number_arg("--temperature", temperature),
-        number_arg("--top-k", top_k),
-        number_arg("--top-p", top_p),
-        number_arg("--max-new-tokens", num_tokens),
-        parallel_args,
-        if (precision == "fp8") c("--vortex-style-fp8", "True"),
-        "--flash-decode=",
-        string_arg("--output-file", path),
-        extra_args
-      ), collapse = " ")
-    }, unname(input$sequences), files)
-    return(paste(
-      c(paste("mkdir -p", shQuote(output)), unlist(commands)),
-      collapse = "\n"
-    ))
-  }
-
-  args <- c(
-    string_arg("--fasta", input$path),
-    string_arg("--ckpt-dir", checkpoint),
-    string_arg("--output-dir", output),
-    string_arg("--model-size", evo2_profile_size(object@size)),
-    parallel_args,
-    if (precision == "fp8") "--fp8",
-    if (type == "score") {
-      c(
-        "--output-log-prob-seqs",
-        paste("--log-prob-collapse-option", reduction)
-      )
-    },
-    extra_args
-  )
-  command <- paste(c("predict_evo2", args), collapse = " ")
-  if (type == "score") {
-    scores <- file.path(output, "scores.json")
-    command <- paste(
-      command,
-      paste(
-        "python",
-        shQuote(helper),
-        "score",
-        shQuote(output),
-        shQuote(scores)
-      ),
-      sep = "\n"
-    )
-  }
-  command
-}
-
-wrap_compute_command <- function(command, compute, name) {
-  if (compute@engine == "python") {
-    return(list(command = command, container_name = NULL))
-  }
-  stopifnot(
-    "container execution requires compute$image" = !is.null(compute@image)
-  )
-  if (compute@backend == "local") {
-    container_name <- paste0("bionemor-", name)
-    wrapped <- paste(
-      "docker run --rm --gpus all --ipc=host",
-      "--name", shQuote(container_name),
-      "-v", paste0(shQuote(compute@workspace), ":", shQuote(compute@workspace)),
-      "-w", shQuote(compute@workspace),
-      shQuote(compute@image),
-      "bash -lc", shQuote(command)
-    )
-    return(list(command = wrapped, container_name = container_name))
-  }
-  list(
-    command = paste(
-      "apptainer exec --nv",
-      "--bind", paste0(shQuote(compute@workspace), ":", shQuote(compute@workspace)),
-      "--pwd", shQuote(compute@workspace),
-      shQuote(compute@image),
-      "bash -lc", shQuote(command)
-    ),
-    container_name = NULL
-  )
-}
-
-bound_operation_command <- function(command, compute, timeout) {
-  if (!is.finite(timeout)) {
-    return(command)
-  }
-  if (compute@backend == "local") {
-    stopifnot(
-      "finite operation timeouts require the timeout command" =
-        command_available("timeout")
-    )
-  }
-  paste(
-    "timeout --signal=TERM --kill-after=15s",
-    paste0(format_number(timeout), "s"),
-    "bash -c",
-    shQuote(command)
   )
 }

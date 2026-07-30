@@ -4,12 +4,14 @@
 \alias{job_logs}
 \title{Read BioNeMo job logs}
 \usage{
-job_logs(x, tail = NULL)
+job_logs(x, tail = NULL, stream = c("both", "stdout", "stderr"))
 }
 \arguments{
 \item{x}{A BioNeMo job.}
 
 \item{tail}{Optional number of final lines.}
+
+\item{stream}{Log stream to read.}
 }
 \value{
 A character vector.

@@ -4,22 +4,23 @@
 \alias{evo2}
 \title{Describe an Evo 2 model}
 \usage{
-evo2(size, checkpoint = NULL, pretrained = TRUE, config = list())
+evo2(size = "7b", checkpoint = NULL, revision = "recommended", config = list())
 }
 \arguments{
-\item{size}{Evo 2 model size.}
+\item{size}{Canonical Evo 2 model name or a known upstream alias.}
 
-\item{checkpoint}{\code{NULL}, one checkpoint path, or a checkpoint returned by
-\code{\link[=evo2_checkpoint]{evo2_checkpoint()}}.}
+\item{checkpoint}{\code{NULL}, an existing MBridge checkpoint path, or a
+checkpoint returned by \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}.}
 
-\item{pretrained}{Whether fitting starts from pretrained weights.}
+\item{revision}{Exact source checkpoint revision. \code{"recommended"} uses the
+package model registry.}
 
-\item{config}{Additional adapter configuration.}
+\item{config}{Named model-level settings.}
 }
 \value{
 An S7 \code{Evo2Model}.
 }
 \description{
-\code{evo2()} creates a compute-independent model specification for the
-BioNeMo 2.6.3 Evo 2 adapter.
+\code{evo2()} creates a compute-independent model descriptor. It does not
+download or load weights.
 }

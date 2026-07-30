@@ -6,9 +6,9 @@
 \usage{
 bionemo_compute(
   backend = c("local", "slurm"),
+  engine = c("container", "external"),
   workspace = getwd(),
-  profile = "bionemo-2.6.3",
-  engine = c("python", "container"),
+  recipe = evo2_recipe(),
   image = NULL,
   gpus = 1L,
   nodes = 1L,
@@ -21,21 +21,23 @@ bionemo_compute(
 \arguments{
 \item{backend}{Execution backend.}
 
-\item{workspace}{Workspace visible to the selected execution engine. It
-must not be a filesystem root.}
+\item{engine}{Container execution or an externally managed recipe runtime.}
 
-\item{profile}{Versioned BioNeMo command profile.}
+\item{workspace}{Writable workspace shared with the runtime.}
 
-\item{engine}{External execution engine.}
+\item{recipe}{A recipe descriptor from \code{\link[=evo2_recipe]{evo2_recipe()}}.}
 
-\item{image}{Container image for Docker or Apptainer execution.}
+\item{image}{Container image. \code{NULL} selects the deterministic local image
+name derived from \code{recipe}. Slurm container execution requires a readable
+SIF on the shared filesystem or a digest-qualified image URI. Unverified
+recipes require an explicit prebuilt image for local container execution.}
 
-\item{gpus, nodes}{Positive integer resource counts. The initial profile
-supports one node.}
+\item{gpus, nodes}{Positive integer resource counts. Version 1 supports one
+node.}
 
 \item{queue, account, walltime}{Optional Slurm fields.}
 
-\item{config}{Additional site-specific configuration.}
+\item{config}{Named site-specific configuration.}
 }
 \value{
 An S7 \code{BioNeMoCompute}.

@@ -2,16 +2,18 @@
 % Please edit documentation in R/03-compute.R
 \name{bionemo_capabilities}
 \alias{bionemo_capabilities}
-\title{Report implemented BioNeMo operations}
+\title{Report capabilities advertised by the installed recipe runtime}
 \usage{
-bionemo_capabilities(x)
+bionemo_capabilities(compute, refresh = FALSE)
 }
 \arguments{
-\item{x}{A model, checkpoint, or compute specification.}
+\item{compute}{A BioNeMo compute descriptor.}
+
+\item{refresh}{Ignore a cached helper report and probe again.}
 }
 \value{
-A data frame of operations and support status.
+The parsed helper capability report with runtime provenance.
 }
 \description{
-Report implemented BioNeMo operations
+Report capabilities advertised by the installed recipe runtime
 }

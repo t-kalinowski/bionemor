@@ -4,25 +4,54 @@
 \alias{evo2_checkpoint}
 \title{Prepare an Evo 2 checkpoint}
 \usage{
-evo2_checkpoint(model, source, path, compute, overwrite = FALSE)
+evo2_checkpoint(
+  model,
+  source = "recommended",
+  format = c("auto", "savanna", "nemo2", "mbridge"),
+  path,
+  compute,
+  revision = "recommended",
+  tokenizer = "recommended",
+  precision = "auto",
+  overwrite = FALSE,
+  trust = FALSE,
+  async = FALSE
+)
 }
 \arguments{
 \item{model}{An Evo 2 model specification.}
 
-\item{source}{An \verb{hf://} URI, \verb{ngc://} URI, or existing local checkpoint.
-NGC resources are fetched with \code{download_bionemo_data} and require
-\code{NGC_CLI_API_KEY} or \code{NGC_API_KEY}; the credential is not stored.}
+\item{source}{\code{"recommended"}, an \verb{hf://} or \verb{ngc://} URI, an existing local
+path, or a \code{BioNeMoCheckpoint}.}
 
-\item{path}{Destination path, relative to the compute workspace. It must
-not be a filesystem root, the workspace itself, or overlap a local source.}
+\item{format}{Source checkpoint format. \code{"auto"} uses registry and URI
+metadata.}
+
+\item{path}{Destination path, relative to the compute workspace.}
 
 \item{compute}{A compute specification.}
 
+\item{revision}{Exact source revision.}
+
+\item{tokenizer}{Tokenizer path or \code{"recommended"}.}
+
+\item{precision}{Conversion precision recipe.}
+
 \item{overwrite}{Whether to replace an existing destination.}
+
+\item{trust}{Whether to allow an unknown local or remote pickle-based
+checkpoint. The exact source and revision in the model registry are trusted.}
+
+\item{async}{Whether to return a running job.
+
+Version 1 uses the pinned recipe's Transformer Engine key mapping for
+Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
+register the resulting MBridge checkpoint.}
 }
 \value{
-An S7 \code{BioNeMoCheckpoint}.
+A \code{BioNeMoCheckpoint}, or a \code{BioNeMoJob} when \code{async = TRUE}.
 }
 \description{
-Prepare an Evo 2 checkpoint
+Convert a Savanna or NeMo2 checkpoint to the MBridge format used by the
+BioNeMo Evo 2 recipe, or inspect and register an existing MBridge checkpoint.
 }

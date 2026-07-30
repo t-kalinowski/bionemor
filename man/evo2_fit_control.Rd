@@ -6,46 +6,96 @@
 \usage{
 evo2_fit_control(
   sequence_length = 8192L,
-  learning_rate = 0.00001,
-  minimum_learning_rate = NULL,
-  warmup_steps = NULL,
+  global_batch_size = 8L,
   micro_batch_size = 1L,
-  gradient_accumulation = 1L,
-  precision = c("bf16", "fp8"),
-  clip_gradient = NULL,
-  weight_decay = NULL,
-  attention_dropout = NULL,
-  hidden_dropout = NULL,
-  validation_interval = NULL,
-  validation_batches = NULL,
+  learning_rate = 0.0003,
+  minimum_learning_rate = 0.00003,
+  warmup_steps = 2500L,
+  decay_steps = NULL,
+  constant_steps = 2500L,
+  weight_decay = 0.01,
+  eval_interval = 100L,
+  eval_iters = 32L,
+  log_interval = 10L,
+  tensor_parallel_size = 1L,
+  pipeline_parallel_size = 1L,
+  context_parallel_size = 1L,
+  precision = c("auto", "bf16", "fp8-current"),
+  mixed_precision_recipe = NULL,
+  precision_aware_optimizer = FALSE,
+  bf16_main_gradients = FALSE,
+  gradient_reduce_fp32 = FALSE,
+  activation_checkpointing = c("auto", "full", "selective", "none"),
   activation_checkpoint_layers = NULL,
-  workers = 1L,
-  seed = 12342L,
-  split = c(train = 0.9, validation = 0.05, test = 0.05),
-  asynchronous_checkpoint = FALSE,
-  extra_args = character()
+  overlap_parameter_gather = FALSE,
+  overlap_gradient_reduce = FALSE,
+  subquadratic_ops = FALSE,
+  clip_gradient = 1,
+  hidden_dropout = 0,
+  attention_dropout = 0,
+  checkpoint_async = FALSE,
+  keep_checkpoints = 5L,
+  workers = 8L,
+  seed = 1234L,
+  dataset_seed = NULL,
+  extra = list()
 )
 }
 \arguments{
-\item{sequence_length, learning_rate, minimum_learning_rate, warmup_steps}{Optimization and schedule controls.}
+\item{sequence_length}{Training sequence length.}
 
-\item{micro_batch_size, gradient_accumulation}{Batch controls.}
+\item{global_batch_size, micro_batch_size}{Global and per-rank batch sizes.}
 
-\item{precision}{Numerical precision.}
+\item{learning_rate, minimum_learning_rate}{Initial and minimum learning
+rates.}
 
-\item{clip_gradient, weight_decay, attention_dropout, hidden_dropout}{Regularization controls.}
+\item{warmup_steps, decay_steps, constant_steps}{Learning-rate schedule
+lengths.}
 
-\item{validation_interval, validation_batches}{Validation controls.}
+\item{weight_decay}{Optimizer weight decay.}
 
-\item{activation_checkpoint_layers}{Activation checkpointing layers.}
+\item{eval_interval, eval_iters}{Evaluation cadence and iteration count.}
 
-\item{workers, seed}{Data preparation controls.}
+\item{log_interval}{Logging cadence.}
 
-\item{split}{Named train, validation, and test proportions.}
+\item{tensor_parallel_size, pipeline_parallel_size, context_parallel_size}{Model-parallel rank counts.}
 
-\item{asynchronous_checkpoint}{Whether checkpoint writes are asynchronous.}
+\item{precision}{Semantic training precision.}
 
-\item{extra_args}{Explicit additional \code{train_evo2} arguments.}
+\item{mixed_precision_recipe}{Optional exact upstream precision recipe.}
+
+\item{precision_aware_optimizer}{Whether to use the precision-aware
+optimizer.}
+
+\item{bf16_main_gradients}{Whether the precision-aware optimizer keeps main
+gradients in BF16.}
+
+\item{gradient_reduce_fp32}{Whether to reduce gradients in FP32.}
+
+\item{activation_checkpointing}{Activation checkpointing policy.}
+
+\item{activation_checkpoint_layers}{Optional checkpointing layer interval.}
+
+\item{overlap_parameter_gather, overlap_gradient_reduce}{Whether to overlap
+distributed parameter and gradient communication.}
+
+\item{subquadratic_ops}{Whether to enable subquadratic operators.}
+
+\item{clip_gradient}{Gradient clipping threshold.}
+
+\item{hidden_dropout, attention_dropout}{Training dropout probabilities.}
+
+\item{checkpoint_async}{Whether to write checkpoints asynchronously.}
+
+\item{keep_checkpoints}{Number of checkpoints to retain, or \code{-1} for all.}
+
+\item{workers}{Data-loading worker count.}
+
+\item{seed}{Training seed.}
+
+\item{dataset_seed}{Optional dataset seed. \code{NULL} uses \code{seed}.}
+
+\item{extra}{Named allowlisted advanced upstream settings.}
 }
 \value{
 An S7 \code{Evo2FitControl}.

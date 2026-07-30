@@ -2,6 +2,113 @@
   if (is.null(x)) y else x
 }
 
+bionemor_condition_codes <- c(
+  "BN_RECIPE_MISSING",
+  "BN_RECIPE_MISMATCH",
+  "BN_IMAGE_BUILD",
+  "BN_RUNTIME_MISSING",
+  "BN_NO_GPU",
+  "BN_GPU_INCOMPATIBLE",
+  "BN_GPU_MEMORY",
+  "BN_PRECISION_INCOMPATIBLE",
+  "BN_MODEL_UNKNOWN",
+  "BN_CHECKPOINT_SOURCE",
+  "BN_CHECKPOINT_FORMAT",
+  "BN_CHECKPOINT_INCOMPLETE",
+  "BN_BASE_CHECKPOINT_MISSING",
+  "BN_TOKENIZER_MISMATCH",
+  "BN_INVALID_SEQUENCE",
+  "BN_CONTEXT_LIMIT",
+  "BN_OUTPUT_SCHEMA",
+  "BN_NONFINITE_OUTPUT",
+  "BN_UPSTREAM",
+  "BN_CANCELLED",
+  "BN_TIMEOUT",
+  "BN_PROTOCOL"
+)
+
+value_origin_codes <- c(
+  "user_requested",
+  "package_default",
+  "adapter_default",
+  "auto_resolved"
+)
+
+argument_origin_map <- function(
+  values,
+  call,
+  argument_map = stats::setNames(names(values), names(values)),
+  adapter_defaults = character(),
+  auto_resolved = character()
+) {
+  stopifnot(
+    "values must be a named list" =
+      is.list(values) &&
+        !is.null(names(values)) &&
+        all(nzchar(names(values))),
+    "call must be a matched call" = is.call(call),
+    "argument map must name request fields" =
+      is.character(argument_map) &&
+        !is.null(names(argument_map)) &&
+        all(nzchar(names(argument_map)))
+  )
+  supplied <- setdiff(names(call), c("", "..."))
+  origins <- stats::setNames(
+    rep("package_default", length(values)),
+    names(values)
+  )
+  mapped <- intersect(names(argument_map), names(origins))
+  origins[mapped] <- ifelse(
+    unname(argument_map[mapped]) %in% supplied,
+    "user_requested",
+    "package_default"
+  )
+  origins[intersect(adapter_defaults, names(origins))] <- "adapter_default"
+  origins[intersect(auto_resolved, names(origins))] <- "auto_resolved"
+  stopifnot(
+    "value origin is unsupported" =
+      all(unlist(origins, use.names = FALSE) %in% value_origin_codes)
+  )
+  as.list(origins)
+}
+
+set_object_value_origins <- function(object, origins) {
+  attr(object, "bionemor_value_origins") <- origins
+  object
+}
+
+object_value_origins <- function(object, fallback = "user_requested") {
+  attr(object, "bionemor_value_origins", exact = TRUE) %||%
+    stats::setNames(
+      as.list(rep(fallback, length(S7::prop_names(object)))),
+      S7::prop_names(object)
+    )
+}
+
+bionemor_abort <- function(code, message, ..., call = NULL) {
+  stopifnot(
+    "code must be a registered BioNeMo condition code" =
+      is_scalar_string(code) && code %in% bionemor_condition_codes,
+    "message must be one non-empty string" = is_scalar_string(message)
+  )
+  fields <- list(...)
+  stopifnot(
+    "condition fields must be named" =
+      length(fields) == 0L ||
+        !is.null(names(fields)) &&
+          all(nzchar(names(fields)))
+  )
+  fields <- fields[!vapply(fields, is.null, logical(1))]
+  condition <- structure(
+    c(
+      list(message = message, call = call, code = code),
+      fields
+    ),
+    class = c(code, "bionemor_error", "error", "condition")
+  )
+  stop(condition)
+}
+
 is_scalar_string <- function(x) {
   is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
 }
@@ -63,7 +170,9 @@ shell_join <- function(command, args = character()) {
 
 credential_environment_variables <- c(
   "NGC_API_KEY",
-  "NGC_CLI_API_KEY"
+  "NGC_CLI_API_KEY",
+  "HF_TOKEN",
+  "HUGGING_FACE_HUB_TOKEN"
 )
 
 process_environment <- function(allow = character()) {
@@ -175,6 +284,118 @@ prop_double <- function(default = NULL, allow_null = FALSE) {
 
 prop_list <- function() {
   new_property(class = class_list, default = quote(list()))
+}
+
+atomic_write_lines <- function(text, path) {
+  stopifnot(
+    "path must be one non-empty string" = is_scalar_string(path),
+    "text must be a character vector" = is.character(text)
+  )
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  temporary <- tempfile(
+    paste0(".", basename(path), "-"),
+    tmpdir = dirname(path)
+  )
+  on.exit(unlink(temporary), add = TRUE)
+  writeLines(text, temporary, useBytes = TRUE)
+  stopifnot(
+    "failed to atomically replace output file" =
+      file.rename(temporary, path)
+  )
+  invisible(path)
+}
+
+atomic_write_json <- function(
+  value,
+  path,
+  auto_unbox = TRUE,
+  pretty = TRUE
+) {
+  text <- jsonlite::toJSON(
+    value,
+    auto_unbox = auto_unbox,
+    pretty = pretty,
+    null = "null",
+    na = "null",
+    digits = NA
+  )
+  atomic_write_lines(text, path)
+}
+
+read_json_file <- function(path, simplify = TRUE) {
+  stopifnot(
+    "JSON file does not exist" = is_scalar_string(path) && file.exists(path)
+  )
+  jsonlite::read_json(path, simplifyVector = simplify)
+}
+
+safe_name <- function(name, prefix) {
+  stopifnot(
+    "prefix must be one safe name" =
+      is_scalar_string(prefix) && grepl("^[A-Za-z0-9_.-]+$", prefix)
+  )
+  if (is.null(name)) {
+    stamp <- format(Sys.time(), "%Y%m%dT%H%M%S", tz = "UTC")
+    suffix <- sprintf("%06d", sample.int(999999L, 1L))
+    return(paste(prefix, stamp, suffix, sep = "-"))
+  }
+  stopifnot(
+    "name must be one safe name" =
+      is_scalar_string(name) &&
+        grepl("^[A-Za-z0-9_.-]+$", name) &&
+        !(name %in% c(".", ".."))
+  )
+  name
+}
+
+path_digest <- function(path) {
+  stopifnot(
+    "path must exist" = is_scalar_string(path) && file.exists(path)
+  )
+  path <- normalize_path(path)
+  if (dir.exists(path)) {
+    files <- list.files(
+      path,
+      recursive = TRUE,
+      full.names = TRUE,
+      all.files = TRUE,
+      no.. = TRUE
+    )
+    files <- files[!dir.exists(files)]
+    relative <- substring(files, nchar(path) + 2L)
+    records <- paste(
+      relative,
+      as.character(tools::md5sum(files)),
+      sep = ":"
+    )
+    temporary <- tempfile("bionemor-directory-digest-")
+    on.exit(unlink(temporary), add = TRUE)
+    writeLines(sort(records), temporary, useBytes = TRUE)
+    return(unname(tools::md5sum(temporary)))
+  }
+  unname(tools::md5sum(path))
+}
+
+stable_partition_value <- function(seed, id) {
+  stopifnot(
+    "seed must be a non-negative integer" =
+      is_scalar_integerish(seed, min = 0),
+    "id must be one non-empty string" = is_scalar_string(id)
+  )
+  values <- utf8ToInt(paste0(as.integer(seed), "\r", id))
+  hash <- 0
+  for (value in values) {
+    hash <- (hash * 131 + value) %% 2147483647
+  }
+  hash / 2147483647
+}
+
+as_nullable_integer <- function(x) {
+  if (is.null(x)) NULL else as.integer(x)
+}
+
+as_nullable_double <- function(x) {
+  if (is.null(x)) NULL else as.double(x)
 }
 
 model_checkpoint_path <- function(model, base = NULL) {

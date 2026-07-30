@@ -1,20 +1,23 @@
 Package: bionemor
-Title: NVIDIA BioNeMo Framework Workflows from R
+Title: BioNeMo Recipes Evo 2 Workflows from R
 Version: 0.0.0.9000
 Authors@R:
     person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
-Description: An R interface to versioned NVIDIA BioNeMo Framework workflows.
-    Prepares checkpoints, fits models, and runs file-backed batch inference
-    through external local, container, or Slurm processes.
+Description: An R interface to the versioned NVIDIA BioNeMo Recipes Evo 2
+    workflow. Prepares MBridge checkpoints, fine-tunes models, and runs
+    file-backed generation, scoring, and embedding operations through external
+    local, container, or Slurm processes.
 License: MIT + file LICENSE
 URL: https://github.com/t-kalinowski/bionemor
 BugReports: https://github.com/t-kalinowski/bionemor/issues
+OS_type: unix
 Depends:
     R (>= 4.2)
 Imports:
     generics,
     jsonlite,
     processx,
+    ps,
     S7 (>= 0.2.0),
     stats,
     utils,
@@ -22,7 +25,6 @@ Imports:
 Suggests:
     Biostrings,
     knitr,
-    reticulate,
     rmarkdown,
     testthat (>= 3.2.0),
     withr

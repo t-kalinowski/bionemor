@@ -2,27 +2,27 @@
 % Please edit documentation in R/10-setup.R
 \name{bionemo_doctor}
 \alias{bionemo_doctor}
-\title{Diagnose a BioNeMo execution environment}
+\title{Diagnose a BioNeMo Recipes execution environment}
 \usage{
 bionemo_doctor(
   compute,
   model = NULL,
-  target = c("training", "inference"),
+  target = c("all", "inference", "training", "conversion"),
   verbose = TRUE
 )
 }
 \arguments{
-\item{compute}{A BioNeMo compute specification.}
+\item{compute}{A BioNeMo compute descriptor.}
 
 \item{model}{Optional Evo 2 model.}
 
 \item{target}{Operation target.}
 
-\item{verbose}{Whether printing includes complete command output.}
+\item{verbose}{Include complete probe output when printing.}
 }
 \value{
-An S7 \code{BioNeMoDoctor}.
+A \code{BioNeMoDoctor}.
 }
 \description{
-Diagnose a BioNeMo execution environment
+Diagnose a BioNeMo Recipes execution environment
 }

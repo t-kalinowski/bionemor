@@ -4,10 +4,19 @@
 \name{bionemor-package}
 \alias{bionemor}
 \alias{bionemor-package}
-\title{NVIDIA BioNeMo Framework workflows from R}
+\title{BioNeMo Recipes Evo 2 workflows from R}
 \description{
-\code{bionemor} runs versioned BioNeMo CLI commands as external processes.
-The initial implementation supports Evo 2 with BioNeMo 2.6.3.
+\code{bionemor} prepares MBridge checkpoints, fine-tunes models, and runs
+file-backed inference with the pinned NVIDIA BioNeMo Recipes Evo 2 runtime.
+NIM is not used.
+}
+\details{
+Operational failures inherit from \code{bionemor_error} and a stable \verb{BN_*}
+code-specific class. Conditions retain run and model context when available.
+
+Terminal run manifests retain checkpoint trust and input-source metadata.
+Their \code{value_origins} maps distinguish user requests, package defaults,
+adapter defaults, and auto-resolved values.
 }
 \seealso{
 Useful links:

@@ -1,22 +1,33 @@
 # bionemor
 
-`bionemor` prepares checkpoints, fits models, and runs batch inference with
-NVIDIA BioNeMo Framework from R. BioNeMo runs as a versioned external compute
-system; the package does not expose Python trainer or tensor objects.
+`bionemor` prepares MBridge checkpoints, fine-tunes Evo 2 models, and runs
+batch inference with NVIDIA BioNeMo Recipes from R. R writes portable inputs
+and manifests, then invokes the pinned recipe in an external process. It does
+not initialize Python inside R or return Python objects.
 
-The initial implementation supports Evo 2 with BioNeMo Framework 2.6.3.
+NIM is not used. The package wraps the open-source Evo 2 Megatron recipe. NIM
+only informed a few generation defaults and output checks.
 
-| Model | Sizes | Profile | Checkpoints | Operations |
-| --- | --- | --- | --- | --- |
-| Evo 2 | 1B, 7B, 40B | `bionemo-2.6.3` | Hugging Face, NGC, local | full fit, generation, score, raw logits |
+## Install the recipe runtime
 
-The package installs and loads without Python or a GPU. Runtime diagnostics are
-available through `bionemo_doctor()`.
+The package locks BioNeMo Recipes to an exact source revision. The default
+container is built from the verified upstream Evo 2 Dockerfile. Its `FROM`
+image is bound to the locked digest before the package helper and provenance
+labels are appended. The NGC PyTorch base image alone does not contain the
+recipe commands.
 
-## NGC-free container workflow
+The local container path requires Git, `tar`, and an NVIDIA GPU exposed through
+Docker.
+Authenticate Docker to `nvcr.io` with an NGC API key before installing:
 
-The BioNeMo Framework image and the public Evo 2 checkpoint below do not
-require an NGC API key:
+```bash
+echo "$NGC_API_KEY" | docker login nvcr.io \
+  --username '$oauthtoken' --password-stdin
+```
+
+`bionemo_install()` pulls the locked NGC PyTorch base image, builds the recipe
+image, and runs GPU-backed capability and command probes. It is not a CPU-only
+setup step.
 
 ```r
 library(bionemor)
@@ -24,76 +35,129 @@ library(bionemor)
 compute <- bionemo_compute(
   backend = "local",
   engine = "container",
-  image = "nvcr.io/nvidia/clara/bionemo-framework:2.6.3",
-  workspace = "/home/ubuntu/bionemor-workspace"
+  workspace = normalizePath("~/evo2-work", mustWork = FALSE)
 )
 
-spec <- evo2("1b")
-base_checkpoint <- evo2_checkpoint(
-  spec,
-  source = "hf://arcinstitute/savanna_evo2_1b_base",
-  path = "checkpoints/evo2-1b-8k",
-  compute = compute
-)
-model <- evo2("1b", checkpoint = base_checkpoint)
-
-baseline <- predict(
-  model,
-  "ACGTACGTACGT",
-  type = "response",
-  compute = compute,
-  num_tokens = 8L
-)
-
-fitted <- generics::fit(
-  model,
-  data = c("ACGTACGTACGT", "TGCATGCATGCA"),
-  compute = compute,
-  steps = 3L,
-  timeout = 300
-)
-
-after <- predict(
-  fitted,
-  "ACGTACGTACGT",
-  type = "response",
-  compute = compute,
-  num_tokens = 8L
-)
+plan <- bionemo_install_plan(compute)
+compute <- bionemo_install(compute)
+bionemo_doctor(compute, target = "all")
 ```
 
-Checkpoint preparation is explicit. `fit()` and `predict()` never select or
-download another checkpoint.
+`bionemo_install_plan()` shows the pinned source, build, and verification steps
+without running them. A site-managed recipe environment can instead use
+`engine = "external"`. Slurm container jobs require an existing Apptainer image
+visible on the shared filesystem.
 
-Entitled NGC checkpoints are also explicit. Set `NGC_CLI_API_KEY` (or
-`NGC_API_KEY`) and use an `ngc://` resource:
+Automatic image builds are limited to the verified package recipe. A custom
+repository, revision, or base image requires `engine = "external"` or an
+explicit prebuilt `image`; `bionemo_install()` verifies that image's recipe and
+helper labels before use.
+
+## Prepare an Evo 2 checkpoint
+
+MBridge is the runtime checkpoint format. The recommended open-source path
+converts an Arc Savanna checkpoint from Hugging Face:
 
 ```r
+base <- evo2("7b")
+
 checkpoint <- evo2_checkpoint(
-  evo2("7b"),
-  source = "ngc://evo2/7b-1m:1.0",
-  path = "checkpoints/evo2-7b-1m-ngc",
+  base,
+  source = "recommended",
+  path = "checkpoints/evo2-7b-mbridge",
   compute = compute
+)
+
+model <- evo2("7b", checkpoint = checkpoint)
+```
+
+Checkpoint preparation is explicit. Constructing `evo2()` does not download or
+load weights. Registration requires the current MBridge distributed-checkpoint
+metadata and at least one non-empty weight shard. Recommended tokenizers resolve
+to an absolute path in the selected container or external recipe runtime.
+
+## Generate and score sequences
+
+Generation batches all prompts into one recipe invocation and returns a data
+frame. The run directory preserves the request JSONL, raw recipe response,
+generated FASTA, validation summary, command plan, logs, and provenance.
+
+```r
+generated <- evo2_generate(
+  model,
+  c(first = "ACGTACGTACGT", second = "GCTAGCTAGCTA"),
+  compute = compute,
+  num_tokens = 64L,
+  seed = 1L
+)
+
+scores <- evo2_score(
+  model,
+  c(reference = "ACGTACGTACGT", variant = "ACGTACGTTCGT"),
+  compute = compute,
+  reduction = "mean",
+  strand = "both"
 )
 ```
 
-The credential is passed only to the checkpoint preparation process. It is not
-stored in commands, provenance, manifests, or logs.
+`predict()` remains a compatibility wrapper for generation, scoring, and
+pooled embeddings. Raw PyTorch prediction tensors are not a public result
+format.
 
-## Execution boundary
+## Fine-tune with LoRA
 
-The ordinary path is:
+```r
+data <- evo2_dataset(
+  train = "data/train.fa",
+  validation = "data/validation.fa",
+  test = "data/test.fa"
+)
 
-```text
-R objects and FASTA
-  -> BioNeMo 2.6.3 CLI commands
-  -> external Python, Docker, or Slurm process
-  -> checkpoints and prediction files
-  -> typed R results
+run <- evo2_finetune(
+  model,
+  data,
+  compute = compute,
+  steps = 500L,
+  method = evo2_lora(
+    rank = 16L,
+    alpha = 32,
+    targets = c("hyena", "attention", "mlp")
+  ),
+  control = evo2_fit_control(
+    sequence_length = 8192L,
+    global_batch_size = 8L,
+    micro_batch_size = 1L,
+    precision = "auto"
+  ),
+  path = "runs/splice-lora",
+  async = TRUE
+)
+
+job_status(run)
+job_logs(run, tail = 50L)
+fitted <- job_wait(run)
 ```
 
-Generated sequences and sequence scores are materialized as R values. Raw
-logits remain a `BioNeMoArtifact` pointing to a PyTorch file.
+The documented original 1B fine-tuning path uses BF16 even though inference
+from that source requires Vortex-style FP8. `train_evo2` does not expose a
+Vortex-style training mode, so 20B, 40B, and MBridge checkpoints configured for
+that mode fail before launch. FP8 delayed scaling is also unavailable in the
+pinned recipe. Full fine-tuning cannot start from a LoRA checkpoint.
 
-See the package vignettes for local/container setup, Slurm, the tested Brev
-L40S workflow, and the optional plain-path handoff to `nimr`.
+Jobs persist their request, plan, state, logs, and outputs under the compute
+workspace. `bionemo_job(job_path(run))` reopens a run after the launching R
+session exits. Terminal manifests include parallel origin maps that distinguish
+values supplied by the user, package defaults, adapter defaults, and values
+resolved from the model, checkpoint, data, or compute environment. Checkpoint
+trust decisions and original inference-input source metadata remain attached to
+downstream runs.
+
+Operational failures inherit from `bionemor_error` and from a stable
+code-specific class such as `BN_CHECKPOINT_INCOMPLETE`, `BN_NO_GPU`, or
+`BN_TIMEOUT`. The condition's `code` field contains the same value. When
+available, conditions also retain the run path, operation, model, checkpoint,
+recipe revision, log paths, and upstream exit status.
+
+Generated sequence is model output, not a validated biological design. The
+package reports mechanical sequence checks; downstream biological validation
+remains the user's responsibility.
