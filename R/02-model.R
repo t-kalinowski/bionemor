@@ -18,34 +18,22 @@ evo2_model_registry_records <- function() {
 evo2_model_registry <- function() {
   records <- evo2_model_registry_records()
   data.frame(
-    name = vapply(records, `[[`, character(1), "name"),
-    model_size = vapply(records, `[[`, character(1), "model_size"),
-    parameters = vapply(records, `[[`, numeric(1), "parameters"),
-    context_length = vapply(records, `[[`, integer(1), "context_length"),
-    source = vapply(records, `[[`, character(1), "source"),
-    source_revision = vapply(records, `[[`, character(1), "source_revision"),
-    source_format = vapply(records, `[[`, character(1), "source_format"),
-    tokenizer = vapply(records, `[[`, character(1), "tokenizer"),
-    tokenizer_revision = vapply(
+    name = pluck_chr(records, "name"),
+    model_size = pluck_chr(records, "model_size"),
+    parameters = pluck_dbl(records, "parameters"),
+    context_length = pluck_int(records, "context_length"),
+    source = pluck_chr(records, "source"),
+    source_revision = pluck_chr(records, "source_revision"),
+    source_format = pluck_chr(records, "source_format"),
+    tokenizer = pluck_chr(records, "tokenizer"),
+    tokenizer_revision = pluck_chr(records, "tokenizer_revision"),
+    mixed_precision_recipe = pluck_chr(records, "mixed_precision_recipe"),
+    precision_policy = pluck_chr(records, "precision_policy"),
+    training_precision_policy = pluck_chr(
       records,
-      `[[`,
-      character(1),
-      "tokenizer_revision"
-    ),
-    mixed_precision_recipe = vapply(
-      records,
-      `[[`,
-      character(1),
-      "mixed_precision_recipe"
-    ),
-    precision_policy = vapply(records, `[[`, character(1), "precision_policy"),
-    training_precision_policy = vapply(
-      records,
-      `[[`,
-      character(1),
       "training_precision_policy"
     ),
-    download_size = vapply(records, `[[`, numeric(1), "download_size"),
+    download_size = pluck_dbl(records, "download_size"),
     aliases = I(lapply(records, `[[`, "aliases")),
     stringsAsFactors = FALSE
   )
@@ -61,7 +49,7 @@ evo2_model_record <- function(size) {
     logical(1)
   )
   if (sum(matches) != 1L) {
-    choices <- vapply(records, `[[`, character(1), "name")
+    choices <- pluck_chr(records, "name")
     bionemor_abort(
       "BN_MODEL_UNKNOWN",
       paste0(

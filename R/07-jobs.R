@@ -2255,8 +2255,8 @@ merge_run_manifest_files <- function(current, previous) {
     return(current)
   }
   by_path <- c(
-    stats::setNames(previous, vapply(previous, `[[`, character(1), "path")),
-    stats::setNames(current, vapply(current, `[[`, character(1), "path"))
+    stats::setNames(previous, pluck_chr(previous, "path")),
+    stats::setNames(current, pluck_chr(current, "path"))
   )
   unname(by_path[!duplicated(names(by_path), fromLast = TRUE)])
 }

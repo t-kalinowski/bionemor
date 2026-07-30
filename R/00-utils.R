@@ -128,6 +128,27 @@ is_scalar_integerish <- function(x, min = NULL) {
     (is.null(min) || x >= min)
 }
 
+pluck_vec <- function(x, field, ptype) {
+  stopifnot(
+    "x must be a list" = is.list(x),
+    "field must be one non-empty string" = is_scalar_string(field),
+    "ptype must be one atomic value" = is.atomic(ptype) && length(ptype) == 1L
+  )
+  vapply(x, function(element) element[[field]], ptype)
+}
+
+pluck_chr <- function(x, field) {
+  pluck_vec(x, field, "")
+}
+
+pluck_int <- function(x, field) {
+  pluck_vec(x, field, 0L)
+}
+
+pluck_dbl <- function(x, field) {
+  pluck_vec(x, field, 0)
+}
+
 normalize_path <- function(path, base = getwd()) {
   stopifnot(
     "path must be one non-empty string" = is_scalar_string(path),

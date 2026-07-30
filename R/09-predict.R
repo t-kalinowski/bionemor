@@ -405,7 +405,7 @@ generation_rows_data_frame <- function(records) {
   )
   data <- as.data.frame(
     lapply(scalar_names, function(name) {
-      vapply(records, `[[`, records[[1L]][[name]], name)
+      pluck_vec(records, name, records[[1L]][[name]])
     }),
     stringsAsFactors = FALSE
   )
@@ -658,7 +658,7 @@ materialize_generation_job <- function(job, descriptor) {
       validation_warnings = validation_warnings
     )
   })
-  ids <- vapply(records, `[[`, character(1), "id")
+  ids <- pluck_chr(records, "id")
   if (anyDuplicated(ids)) {
     abort_generation_schema(
       job,
@@ -833,7 +833,7 @@ materialize_score_job <- function(job, descriptor) {
   if (!is.data.frame(map)) {
     map <- as.data.frame(map, stringsAsFactors = FALSE)
   }
-  derived_ids <- vapply(rows, `[[`, character(1), "derived_id")
+  derived_ids <- pluck_chr(rows, "derived_id")
   stopifnot(
     "score output contains unexpected derived IDs" =
       setequal(derived_ids, map$derived_id)
@@ -879,19 +879,14 @@ materialize_score_job <- function(job, descriptor) {
     )
   })
   data <- data.frame(
-    id = vapply(records, `[[`, character(1), "id"),
-    sequence_length = vapply(
-      records,
-      `[[`,
-      integer(1),
-      "sequence_length"
-    ),
-    tokens_scored = vapply(records, `[[`, integer(1), "tokens_scored"),
-    score = vapply(records, `[[`, numeric(1), "score"),
-    forward_score = vapply(records, `[[`, numeric(1), "forward_score"),
-    reverse_score = vapply(records, `[[`, numeric(1), "reverse_score"),
-    reduction = vapply(records, `[[`, character(1), "reduction"),
-    strand = vapply(records, `[[`, character(1), "strand"),
+    id = pluck_chr(records, "id"),
+    sequence_length = pluck_int(records, "sequence_length"),
+    tokens_scored = pluck_int(records, "tokens_scored"),
+    score = pluck_dbl(records, "score"),
+    forward_score = pluck_dbl(records, "forward_score"),
+    reverse_score = pluck_dbl(records, "reverse_score"),
+    reduction = pluck_chr(records, "reduction"),
+    strand = pluck_chr(records, "strand"),
     stringsAsFactors = FALSE
   )
   class(data) <- c("evo2_scores", "data.frame")
@@ -1244,7 +1239,7 @@ materialize_embedding_job <- function(job, descriptor) {
     ))
   }
   rows <- read_jsonl_rows(descriptor$portable)
-  ids <- vapply(rows, `[[`, character(1), "id")
+  ids <- pluck_chr(rows, "id")
   stopifnot(
     "embedding output IDs do not match input order" =
       identical(ids, unlist(descriptor$input_ids, use.names = FALSE))
