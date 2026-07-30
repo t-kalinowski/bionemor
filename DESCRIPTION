@@ -21,7 +21,7 @@ Imports:
     S7 (>= 0.2.0),
     stats,
     utils,
-    yaml
+    yaml12 (>= 0.1.0)
 Suggests:
     Biostrings,
     knitr,

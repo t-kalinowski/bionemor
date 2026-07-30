@@ -303,7 +303,7 @@ test_that("path registration inspects current nested MBridge configurations", {
 
   direct <- file.path(workspace, "direct-lora")
   write_fake_dcp_weights(direct)
-  yaml::write_yaml(config, file.path(direct, "run_config.yaml"))
+  yaml12::write_yaml(config, file.path(direct, "run_config.yaml"))
   model <- evo2("7b", checkpoint = direct)
   manifest <- checkpoint_manifest(model@checkpoint)
 
@@ -323,7 +323,7 @@ test_that("path registration inspects current nested MBridge configurations", {
   write_fake_dcp_weights(iteration)
   config$peft <- NULL
   config$checkpoint$pretrained_checkpoint <- NULL
-  yaml::write_yaml(config, file.path(iteration, "run_config.yaml"))
+  yaml12::write_yaml(config, file.path(iteration, "run_config.yaml"))
   writeLines("3", file.path(root, "latest_checkpointed_iteration.txt"))
   reopened <- evo2("7b", checkpoint = root)
   reopened_manifest <- checkpoint_manifest(reopened@checkpoint)
@@ -333,6 +333,26 @@ test_that("path registration inspects current nested MBridge configurations", {
     reopened_manifest$inspection$resolved_path,
     normalizePath(iteration)
   )
+})
+
+test_that("checkpoint configs use YAML 1.2 scalar semantics", {
+  workspace <- tempfile("bionemor-yaml12-checkpoint-")
+  dir.create(workspace)
+  checkpoint <- make_mbridge_checkpoint(workspace)
+  writeLines(
+    c(
+      "model_size: evo2_7b",
+      "kind: dense",
+      "model:",
+      "  vortex_style_fp8: yes",
+      "  transformer_engine: true"
+    ),
+    file.path(checkpoint, "run_config.yaml")
+  )
+
+  model <- evo2("7b", checkpoint = checkpoint)
+
+  expect_false(checkpoint_manifest(model)$inspection$vortex_style_fp8)
 })
 
 test_that("inference uses the checkpoint iteration selected by its manifest", {

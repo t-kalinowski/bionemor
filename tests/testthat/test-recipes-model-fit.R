@@ -384,7 +384,10 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     fixed = TRUE
   )
   expect_false(any(grepl("tokenizer_type", config, fixed = TRUE)))
-  parsed_config <- yaml::read_yaml(prepared@manifest$preprocess_config)
+  parsed_config <- yaml12::read_yaml(
+    prepared@manifest$preprocess_config,
+    simplify = FALSE
+  )
   tokenizer <- "/workspace/bionemo/tokenizers/nucleotide_fast_tokenizer_512"
   expect_equal(
     parsed_config[[1L]]$hf_tokenizer_model_path,

@@ -23,7 +23,10 @@ test_that("recommended tokenizers resolve in the selected runtime", {
     mustWork = TRUE
   )
   expect_equal(prepared@manifest$tokenizer, expected)
-  config <- yaml::read_yaml(prepared@manifest$preprocess_config)
+  config <- yaml12::read_yaml(
+    prepared@manifest$preprocess_config,
+    simplify = FALSE
+  )
   expect_equal(config[[1L]]$hf_tokenizer_model_path, expected)
 })
 

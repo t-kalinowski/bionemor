@@ -103,7 +103,7 @@ fake_recipes_runtime <- function(bin) {
     file.path(bin, "preprocess_evo2"),
     c(
       "args <- commandArgs(TRUE)",
-      "config <- yaml::read_yaml(args[[match('--config', args) + 1L]])",
+      "config <- yaml12::read_yaml(args[[match('--config', args) + 1L]], simplify = FALSE)",
       "for (record in config) {",
       "  dir.create(record$output_dir, recursive = TRUE, showWarnings = FALSE)",
       "  tokenizer <- tolower(gsub(' ', '', basename(record$hf_tokenizer_model_path), fixed = TRUE))",
@@ -152,7 +152,7 @@ fake_recipes_runtime <- function(bin) {
       "  dir.create(checkpoint, recursive = TRUE, showWarnings = FALSE)",
       "  kind <- if ('--lora-finetune' %in% operation_args) 'lora' else 'training'",
       "  config <- list(model_size = value('--model-size'), kind = kind, model = list(vortex_style_fp8 = FALSE), checkpoint = list(pretrained_checkpoint = value('--finetune-ckpt-dir')))",
-      "  yaml::write_yaml(config, file.path(checkpoint, 'run_config.yaml'))",
+      "  yaml12::write_yaml(config, file.path(checkpoint, 'run_config.yaml'))",
       "  writeLines('metadata', file.path(checkpoint, '.metadata'))",
       "  writeLines('weights', file.path(checkpoint, '__0_0.distcp'))",
       "  writeLines('common', file.path(checkpoint, 'common.pt'))",
@@ -206,7 +206,7 @@ fake_recipes_runtime <- function(bin) {
       "  stopifnot(file.exists(file.path(resolved, '.metadata')))",
       "  shards <- list.files(resolved, pattern = '[.]distcp$', full.names = TRUE)",
       "  stopifnot(length(shards) > 0L, all(file.info(shards)$size > 0))",
-      "  config <- yaml::read_yaml(file.path(resolved, 'run_config.yaml'))",
+      "  config <- yaml12::read_yaml(file.path(resolved, 'run_config.yaml'), simplify = FALSE)",
       "  vortex_style_fp8 <- isTRUE(config[['model']][['vortex_style_fp8']])",
       "  transformer_engine <- config[['model']][['transformer_engine']]",
       "  result <- list(path = normalizePath(path), resolved_path = normalizePath(resolved), model_size = config$model_size, kind = config$kind, vortex_style_fp8 = vortex_style_fp8, transformer_engine = transformer_engine, tokenizer = 'evo2-tokenizer', base_checkpoint = config$checkpoint$pretrained_checkpoint)",
@@ -317,7 +317,7 @@ make_mbridge_checkpoint <- function(
 ) {
   path <- file.path(workspace, name)
   write_fake_dcp_weights(path)
-  yaml::write_yaml(
+  yaml12::write_yaml(
     list(
       model_size = model_size,
       kind = kind,

@@ -184,8 +184,8 @@ normalize_taxonomy_data <- function(taxonomy) {
     taxonomy <- switch(
       extension,
       json = jsonlite::read_json(taxonomy, simplifyVector = FALSE),
-      yaml = yaml::read_yaml(taxonomy),
-      yml = yaml::read_yaml(taxonomy),
+      yaml = yaml12::read_yaml(taxonomy, simplify = FALSE),
+      yml = yaml12::read_yaml(taxonomy, simplify = FALSE),
       bionemor_abort(
         "BN_PROTOCOL",
         "taxonomy path must contain JSON or YAML",
@@ -450,7 +450,7 @@ evo2_prepare <- function(
     names(fasta)
   )
   preprocess_path <- file.path(inputs, "preprocess.yaml")
-  yaml::write_yaml(unname(records), preprocess_path)
+  yaml12::write_yaml(unname(records), preprocess_path)
   tokenizer_desc <- tolower(gsub(
     " ",
     "",
@@ -469,7 +469,7 @@ evo2_prepare <- function(
     )
   })
   dataset_path <- file.path(destination, "dataset.yaml")
-  yaml::write_yaml(dataset_config, dataset_path)
+  yaml12::write_yaml(dataset_config, dataset_path)
   input_manifest <- lapply(fasta, fasta_manifest_record)
   control_manifest <- list(
     uppercase = control@uppercase,
@@ -566,7 +566,10 @@ materialize_prepare_job <- function(job, descriptor) {
   if (!is_scalar_string(descriptor$path) || !dir.exists(descriptor$path)) {
     stop("prepared-data path is missing")
   }
-  config <- yaml::read_yaml(descriptor$manifest$dataset_config)
+  config <- yaml12::read_yaml(
+    descriptor$manifest$dataset_config,
+    simplify = FALSE
+  )
   prefixes <- vapply(
     config,
     function(record) record$dataset_prefix,
