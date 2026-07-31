@@ -31,4 +31,18 @@ test_that("GPU documentation has an explicit manual render workflow", {
     function(lines) any(grepl("error = FALSE", lines, fixed = TRUE)),
     logical(1)
   )))
+
+  workflow <- paste(
+    readLines(
+      file.path(root, "validation", "brev-evo2", "README.md"),
+      warn = FALSE
+    ),
+    collapse = "\n"
+  )
+  expect_match(workflow, "%H%M%S", fixed = TRUE)
+  expect_match(
+    paste(source_text[[2L]], collapse = "\n"),
+    "BIONEMOR_DOCS_RUN_ID",
+    fixed = TRUE
+  )
 })

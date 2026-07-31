@@ -19,7 +19,13 @@ options(width = 92)
 docs_gpu <- Sys.getenv("BIONEMOR_DOCS_GPU")
 docs_date <- Sys.getenv("BIONEMOR_DOCS_RENDER_DATE")
 docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
-stopifnot(nzchar(docs_gpu), nzchar(docs_date), nzchar(docs_revision))
+docs_run_id <- Sys.getenv("BIONEMOR_DOCS_RUN_ID")
+stopifnot(
+  nzchar(docs_gpu),
+  nzchar(docs_date),
+  nzchar(docs_revision),
+  nzchar(docs_run_id)
+)
 ```
 
 `bionemor` prepares Evo 2 models and runs inference with NVIDIA BioNeMo
@@ -155,7 +161,7 @@ run <- evo2_generate(
   sequences,
   num_tokens = 8L,
   seed = 17L,
-  name = "batch-generation",
+  name = paste0(docs_run_id, "-batch-generation"),
   async = TRUE
 )
 

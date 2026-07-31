@@ -27,12 +27,13 @@ Render it only in the target recipe environment, after committing the sources:
 ```bash
 R CMD INSTALL .
 capture_date="$(date -u +%F)"
+capture_time="$(date -u +%Y%m%d-%H%M%S)"
 BIONEMOR_DOCS_RENDER=1 \
 BIONEMOR_DOCS_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
 BIONEMOR_DOCS_CHECKPOINT=/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
 BIONEMOR_DOCS_GPU='NVIDIA L40S' \
 BIONEMOR_DOCS_RENDER_DATE="$capture_date" \
-BIONEMOR_DOCS_RUN_ID="docs-${capture_date//-/}" \
+BIONEMOR_DOCS_RUN_ID="docs-$capture_time" \
 Rscript tools/render-gpu-docs.R
 ```
 
