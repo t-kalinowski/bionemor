@@ -455,6 +455,42 @@ test_that("generation batches prompts and returns portable R results", {
   log <- tempfile("bionemor-log-")
   dir.create(workspace)
   fake_recipes_runtime(bin)
+  helper <- file.path(bin, "bionemor-evo2-helper")
+  fake_helper <- file.path(bin, "bionemor-evo2-helper-fake")
+  materializer <- testthat::test_path(
+    "..",
+    "..",
+    "inst",
+    "scripts",
+    "materialize-evo2.py"
+  )
+  if (!file.exists(materializer)) {
+    materializer <- system.file(
+      "scripts",
+      "materialize-evo2.py",
+      package = "bionemor"
+    )
+  }
+  materializer <- normalizePath(materializer, mustWork = TRUE)
+  python <- Sys.which("python3")
+  python_modules <- file.path(bin, "python-modules")
+  dir.create(python_modules)
+  writeLines(character(), file.path(python_modules, "torch.py"))
+  stopifnot(
+    file.rename(helper, fake_helper),
+    file.exists(materializer),
+    nzchar(python)
+  )
+  write_executable(
+    helper,
+    c(
+      'if [[ "${1:-}" == "validate-generation" ]]; then',
+      paste("  export PYTHONPATH=", shQuote(python_modules), sep = ""),
+      paste("  exec", shQuote(python), shQuote(materializer), '"$@"'),
+      "fi",
+      paste("exec", shQuote(fake_helper), '"$@"')
+    )
+  )
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log

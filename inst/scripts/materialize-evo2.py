@@ -407,8 +407,13 @@ def load_sequence_map(path: Path) -> list[dict[str, Any]]:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         raise RuntimeError("sequence map is empty")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     if text.startswith("["):
         value = json.loads(text)
+    elif len(lines) > 1 and all(
+        line.startswith("{") and line.endswith("}") for line in lines
+    ):
+        value = [json.loads(line) for line in lines]
     elif text.startswith("{"):
         value = json.loads(text)
         if isinstance(value, dict) and all(
@@ -421,7 +426,7 @@ def load_sequence_map(path: Path) -> list[dict[str, Any]]:
         else:
             value = [value]
     else:
-        value = [json.loads(line) for line in text.splitlines() if line.strip()]
+        value = [json.loads(line) for line in lines]
     if (
         not isinstance(value, list)
         or not value
