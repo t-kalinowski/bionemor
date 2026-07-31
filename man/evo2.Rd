@@ -4,7 +4,13 @@
 \alias{evo2}
 \title{Describe an Evo 2 model}
 \usage{
-evo2(size = "7b", checkpoint = NULL, revision = "recommended", config = list())
+evo2(
+  size = "7b",
+  checkpoint = NULL,
+  revision = "recommended",
+  config = list(),
+  compute = NULL
+)
 }
 \arguments{
 \item{size}{Canonical model name from \code{\link[=evo2_models]{evo2_models()}} or a known upstream
@@ -19,15 +25,19 @@ package model registry.}
 
 \item{config}{Named model-level settings. Supported names are \code{tokenizer},
 \code{tokenizer_revision}, and \code{mixed_precision_recipe}.}
+
+\item{compute}{Optional \code{\link[=bionemo_compute]{bionemo_compute()}} descriptor to attach to the
+model. \code{NULL} leaves it unbound.}
 }
 \value{
 An S7 \code{Evo2Model}.
 }
 \description{
-\code{evo2()} creates a compute-independent model descriptor. It does not
-download or load weights, and operations on the returned model require an
-explicit compute descriptor. Use \code{\link[=evo2_model]{evo2_model()}} for the direct, synchronous
-path to a model backed by the recommended checkpoint and bound to compute.
+\code{evo2()} creates a model descriptor without downloading or loading weights.
+By default it is compute-independent, so operations require an explicit
+compute descriptor. Supply \code{compute} to bind a custom checkpoint, or use
+\code{\link[=evo2_model]{evo2_model()}} for the direct, synchronous path to a model backed by the
+recommended checkpoint and bound to compute.
 }
 \details{
 A model records the architecture, context length, source revision, model

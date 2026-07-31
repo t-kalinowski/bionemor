@@ -51,7 +51,13 @@ compute <- bionemo_compute(
   workspace = workspace
 )
 compute <- bionemo_install(compute)
-model <- evo2_model("7b", compute)
+checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
+stopifnot(dir.exists(checkpoint))
+model <- evo2(
+  "7b",
+  checkpoint = checkpoint,
+  compute = compute
+)
 
 bionemo_doctor(
   compute,
@@ -61,8 +67,9 @@ bionemo_doctor(
 )
 ```
 
-`evo2_model()` reuses a complete destination only when its manifest matches the
-recommended source and pinned recipe. The returned model retains `compute`.
+The capture reuses a prepared custom checkpoint. In a new workspace, use
+`model <- evo2_model("7b", compute)` to prepare the recommended source. Both
+paths retain `compute` on the returned model.
 
 ## Prepare a tiny dataset
 

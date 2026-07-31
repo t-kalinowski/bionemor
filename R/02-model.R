@@ -572,10 +572,11 @@ register_model_checkpoint <- function(inspection, record) {
 
 #' Describe an Evo 2 model
 #'
-#' `evo2()` creates a compute-independent model descriptor. It does not
-#' download or load weights, and operations on the returned model require an
-#' explicit compute descriptor. Use [evo2_model()] for the direct, synchronous
-#' path to a model backed by the recommended checkpoint and bound to compute.
+#' `evo2()` creates a model descriptor without downloading or loading weights.
+#' By default it is compute-independent, so operations require an explicit
+#' compute descriptor. Supply `compute` to bind a custom checkpoint, or use
+#' [evo2_model()] for the direct, synchronous path to a model backed by the
+#' recommended checkpoint and bound to compute.
 #'
 #' A model records the architecture, context length, source revision, model
 #' settings, and optional checkpoint. A [bionemo_compute()] descriptor records
@@ -592,6 +593,8 @@ register_model_checkpoint <- function(inspection, record) {
 #'   package model registry.
 #' @param config Named model-level settings. Supported names are `tokenizer`,
 #'   `tokenizer_revision`, and `mixed_precision_recipe`.
+#' @param compute Optional [bionemo_compute()] descriptor to attach to the
+#'   model. `NULL` leaves it unbound.
 #'
 #' @return An S7 `Evo2Model`.
 #'
@@ -605,7 +608,8 @@ evo2 <- function(
   size = "7b",
   checkpoint = NULL,
   revision = "recommended",
-  config = list()
+  config = list(),
+  compute = NULL
 ) {
   record <- evo2_model_record(size)
   allowed_config <- c(
@@ -632,7 +636,9 @@ evo2 <- function(
           !anyDuplicated(names(config))),
     "config contains an unsupported model setting" = all(
       names(config) %in% allowed_config
-    )
+    ),
+    "compute must be NULL or a BioNeMo compute descriptor" = is.null(compute) ||
+      S7_inherits(compute, BioNeMoCompute)
   )
 
   if (is_scalar_string(checkpoint)) {
@@ -661,7 +667,7 @@ evo2 <- function(
   Evo2Model(
     family = "evo2",
     checkpoint = checkpoint,
-    compute = NULL,
+    compute = compute,
     task = "causal_lm",
     config = config,
     provenance = list(),

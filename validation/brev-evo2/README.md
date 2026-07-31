@@ -29,6 +29,7 @@ R CMD INSTALL .
 capture_date="$(date -u +%F)"
 BIONEMOR_DOCS_RENDER=1 \
 BIONEMOR_DOCS_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
+BIONEMOR_DOCS_CHECKPOINT=/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
 BIONEMOR_DOCS_GPU='NVIDIA L40S' \
 BIONEMOR_DOCS_RENDER_DATE="$capture_date" \
 BIONEMOR_DOCS_RUN_ID="docs-${capture_date//-/}" \

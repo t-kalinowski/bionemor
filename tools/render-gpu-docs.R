@@ -18,6 +18,7 @@ on.exit(setwd(old_working_directory), add = TRUE)
 
 required_environment <- c(
   "BIONEMOR_DOCS_WORKSPACE",
+  "BIONEMOR_DOCS_CHECKPOINT",
   "BIONEMOR_DOCS_GPU",
   "BIONEMOR_DOCS_RENDER_DATE",
   "BIONEMOR_DOCS_RUN_ID"
@@ -32,6 +33,9 @@ stopifnot(
     0L,
   "documentation workspace does not exist" = dir.exists(
     Sys.getenv("BIONEMOR_DOCS_WORKSPACE")
+  ),
+  "documentation checkpoint does not exist" = dir.exists(
+    Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
   ),
   "render date must use YYYY-MM-DD" = grepl(
     "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",

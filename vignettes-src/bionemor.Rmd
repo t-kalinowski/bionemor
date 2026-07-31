@@ -69,13 +69,20 @@ models[models$name %in% c("1b-base", "7b"), c(
   "name", "parameters", "context_length", "compatible"
 )]
 
-model <- evo2_model("7b", compute)
+checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
+stopifnot(dir.exists(checkpoint))
+model <- evo2(
+  "7b",
+  checkpoint = checkpoint,
+  compute = compute
+)
 model
 ```
 
-Use `evo2()` and `evo2_checkpoint()` for custom sources, explicit conversion
-controls, or asynchronous preparation. In the main workflow, inference calls
-use the compute descriptor already attached by `evo2_model()`.
+The capture reuses the prepared checkpoint named by
+`BIONEMOR_DOCS_CHECKPOINT`. In a new workspace, replace the `evo2()` call with
+`model <- evo2_model("7b", compute)` to prepare the recommended source. Both
+paths return a compute-bound model, so inference calls do not repeat `compute`.
 
 ## Score sequences
 

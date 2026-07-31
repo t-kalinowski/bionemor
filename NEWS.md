@@ -9,8 +9,9 @@
 * Added task-specific generation, sequence scoring, embeddings, dataset
   preparation, and LoRA or full fine-tuning APIs.
 * Added `evo2_model()` as the direct path to a ready model backed by the
-  recommended dense MBridge checkpoint. Prepared and fitted models retain
-  their compute descriptor, so downstream operations do not require it again.
+  recommended dense MBridge checkpoint. Prepared, fitted, and explicitly bound
+  custom models retain their compute descriptor, so downstream operations do
+  not require it again.
 * Made install plans inspectable as ordered data frames with redacted,
   shell-quoted commands.
 * Added structured command plans and durable run directories that can be

@@ -93,17 +93,30 @@ models[models$name %in% c("1b-base", "7b"), c(
 `evo2_model()` prepares the recommended dense MBridge checkpoint on its first
 call and reuses a complete matching checkpoint later:
 
-```{r model}
+```r
 model <- evo2_model("7b", compute)
+```
+
+An already prepared custom checkpoint can be attached and compute-bound without
+copying or converting it. The rendered capture uses this path:
+
+```{r model}
+checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
+stopifnot(dir.exists(checkpoint))
+model <- evo2(
+  "7b",
+  checkpoint = checkpoint,
+  compute = compute
+)
 model
 ```
 
 The model now retains its compute descriptor. Inference and fine-tuning calls
 therefore do not need a repeated `compute` argument. The separation still
-matters at the lower level: `evo2()` can describe a model or custom checkpoint
-offline, while `bionemo_compute()` describes the runtime, workspace, backend,
-recipe revision, and GPU allocation. `evo2_model()` couples them for the usual
-workflow.
+matters at construction: a model describes architecture and weights, while
+`bionemo_compute()` describes the runtime, workspace, backend, recipe revision,
+and GPU allocation. `evo2_model()` couples the recommended checkpoint and
+compute; `evo2(..., compute = compute)` does the same for a custom checkpoint.
 
 ## Run inference
 

@@ -180,4 +180,11 @@ test_that("evo2_model binds compute for inference", {
     evo2_score(unbound, sequences),
     "compute is required for an unbound model"
   )
+
+  rebound <- evo2(
+    "7b",
+    checkpoint = model@checkpoint,
+    compute = compute
+  )
+  expect_equal(evo2_score(rebound, sequences)$id, names(sequences))
 })
