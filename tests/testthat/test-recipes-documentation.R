@@ -154,7 +154,11 @@ test_that("public documentation states the current runtime and API contracts", {
     file.path("man", "bionemo_compute.Rd"),
     "bionemo_compute"
   )
-  expect_match(compute, "models\\s+and\\s+compute", ignore.case = TRUE)
+  expect_match(
+    compute,
+    "A model and compute have separate roles",
+    fixed = TRUE
+  )
   expect_match(compute, "bound\\s+to\\s+a\\s+model")
   expect_match(compute, "compute <- bionemo_compute(", fixed = TRUE)
 
