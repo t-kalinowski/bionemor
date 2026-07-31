@@ -933,7 +933,8 @@ fit_control_args <- function(control, model_record) {
 #' @param path Result directory. Relative paths resolve below the compute
 #'   workspace, and `NULL` uses `artifacts/<name>`. Container execution requires
 #'   the result to remain inside the workspace.
-#' @param name Optional durable run name.
+#' @param name Optional durable run name. When `data` must be prepared
+#'   automatically, its preprocessing run uses `<name>-data`.
 #' @param async Whether to return a durable job immediately.
 #' @param timeout Complete operation timeout in seconds. This limits the
 #'   launched operation; [job_wait()] has a separate client-side wait timeout.
@@ -1065,6 +1066,7 @@ evo2_finetune <- function(
     model_record,
     compute
   )
+  name <- safe_name(name, "evo2-finetune")
   data <- if (S7_inherits(data, Evo2Dataset)) data else evo2_dataset(data)
   if (!data@prepared) {
     data <- evo2_prepare(
@@ -1074,7 +1076,7 @@ evo2_finetune <- function(
       path = file.path(
         compute@workspace,
         "datasets",
-        safe_name(name, "evo2-data")
+        paste0(name, "-data")
       ),
       async = FALSE
     )
@@ -1104,7 +1106,6 @@ evo2_finetune <- function(
       file.exists(data@manifest$manifest_path)
   )
 
-  name <- safe_name(name, "evo2-finetune")
   output <- normalize_path(
     path %||% file.path(compute@workspace, "artifacts", name),
     base = compute@workspace

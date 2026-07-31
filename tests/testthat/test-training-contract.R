@@ -111,6 +111,56 @@ test_that("MBridge registration requires distributed checkpoint weights", {
   )
 })
 
+test_that("named fine-tuning automatically prepares raw data in a distinct run", {
+  workspace <- tempfile("bionemor-named-fit-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  model <- evo2(
+    "1b",
+    checkpoint = make_mbridge_checkpoint(
+      workspace,
+      "checkpoint-1b-named",
+      model_size = "evo2_1b_base"
+    ),
+    compute = compute
+  )
+
+  fitted <- evo2_finetune(
+    model,
+    evo2_dataset(c(first = "ACGT", second = "TGCA")),
+    steps = 1L,
+    method = evo2_lora(),
+    control = evo2_fit_control(
+      global_batch_size = 1L,
+      warmup_steps = 0L,
+      constant_steps = 0L
+    ),
+    name = "named-fit",
+    async = FALSE
+  )
+
+  expect_s3_class(fitted, "bionemor::Evo2Model")
+  expect_true(dir.exists(file.path(
+    workspace,
+    ".bionemor",
+    "runs",
+    "named-fit-data"
+  )))
+  expect_true(dir.exists(file.path(
+    workspace,
+    ".bionemor",
+    "runs",
+    "named-fit"
+  )))
+})
+
 test_that("documented 1B BF16 fine-tuning is independent of inference policy", {
   workspace <- tempfile("bionemor-1b-fit-")
   bin <- tempfile("bionemor-bin-")

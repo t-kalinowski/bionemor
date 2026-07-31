@@ -36,7 +36,8 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 workspace, and \code{NULL} uses \verb{artifacts/<name>}. Container execution requires
 the result to remain inside the workspace.}
 
-\item{name}{Optional durable run name.}
+\item{name}{Optional durable run name. When \code{data} must be prepared
+automatically, its preprocessing run uses \verb{<name>-data}.}
 
 \item{async}{Whether to return a durable job immediately.}
 
