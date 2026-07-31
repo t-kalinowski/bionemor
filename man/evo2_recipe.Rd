@@ -2,7 +2,7 @@
 % Please edit documentation in R/03-compute.R
 \name{evo2_recipe}
 \alias{evo2_recipe}
-\title{Describe the pinned BioNeMo Evo 2 recipe}
+\title{Describe a BioNeMo Evo 2 recipe}
 \usage{
 evo2_recipe(
   revision = "recommended",
@@ -12,22 +12,65 @@ evo2_recipe(
 )
 }
 \arguments{
-\item{revision}{Exact BioNeMo Recipes commit. \code{"recommended"} uses the
-package lock.}
+\item{revision}{BioNeMo Recipes revision. \code{"recommended"} selects the exact
+commit in the package lock. Otherwise, supply a full 40-character commit
+SHA unless \code{allow_mutable = TRUE}.}
 
-\item{repository}{Optional BioNeMo Recipes repository.}
+\item{repository}{BioNeMo Recipes repository URL. \code{NULL} uses the repository
+in the package lock.}
 
-\item{base_image}{Optional NGC PyTorch base image. A digest-qualified
-reference records its digest; the locked image and digest are canonicalized
-to the package lock.}
+\item{base_image}{Base image reference. \code{NULL} uses the locked base image. A
+reference ending in \verb{@sha256:<digest>} records the digest separately.}
 
-\item{allow_mutable}{Allow a revision other than a full commit SHA.}
+\item{allow_mutable}{Whether \code{revision} may be a mutable name rather than a
+full commit SHA.}
 }
 \value{
-An S7 \code{BioNeMoRecipe}.
+An S7 \code{BioNeMoRecipe} descriptor. Its \code{verified} property is \code{TRUE}
+only when the repository, revision, and base image match the package lock.
 }
 \description{
-Automatic local image builds are limited to the verified package lock.
-Use an external runtime or supply an explicit prebuilt image when \code{recipe}
-is unverified.
+A recipe identifies the software environment used to prepare checkpoints,
+run inference, and fine-tune Evo 2. It records the BioNeMo Recipes source,
+its exact revision, the Evo 2 recipe directory and version, the base image,
+and the helper protocol expected by this version of bionemor. It does not
+describe model weights or allocate compute resources.
+}
+\details{
+\code{evo2_recipe()} is offline: it reads the package's recipe lock and returns a
+descriptor without cloning source, pulling an image, or starting a runtime.
+Use \code{\link[=bionemo_compute]{bionemo_compute()}} to choose where and how the recipe will run, then use
+\code{\link[=bionemo_install]{bionemo_install()}} to build or verify that runtime.
+}
+\section{Verified and custom recipes}{
+
+
+The default recipe is verified because its repository, revision, and base
+image match the package lock. bionemor can build its deterministic local
+container image from this verified recipe. Changing any of those inputs
+creates an unverified descriptor. An unverified recipe must use an externally
+managed runtime or an explicit prebuilt container image; bionemor will not
+infer how to build it.
+
+Custom descriptors still use the Evo 2 recipe directory, recipe version, and
+helper protocol from the package lock. The supplied runtime must implement
+that same contract; these values are not discovered from a custom repository.
+
+A full commit SHA keeps the recipe source immutable. Use a mutable revision
+only when the runtime is intentionally managed at a branch or tag; this
+requires \code{allow_mutable = TRUE}. Digest-qualified base-image references
+retain their SHA-256 digest in the descriptor. The package's locked base
+image is stored in canonical, non-digest-qualified form together with its
+locked digest.
+}
+
+\examples{
+# This only reads the lock bundled with bionemor.
+recipe <- evo2_recipe()
+recipe
+
+}
+\seealso{
+\code{\link[=bionemo_compute]{bionemo_compute()}}, \code{\link[=bionemo_install_plan]{bionemo_install_plan()}},
+\code{\link[=bionemo_install]{bionemo_install()}}
 }

@@ -1435,11 +1435,36 @@ submit_plan <- function(
   if (async) job else job_wait(job, poll = 0.05)
 }
 
-#' Re-open a persisted BioNeMo job
+#' Reopen a persisted BioNeMo job
 #'
-#' @param path A persisted run directory.
+#' Each operation dispatched through the job runner creates a durable run
+#' directory under `<workspace>/.bionemor/runs/<name>`. The directory records
+#' the request, command plan, state, logs, outputs, and provenance needed to
+#' inspect the run after the R session that started it has ended. A
+#' `BioNeMoJob` is a handle to those persisted files and the local or Slurm
+#' execution backend.
 #'
-#' @return A `BioNeMoJob`.
+#' Operations that support `async` return their typed result directly when
+#' `async = FALSE`. With `async = TRUE`, they return a `BioNeMoJob` immediately.
+#' Pass that job to [job_status()], [job_logs()], [job_wait()], [job_cancel()],
+#' or [job_result()]. `bionemo_job()` reconstructs the same handle from its run
+#' directory, including for a run that is still active or already complete. It
+#' does not resubmit or restart the operation.
+#'
+#' @param path Path to a run directory created by bionemor. It must contain the
+#'   persisted request, command plan, and state files.
+#'
+#' @return A `BioNeMoJob` for the persisted run.
+#' @examples
+#' \dontrun{
+#' # Save job_path(job), then reopen the run in this or a later R session.
+#' job <- bionemo_job(
+#'   "/shared/workspace/.bionemor/runs/my-generation"
+#' )
+#' job_status(job)
+#' result <- job_wait(job)
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 bionemo_job <- function(path) {
   path <- normalize_path(path)
@@ -1493,9 +1518,27 @@ bionemo_job <- function(path) {
 
 #' Return the run directory for a BioNeMo job
 #'
-#' @param x A BioNeMo job.
+#' The run directory is the durable identity of a job. Save this path to reopen
+#' the job with [bionemo_job()] in another R session. Keep the directory intact:
+#' status updates, logs, result materialization, and provenance all use files
+#' stored below it.
 #'
-#' @return One normalized path.
+#' @param x A `BioNeMoJob` returned by an asynchronous operation or
+#'   [bionemo_job()].
+#'
+#' @return A length-one character vector containing the normalized absolute run
+#'   path.
+#' @examples
+#' \dontrun{
+#' job <- bionemo_job(
+#'   "/shared/workspace/.bionemor/runs/my-generation"
+#' )
+#' path <- job_path(job)
+#'
+#' # Reopen the same run later.
+#' same_job <- bionemo_job(path)
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 job_path <- function(x) {
   if (!S7_inherits(x, BioNeMoJob)) {
@@ -1718,10 +1761,46 @@ local_job_status <- function(job) {
 
 #' Return a BioNeMo job state
 #'
-#' @param x A BioNeMo job.
-#' @param refresh Whether to query the execution backend.
+#' With `refresh = TRUE`, `job_status()` reconciles the persisted state with the
+#' execution backend. Local jobs are checked against their runner process, and
+#' Slurm jobs are checked with scheduler accounting. Terminal states are
+#' persisted in the run directory. With `refresh = FALSE`, the function returns
+#' the state held by the job handle without a routine backend query; that value
+#' may be stale. Reopening a job with [bionemo_job()] loads its persisted state.
 #'
-#' @return One state string.
+#' @section States:
+#'
+#' A job has one of these state strings:
+#'
+#' - `"created"`: the durable run directory has been initialized.
+#' - `"submitted"`: the backend accepted the job and it is waiting to start.
+#' - `"starting"`: the local runner is starting the operation.
+#' - `"running"`: the operation is running or finalizing its outputs.
+#' - `"succeeded"`: the operation completed and its result can be read.
+#' - `"failed"`: the operation ended with an error.
+#' - `"cancelled"`: cancellation was confirmed.
+#' - `"unknown"`: the backend state could not be mapped to a supported state.
+#'
+#' The terminal states are `"succeeded"`, `"failed"`, and `"cancelled"`.
+#' [job_wait()] and [job_result()] report non-success states as typed bionemor
+#' errors.
+#'
+#' @param x A `BioNeMoJob` returned by an asynchronous operation or
+#'   [bionemo_job()].
+#' @param refresh Whether to query the execution backend for current state.
+#'   Set this to `FALSE` to read the state held by the job handle without a
+#'   routine backend query.
+#'
+#' @return A length-one character vector containing the job state.
+#' @examples
+#' \dontrun{
+#' job <- bionemo_job(
+#'   "/shared/workspace/.bionemor/runs/my-generation"
+#' )
+#' job_status(job)
+#' job_status(job, refresh = FALSE)
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 job_status <- function(x, refresh = TRUE) {
   if (!S7_inherits(x, BioNeMoJob)) {
@@ -1769,11 +1848,30 @@ job_status <- function(x, refresh = TRUE) {
 
 #' Read BioNeMo job logs
 #'
-#' @param x A BioNeMo job.
-#' @param tail Optional number of final lines.
-#' @param stream Log stream to read.
+#' `job_logs()` reads a snapshot of the persisted log files, so it can be called
+#' while a job is running and again after completion. With `stream = "both"`,
+#' stdout is returned first and stderr second; the two files are not merged in
+#' chronological order. `tail` is applied after the selected streams are
+#' combined. Credential-like values are redacted before lines are returned.
 #'
-#' @return A character vector.
+#' @param x A `BioNeMoJob` returned by an asynchronous operation or
+#'   [bionemo_job()].
+#' @param tail `NULL` to return every available line, or a positive integer
+#'   giving the number of final lines to return.
+#' @param stream Which persisted log stream to read: `"stdout"`, `"stderr"`, or
+#'   `"both"`.
+#'
+#' @return A character vector with one log line per element. The result is empty
+#'   when no selected log file has content.
+#' @examples
+#' \dontrun{
+#' job <- bionemo_job(
+#'   "/shared/workspace/.bionemor/runs/my-generation"
+#' )
+#' job_logs(job, tail = 20L)
+#' job_logs(job, tail = 20L, stream = "stderr")
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 job_logs <- function(
   x,
@@ -2163,10 +2261,34 @@ wait_for_slurm_cancellation <- function(x, timeout = 10) {
 
 #' Cancel a BioNeMo job
 #'
-#' @param x A BioNeMo job.
-#' @param force Whether to use immediate termination.
+#' `job_cancel()` asks the local or Slurm backend to stop an active job and
+#' waits for the backend to report a terminal state. The default requests an
+#' orderly termination; local execution escalates if the process does not stop.
+#' `force = TRUE` requests immediate termination instead. A job that is already
+#' terminal is returned unchanged.
 #'
-#' @return The updated job, invisibly.
+#' Cancellation races with normal completion. The final state may therefore be
+#' `"succeeded"` or `"failed"` if the operation finishes before cancellation is
+#' confirmed. Cancelling does not delete the run directory, logs, or outputs.
+#'
+#' @param x A `BioNeMoJob` returned by an asynchronous operation or
+#'   [bionemo_job()].
+#' @param force Whether to request immediate termination. The default first
+#'   requests an orderly stop.
+#'
+#' @return `x`, updated to the backend's terminal state, invisibly.
+#' @examples
+#' \dontrun{
+#' job <- bionemo_job(
+#'   "/shared/workspace/.bionemor/runs/my-generation"
+#' )
+#' job_cancel(job)
+#' job_status(job)
+#'
+#' # To skip orderly termination, use this instead on an active job:
+#' # job_cancel(job, force = TRUE)
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 job_cancel <- function(x, force = FALSE) {
   if (!S7_inherits(x, BioNeMoJob)) {
@@ -3190,9 +3312,31 @@ abort_job_state <- function(x, state, message) {
 
 #' Return a completed BioNeMo job result
 #'
-#' @param x A BioNeMo job.
+#' `job_result()` refreshes job state and materializes the portable outputs of a
+#' successful run as the same typed R object returned by the corresponding
+#' synchronous operation. It does not wait for an active job; use [job_wait()]
+#' when the operation may still be running.
 #'
-#' @return The operation's typed result.
+#' A failed, cancelled, active, or unknown job produces a typed bionemor error.
+#' The condition includes the run path and available log context so the durable
+#' run can be inspected after the error is caught.
+#'
+#' @param x A `BioNeMoJob` returned by an asynchronous operation or
+#'   [bionemo_job()].
+#'
+#' @return The operation's typed result, such as an `evo2_generation` or
+#'   `evo2_scores` data frame, an embedding matrix, an `Evo2Model`, an
+#'   `Evo2Dataset`, a `BioNeMoCheckpoint`, or a `BioNeMoArtifact`.
+#' @examples
+#' \dontrun{
+#' job <- bionemo_job(
+#'   "/shared/workspace/.bionemor/runs/my-generation"
+#' )
+#' if (job_status(job) == "succeeded") {
+#'   generated <- job_result(job)
+#' }
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 job_result <- function(x) {
   if (!S7_inherits(x, BioNeMoJob)) {
@@ -3216,14 +3360,45 @@ job_result <- function(x) {
   materialize_job_result(x)
 }
 
-#' Wait for a BioNeMo job
+#' Wait for a BioNeMo job and return its result
 #'
-#' @param x A BioNeMo job.
-#' @param poll Polling interval in seconds.
-#' @param timeout Maximum time spent waiting. A wait timeout does not cancel
-#'   the job.
+#' `job_wait()` refreshes job state every `poll` seconds until the run succeeds,
+#' reaches a non-success state, or the wait reaches `timeout`. A successful run
+#' is materialized as the same typed R object returned by the corresponding
+#' operation with `async = FALSE`. Failed, cancelled, and unknown states produce
+#' typed bionemor errors with the run path and available log context.
+#'
+#' `timeout` limits only this call to `job_wait()`. It is measured from the time
+#' the call starts, does not change the operation's own execution timeout, and
+#' does not cancel the job. After a wait timeout, use [job_status()] or
+#' [job_logs()] to inspect the still-running job, call `job_wait()` again, or
+#' cancel it explicitly with [job_cancel()].
+#'
+#' @param x A `BioNeMoJob` returned by an asynchronous operation or
+#'   [bionemo_job()].
+#' @param poll Positive polling interval in seconds.
+#' @param timeout Positive maximum number of seconds to spend waiting, or `Inf`
+#'   to wait without a limit. A wait timeout does not cancel the job.
 #'
 #' @return The operation's typed result.
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "/shared/workspace")
+#' model <- evo2(
+#'   "7b",
+#'   checkpoint = "/shared/workspace/checkpoints/evo2-7b"
+#' )
+#' job <- evo2_generate(
+#'   model,
+#'   c(example = "ACGT"),
+#'   compute,
+#'   num_tokens = 32L,
+#'   async = TRUE
+#' )
+#'
+#' generated <- job_wait(job, poll = 2, timeout = 600)
+#' }
+#' @family BioNeMo job lifecycle
 #' @export
 job_wait <- function(x, poll = 2, timeout = Inf) {
   if (!S7_inherits(x, BioNeMoJob)) {

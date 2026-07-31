@@ -898,13 +898,33 @@ assert_vortex_export_layout <- function(path, allow_existing = FALSE) {
 #'
 #' Convert a Savanna or NeMo2 checkpoint to the MBridge format used by the
 #' BioNeMo Evo 2 recipe, or inspect and register an existing MBridge checkpoint.
+#' The model registry supplies the recommended source, its exact revision, and
+#' tokenizer for each supported model size.
+#'
+#' `hf://` sources are treated as Savanna checkpoints and `ngc://` sources as
+#' NeMo2 checkpoints unless `format` is explicit. A local source without a
+#' bionemor manifest also requires an explicit format. Existing MBridge
+#' checkpoints are inspected and registered without conversion. Relative source
+#' and destination paths are resolved below the compute workspace.
+#'
+#' Checkpoint preparation records source, recipe, tokenizer, precision, trust,
+#' and inspection metadata in a manifest beside the completed checkpoint. A
+#' later call reuses the destination only when that manifest matches the request.
+#' Unknown pickle-based sources require `trust = TRUE`; exact sources and
+#' revisions from the package registry are trusted automatically.
+#'
+#' Version 1 uses the pinned recipe's Transformer Engine key mapping for
+#' Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
+#' register the resulting MBridge checkpoint.
 #'
 #' @param model An Evo 2 model specification.
 #' @param source `"recommended"`, an `hf://` or `ngc://` URI, an existing local
 #'   path, or a `BioNeMoCheckpoint`.
 #' @param format Source checkpoint format. `"auto"` uses registry and URI
 #'   metadata.
-#' @param path Destination path, relative to the compute workspace.
+#' @param path Destination path. Relative paths resolve below the compute
+#'   workspace. Container and Slurm execution require the destination to remain
+#'   inside that workspace.
 #' @param compute A compute specification.
 #' @param revision Exact source revision.
 #' @param tokenizer Tokenizer path or `"recommended"`.
@@ -914,11 +934,24 @@ assert_vortex_export_layout <- function(path, allow_existing = FALSE) {
 #'   checkpoint. The exact source and revision in the model registry are trusted.
 #' @param async Whether to return a running job.
 #'
-#' Version 1 uses the pinned recipe's Transformer Engine key mapping for
-#' Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
-#' register the resulting MBridge checkpoint.
-#'
 #' @return A `BioNeMoCheckpoint`, or a `BioNeMoJob` when `async = TRUE`.
+#'
+#' @examples
+#' model <- evo2("7b")
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' checkpoint <- evo2_checkpoint(
+#'   model,
+#'   source = "recommended",
+#'   path = "checkpoints/evo2-7b",
+#'   compute = compute
+#' )
+#' }
+#'
+#' @references
+#' [Pinned BioNeMo Recipes Evo 2 checkpoint
+#' documentation](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#fine-tuning-from-an-existing-checkpoint)
+#' @seealso [evo2_model()], [checkpoint_path()], [checkpoint_manifest()]
 #' @export
 evo2_checkpoint <- function(
   model,
@@ -1244,6 +1277,15 @@ evo2_checkpoint <- function(
 #'   revision-qualified path below `checkpoints/`.
 #'
 #' @return An S7 `Evo2Model` with a `BioNeMoCheckpoint` attached.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' model <- evo2_model("7b", compute)
+#'
+#' # The prepared model remembers where it runs.
+#' evo2_score(model, c(example = "ACGTACGT"))
+#' }
 #' @seealso [evo2()], [evo2_checkpoint()], [evo2_models()]
 #' @export
 evo2_model <- function(size = "7b", compute, path = NULL) {
@@ -1286,6 +1328,18 @@ evo2_model <- function(size = "7b", compute, path = NULL) {
 
 #' Export an Evo 2 checkpoint
 #'
+#' Export a dense MBridge checkpoint to the weights-only Vortex format used by
+#' optimized inference runtimes. When `strip_optimizer = TRUE`, the recipe first
+#' writes an intermediate MBridge checkpoint without optimizer state and exports
+#' that checkpoint. LoRA checkpoints cannot be exported because they depend on
+#' their dense base checkpoint.
+#'
+#' The upstream exporter writes a shared `config.json` beside the `.pt` file,
+#' so each destination directory may contain only one Vortex checkpoint. The
+#' checkpoint inspector selects the Transformer Engine key mapping and adds
+#' `--no-te` for a non-TE MBridge checkpoint. An unidentified key layout is
+#' rejected before export.
+#'
 #' @param model An Evo 2 model bound to a dense MBridge checkpoint.
 #' @param path Destination `.pt` path.
 #' @param format Export format. Version 1 supports `"vortex"`.
@@ -1297,11 +1351,21 @@ evo2_model <- function(size = "7b", compute, path = NULL) {
 #' @return A Vortex `BioNeMoCheckpoint`, or a `BioNeMoJob` when
 #'   `async = TRUE`.
 #'
-#' The upstream exporter writes a shared `config.json` beside the `.pt` file,
-#' so each destination directory may contain only one Vortex checkpoint.
-#' The checkpoint inspector selects the Transformer Engine key mapping and
-#' adds `--no-te` for a non-TE MBridge checkpoint. An unidentified key layout
-#' is rejected before export.
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' model <- evo2_model("7b", compute)
+#' vortex <- evo2_export(
+#'   model,
+#'   path = "exports/evo2-7b/model.pt",
+#'   compute = compute
+#' )
+#' }
+#'
+#' @references
+#' [Pinned BioNeMo Recipes Evo 2 Vortex export
+#' documentation](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#exporting-to-vortex-format)
+#' @seealso [evo2_checkpoint()], [checkpoint_manifest()]
 #' @export
 evo2_export <- function(
   model,
@@ -1561,6 +1625,10 @@ evo2_export <- function(
 #' @param x A checkpoint, model, or one checkpoint path.
 #'
 #' @return One normalized path.
+#'
+#' @examples
+#' checkpoint_path("checkpoints/evo2-7b")
+#' @seealso [checkpoint_manifest()], [evo2_checkpoint()]
 #' @export
 checkpoint_path <- function(x) {
   path <- if (S7_inherits(x, BioNeMoCheckpoint)) {
@@ -1580,7 +1648,9 @@ checkpoint_path <- function(x) {
 #'
 #' @param x A checkpoint, model, or one checkpoint path.
 #'
-#' @return A named list.
+#' @return A named list containing checkpoint identity, provenance, format,
+#'   recipe revision, source revision, and inspection metadata.
+#' @seealso [checkpoint_path()], [evo2_checkpoint()]
 #' @export
 checkpoint_manifest <- function(x) {
   if (S7_inherits(x, BioNeMoCheckpoint) && !is.null(x@manifest)) {

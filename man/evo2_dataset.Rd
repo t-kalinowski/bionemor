@@ -15,18 +15,44 @@ evo2_dataset(
 )
 }
 \arguments{
-\item{train, validation, test}{Sequence inputs or FASTA paths.}
+\item{train, validation, test}{Sequence inputs. \code{train} is required.
+\code{validation} and \code{test} may be \code{NULL}.}
 
 \item{split}{Named train, validation, and test proportions used when
-explicit validation and test inputs are absent.}
+both explicit validation and test inputs are absent. Assignment uses a
+stable hash of \code{seed} and sequence ID, so it is unchanged by input order.
+The proportions are probabilities and need not produce exact row counts.}
 
-\item{seed}{Stable split seed.}
+\item{seed}{Non-negative seed used for stable hash partitioning.}
 
-\item{id_col, sequence_col}{Data-frame column names.}
+\item{id_col, sequence_col}{Data-frame column names containing sequence IDs
+and sequence text.}
 }
 \value{
 An S7 \code{Evo2Dataset}.
 }
 \description{
-Describe an Evo 2 dataset
+\code{evo2_dataset()} records sequence partitions before the recipe converts them
+to indexed training data. Each input may be a named character vector, a data
+frame, an \code{XStringSet} such as \code{DNAStringSet}, or an existing FASTA or
+gzip-compressed FASTA path.
+}
+\details{
+Character-vector names become sequence IDs; unnamed vectors receive
+\code{seq_1}, \code{seq_2}, and so on. Data frames use \code{id_col} and \code{sequence_col}.
+IDs must be non-empty and unique, and sequences must be non-empty.
+}
+\examples{
+sequences <- c(
+  first = "ACGTACGT",
+  second = "TGCATGCA",
+  third = "GATTACA"
+)
+data <- evo2_dataset(
+  sequences,
+  split = c(train = 0.7, validation = 0.2, test = 0.1),
+  seed = 17L
+)
+data@provenance$partition_method
+
 }

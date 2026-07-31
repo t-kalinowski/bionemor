@@ -27,28 +27,37 @@ evo2_generate(
 \item{object}{An Evo 2 model with an explicit checkpoint.}
 
 \item{prompt}{Prompts as a character vector, data frame, FASTA path, or
-\code{DNAStringSet}.}
+\code{DNAStringSet}. Character-vector names or an \code{id} data-frame column become
+output IDs.}
 
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{num_tokens}{Generation length.}
+\item{num_tokens}{Maximum number of new tokens per prompt.}
 
 \item{n}{Samples per prompt. The pinned recipe currently supports only one.}
 
-\item{temperature, top_k, top_p}{Sampling controls. At most one of \code{top_k}
-and \code{top_p} may be positive. Set \code{top_k = 0} when using top-p sampling.}
+\item{temperature, top_k, top_p}{Sampling temperature and top-k or nucleus
+filtering. At most one of \code{top_k} and \code{top_p} may be positive. Set
+\code{top_k = 0} when using top-p sampling.}
 
 \item{seed}{Optional positive random seed. The pinned recipe maps zero to its
 default seed, so zero is rejected rather than recorded as if it were used.}
 
-\item{return_probabilities}{Whether to return per-token probabilities.}
+\item{return_probabilities}{Whether to retain generated-token log
+probabilities and probabilities in list columns.}
 
-\item{normalize}{Sequence normalization mode.}
+\item{normalize}{Sequence normalization mode. \code{"evo2"} accepts a leading
+\code{\link[=evo2_phylo_tag]{evo2_phylo_tag()}}, validates the DNA portion, and uppercases the complete
+prompt, including the tag. \code{"dna"} accepts IUPAC DNA only, and \code{"none"}
+sends text unchanged.}
 
-\item{validate}{Mechanical output validation level.}
+\item{validate}{Mechanical output validation level. \code{"basic"} records
+warnings for non-ACGT symbols, extreme GC fraction, long homopolymers, low
+complexity, and duplicate completions. \code{"strict"} also rejects non-ACGT
+output. \code{"none"} skips these checks.}
 
-\item{control}{Evo 2 inference controls.}
+\item{control}{Controls from \code{\link[=evo2_inference_control]{evo2_inference_control()}}.}
 
 \item{output}{Optional directory for a copy of portable outputs.}
 
@@ -78,5 +87,26 @@ validation messages.
 With \code{async = TRUE}, a \code{BioNeMoJob}.
 }
 \description{
-Generate DNA continuations with Evo 2
+All prompts are written to one request and processed while the recipe keeps
+the model loaded. Prompt tokens plus \code{num_tokens} must fit the model context
+and any smaller \code{max_sequence_length} in \code{\link[=evo2_inference_control]{evo2_inference_control()}}.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_install(compute)
+model <- evo2_model("7b", compute)
+
+generated <- evo2_generate(
+  model,
+  c(reference = "ACGTACGT"),
+  num_tokens = 32L,
+  seed = 17L
+)
+generated[c("input_id", "prompt", "completion", "finish_reason")]
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#autoregressive-generation-infer_evo2}{BioNeMo Recipes autoregressive generation}
 }

@@ -27,7 +27,9 @@ path, or a \code{BioNeMoCheckpoint}.}
 \item{format}{Source checkpoint format. \code{"auto"} uses registry and URI
 metadata.}
 
-\item{path}{Destination path, relative to the compute workspace.}
+\item{path}{Destination path. Relative paths resolve below the compute
+workspace. Container and Slurm execution require the destination to remain
+inside that workspace.}
 
 \item{compute}{A compute specification.}
 
@@ -42,11 +44,7 @@ metadata.}
 \item{trust}{Whether to allow an unknown local or remote pickle-based
 checkpoint. The exact source and revision in the model registry are trusted.}
 
-\item{async}{Whether to return a running job.
-
-Version 1 uses the pinned recipe's Transformer Engine key mapping for
-Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
-register the resulting MBridge checkpoint.}
+\item{async}{Whether to return a running job.}
 }
 \value{
 A \code{BioNeMoCheckpoint}, or a \code{BioNeMoJob} when \code{async = TRUE}.
@@ -54,4 +52,42 @@ A \code{BioNeMoCheckpoint}, or a \code{BioNeMoJob} when \code{async = TRUE}.
 \description{
 Convert a Savanna or NeMo2 checkpoint to the MBridge format used by the
 BioNeMo Evo 2 recipe, or inspect and register an existing MBridge checkpoint.
+The model registry supplies the recommended source, its exact revision, and
+tokenizer for each supported model size.
+}
+\details{
+\verb{hf://} sources are treated as Savanna checkpoints and \verb{ngc://} sources as
+NeMo2 checkpoints unless \code{format} is explicit. A local source without a
+bionemor manifest also requires an explicit format. Existing MBridge
+checkpoints are inspected and registered without conversion. Relative source
+and destination paths are resolved below the compute workspace.
+
+Checkpoint preparation records source, recipe, tokenizer, precision, trust,
+and inspection metadata in a manifest beside the completed checkpoint. A
+later call reuses the destination only when that manifest matches the request.
+Unknown pickle-based sources require \code{trust = TRUE}; exact sources and
+revisions from the package registry are trusted automatically.
+
+Version 1 uses the pinned recipe's Transformer Engine key mapping for
+Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
+register the resulting MBridge checkpoint.
+}
+\examples{
+model <- evo2("7b")
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+checkpoint <- evo2_checkpoint(
+  model,
+  source = "recommended",
+  path = "checkpoints/evo2-7b",
+  compute = compute
+)
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#fine-tuning-from-an-existing-checkpoint}{Pinned BioNeMo Recipes Evo 2 checkpoint documentation}
+}
+\seealso{
+\code{\link[=evo2_model]{evo2_model()}}, \code{\link[=checkpoint_path]{checkpoint_path()}}, \code{\link[=checkpoint_manifest]{checkpoint_manifest()}}
 }

@@ -2,18 +2,32 @@
 % Please edit documentation in R/10-setup.R
 \name{bionemo_setup}
 \alias{bionemo_setup}
-\title{Deprecated recipe setup alias}
+\title{Deprecated alias for installation planning}
 \usage{
 bionemo_setup(compute, ...)
 }
 \arguments{
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor from \code{\link[=bionemo_compute]{bionemo_compute()}}.}
 
 \item{...}{Unused.}
 }
 \value{
-A \code{BioNeMoSetupPlan}.
+A \code{BioNeMoSetupPlan}, as returned by \code{\link[=bionemo_install_plan]{bionemo_install_plan()}}.
 }
 \description{
-Deprecated recipe setup alias
+\code{bionemo_setup()} is deprecated in favor of \code{\link[=bionemo_install_plan]{bionemo_install_plan()}}. It
+only returns an inspection plan; it does not execute the plan or modify the
+recipe runtime. Use \code{\link[=bionemo_install]{bionemo_install()}} when the runtime should be built or
+verified.
+}
+\examples{
+\dontrun{
+# Use the replacement directly.
+plan <- bionemo_install_plan(compute)
+compute <- bionemo_install(compute)
+}
+
+}
+\seealso{
+\code{\link[=bionemo_install_plan]{bionemo_install_plan()}}, \code{\link[=bionemo_install]{bionemo_install()}}
 }

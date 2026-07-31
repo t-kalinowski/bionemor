@@ -23,34 +23,47 @@ evo2_preprocess_control(
 )
 }
 \arguments{
-\item{uppercase}{Whether to uppercase sequences during preprocessing.}
+\item{uppercase}{Whether to convert sequences to uppercase during
+preprocessing.}
 
-\item{embed_reverse_complement}{Whether to embed reverse complements.}
+\item{embed_reverse_complement}{Whether to include each sequence's reverse
+complement in the indexed data.}
 
 \item{random_reverse_complement}{Probability of applying a random reverse
-complement.}
+complement to a training record.}
 
-\item{random_lineage_dropout}{Probability of dropping lineage fields.}
+\item{random_lineage_dropout}{Probability of dropping taxonomy lineage
+fields when taxonomy prompts are used.}
 
-\item{transcribe}{Optional transcription direction.}
+\item{transcribe}{Sequence conversion: \code{"none"}, DNA to RNA with
+\code{"transcribe"}, or RNA to DNA with \code{"back_transcribe"}.}
 
 \item{append_eod}{Whether to append an end-of-document token.}
 
-\item{sample_length}{Optional fixed sample length.}
+\item{sample_length}{Optional fixed tokenized sample length. Use this to
+match \code{sequence_length} in \code{\link[=evo2_fit_control]{evo2_fit_control()}} when fixed records are
+required.}
 
 \item{drop_empty_sequences}{Whether to discard empty sequences.}
 
-\item{filter_nnn}{Whether to filter sequences containing \code{NNN}.}
+\item{filter_nnn}{Whether to discard sequences containing \code{NNN}.}
 
-\item{taxonomy}{Optional taxonomy path, data frame, or named list.}
+\item{taxonomy}{Optional JSON or YAML path, data frame, or named list. Data
+frames require an \code{id} column. Each key is matched as a substring of the
+sequence ID, and the first matching key supplies its lineage. Supported
+fields are \code{domain}, \code{phylum}, \code{class}, \code{order}, \code{family}, \code{genus}, and
+\code{species}; \code{class} is written upstream as \code{clazz}.}
 
-\item{prompt_spacer_length}{Spacer length used with taxonomy prompts.}
+\item{prompt_spacer_length}{Character interval between the starts of repeated
+taxonomy prompts. It counts each tag plus the intervening sequence bases
+before tokenization.}
 
-\item{workers}{Preprocessing worker count.}
+\item{workers}{Preprocessing worker processes.}
 
-\item{concurrency}{Maximum preprocessing task concurrency.}
+\item{concurrency}{Maximum number of preprocessing tasks in flight.}
 
-\item{chunk_size}{Number of records per preprocessing chunk.}
+\item{chunk_size}{Preprocessing tasks batched per multiprocessing worker
+dispatch.}
 
 \item{seed}{Non-negative preprocessing seed.}
 }
@@ -58,5 +71,20 @@ complement.}
 An S7 \code{Evo2PreprocessControl}.
 }
 \description{
-Construct typed Evo 2 preprocessing controls
+These controls are written to the pinned \code{preprocess_evo2} configuration by
+\code{\link[=evo2_prepare]{evo2_prepare()}}. The defaults retain input case, append the tokenizer's
+end-of-document token, and keep each input sequence once.
+}
+\examples{
+control <- evo2_preprocess_control(
+  uppercase = TRUE,
+  sample_length = 1024L,
+  workers = 4L,
+  seed = 17L
+)
+control@sample_length
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#data-preprocessing-preprocess_evo2}{Pinned BioNeMo Recipes Evo 2 preprocessing}
 }

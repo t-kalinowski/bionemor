@@ -2,7 +2,7 @@
 % Please edit documentation in R/03-compute.R
 \name{bionemo_compute}
 \alias{bionemo_compute}
-\title{Describe BioNeMo execution resources}
+\title{Describe where BioNeMo operations run}
 \usage{
 bionemo_compute(
   backend = c("local", "slurm"),
@@ -19,29 +19,144 @@ bionemo_compute(
 )
 }
 \arguments{
-\item{backend}{Execution backend.}
+\item{backend}{Where commands are launched: \code{"local"} or \code{"slurm"}.}
 
-\item{engine}{Container execution or an externally managed recipe runtime.}
+\item{engine}{How the recipe runtime is supplied: \code{"container"} or
+\code{"external"}.}
 
-\item{workspace}{Writable workspace shared with the runtime.}
+\item{workspace}{Writable workspace used by R and the runtime. It must not be
+the filesystem root. Slurm requires the same absolute path on the
+submitting host and compute nodes.}
 
-\item{recipe}{A recipe descriptor from \code{\link[=evo2_recipe]{evo2_recipe()}}.}
+\item{recipe}{Recipe descriptor from \code{\link[=evo2_recipe]{evo2_recipe()}}.}
 
-\item{image}{Container image. \code{NULL} selects the deterministic local image
-name derived from \code{recipe}. Slurm container execution requires a readable
-SIF on the shared filesystem or a digest-qualified image URI. Unverified
-recipes require an explicit prebuilt image for local container execution.}
+\item{image}{Container image. For local/container execution, \code{NULL} or the
+verified recipe's base-image tag or digest-qualified reference selects the
+deterministic derived recipe image; another reference selects a prebuilt
+recipe image. Slurm/container requires a readable SIF on shared storage or
+a digest-qualified image URI. Unverified recipes require an explicit image
+unless \code{engine = "external"}.}
 
-\item{gpus, nodes}{Positive integer resource counts. Version 1 supports one
-node.}
+\item{gpus, nodes}{Positive integer resource counts. \code{nodes} must currently be
+\code{1}.}
 
-\item{queue, account, walltime}{Optional Slurm fields.}
+\item{queue, account, walltime}{Optional Slurm partition, account, and time
+limit. These values are passed to \code{sbatch} without interpretation.}
 
-\item{config}{Named site-specific configuration.}
+\item{config}{Named list of site-specific settings. Use \code{container_engine}
+to replace the default \code{"docker"} command for local containers.}
 }
 \value{
-An S7 \code{BioNeMoCompute}.
+An S7 \code{BioNeMoCompute} descriptor. The returned object describes
+execution but is not installed or verified until \code{\link[=bionemo_install]{bionemo_install()}} runs.
 }
 \description{
-Describe BioNeMo execution resources
+A compute descriptor records where commands run, how the BioNeMo recipe
+runtime is supplied, which workspace is shared with that runtime, and which
+GPU or scheduler resources to request. Constructing the descriptor creates
+the workspace if needed, but does not install software, start a container,
+probe a GPU, or submit a Slurm job.
+}
+\section{Models and compute}{
+
+
+A model and compute have separate roles. \code{\link[=evo2]{evo2()}} describes the model size,
+checkpoint, and model-level settings. \code{bionemo_compute()} describes the
+execution environment. They are coupled when an operation such as
+\code{\link[=evo2_generate]{evo2_generate()}}, \code{\link[=evo2_score]{evo2_score()}}, \code{\link[=evo2_embed]{evo2_embed()}}, or \code{\link[=fit]{fit()}} runs: the
+operation uses the supplied compute descriptor, or the descriptor already
+bound to a model returned by \code{\link[=evo2_model]{evo2_model()}}. Keeping them separate lets one
+runtime be installed and diagnosed before weights are prepared, and lets the
+same model descriptor run in more than one compatible environment.
+}
+
+\section{Backends and engines}{
+
+
+\code{backend} selects where bionemor launches commands:
+\itemize{
+\item \code{"local"} launches them from the current machine.
+\item \code{"slurm"} writes a job script, submits it with \code{sbatch}, reads its state
+with \code{sacct}, and cancels it with \code{scancel}.
+}
+
+\code{engine} selects how the recipe runtime is provided:
+\itemize{
+\item \code{"container"} runs commands in an image. Local execution uses Docker by
+default; set \code{config = list(container_engine = "podman")} to use another
+Docker-compatible command. Slurm execution uses Apptainer and requires an
+existing SIF path or digest-qualified image URI.
+\item \code{"external"} runs the recipe commands and \code{bionemor-evo2-helper} directly
+in an environment managed outside bionemor. Those commands must be on the
+execution environment's \code{PATH}. \code{image} must be \code{NULL}.
+}
+
+bionemor can build the verified recipe image only for the local/container
+combination. For either external combination, and for Slurm/container,
+\code{\link[=bionemo_install]{bionemo_install()}} verifies an existing environment instead of creating it.
+}
+
+\section{Workspace and image}{
+
+
+\code{workspace} is normalized, created if absent, and required to be writable.
+It is the working directory for external commands and is mounted at the same
+absolute path inside containers. Relative checkpoint, dataset, and artifact
+destinations resolve below this directory, and bionemor stores durable run
+metadata in its \code{.bionemor} subdirectory. For container and Slurm execution,
+these inputs and outputs must remain visible at their recorded paths. The
+submitting process and Slurm compute nodes must therefore resolve the
+workspace to the same shared storage.
+
+With the verified recipe and local/container execution, \code{image = NULL} or
+the recipe's locked base-image tag or digest-qualified reference selects the
+deterministic derived image that \code{\link[=bionemo_install]{bionemo_install()}} builds. Any other image
+reference is treated as a prebuilt recipe image and inspected rather than
+rebuilt.
+Slurm/container requires \code{image}: a local SIF must be readable on shared
+storage, while a digest-qualified URI records its supplied digest. External
+runtimes do not use an image property.
+}
+
+\section{Resources and site settings}{
+
+
+\code{gpus} is the required GPU count used for compatibility checks and Slurm
+requests. Local containers expose all available GPUs. \code{nodes} is currently
+restricted to one. \code{queue}, \code{account}, and \code{walltime} become Slurm
+\code{--partition}, \code{--account}, and \code{--time} directives and are ignored by the
+local backend.
+
+\code{config} is for site-specific runtime metadata. The supported user-facing
+setting is \code{container_engine} for local containers. \code{\link[=bionemo_install]{bionemo_install()}}
+stores a validated capability report in \code{config$capabilities} on the returned
+descriptor; users normally should not populate that entry themselves.
+}
+
+\examples{
+# Descriptor construction is offline and does not require a GPU.
+workspace <- file.path(tempdir(), "bionemor-compute-example")
+compute <- bionemo_compute(
+  engine = "external",
+  workspace = workspace
+)
+compute
+
+\dontrun{
+# A site-managed runtime on a Slurm cluster.
+slurm_compute <- bionemo_compute(
+  backend = "slurm",
+  engine = "external",
+  workspace = "/shared/projects/evo2",
+  gpus = 4L,
+  queue = "gpu",
+  account = "biology",
+  walltime = "01:00:00"
+)
+}
+
+}
+\seealso{
+\code{\link[=evo2]{evo2()}}, \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=bionemo_install_plan]{bionemo_install_plan()}},
+\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}
 }

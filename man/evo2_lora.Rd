@@ -13,19 +13,57 @@ evo2_lora(
 )
 }
 \arguments{
-\item{rank}{LoRA rank.}
+\item{rank}{LoRA rank \code{r}, which controls the adapter bottleneck dimension.}
 
-\item{alpha}{LoRA scaling factor.}
+\item{alpha}{LoRA scaling numerator. The effective scale is \code{alpha / rank}.}
 
-\item{dropout}{LoRA dropout probability.}
+\item{dropout}{Dropout probability applied on the LoRA path.}
 
-\item{targets}{Semantic module groups to adapt.}
+\item{targets}{One or more of \code{"hyena"}, \code{"attention"}, and \code{"mlp"}.}
 
-\item{fully_trainable}{Plain module names to train without adapters.}
+\item{fully_trainable}{Plain upstream module names to train without
+adapters. A name cannot also be selected through \code{targets}. Evo 2 ties
+\code{word_embeddings} and \code{output_layer}, so those two names must be supplied
+together.}
 }
 \value{
 An S7 \code{Evo2LoRA}.
 }
 \description{
-Describe Evo 2 LoRA fine-tuning
+LoRA freezes the dense base model and attaches trainable low-rank matrices
+to selected linear modules. \code{targets} names R-level groups rather than
+prediction outcomes or individual layers:
+}
+\details{
+\itemize{
+\item \code{"hyena"} expands to \code{dense_projection} and \code{dense} in Hyena mixers.
+\item \code{"attention"} expands to \code{linear_qkv} and \code{linear_proj}.
+\item \code{"mlp"} expands to \code{linear_fc1} and \code{linear_fc2}.
+}
+
+The default adapts all three groups. A module named in \code{fully_trainable}
+remains unfrozen and receives no adapter. Raw upstream wildcard target
+patterns are intentionally not part of this interface.
+}
+\examples{
+# Adapt every supported inner projection (the default).
+evo2_lora(rank = 16L, alpha = 32)
+
+# Adapt only the attention and MLP projections.
+evo2_lora(
+  rank = 8L,
+  alpha = 16,
+  dropout = 0,
+  targets = c("attention", "mlp")
+)
+
+# Train the tied vocabulary weights directly alongside Hyena adapters.
+evo2_lora(
+  targets = "hyena",
+  fully_trainable = c("word_embeddings", "output_layer")
+)
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#lora-fine-tuning}{Pinned BioNeMo Recipes Evo 2 LoRA fine-tuning}
 }

@@ -577,14 +577,29 @@ register_model_checkpoint <- function(inspection, record) {
 #' explicit compute descriptor. Use [evo2_model()] for the direct, synchronous
 #' path to a model backed by the recommended checkpoint and bound to compute.
 #'
-#' @param size Canonical Evo 2 model name or a known upstream alias.
+#' A model records the architecture, context length, source revision, model
+#' settings, and optional checkpoint. A [bionemo_compute()] descriptor records
+#' where and how work runs. Keeping `evo2()` unbound lets an existing checkpoint
+#' be used with another compatible runtime; execution still checks checkpoint
+#' visibility, recipe revision, and GPU compatibility.
+#'
+#' @param size Canonical model name from [evo2_models()] or a known upstream
+#'   alias such as `"evo2_7b"`.
 #' @param checkpoint `NULL`, an existing MBridge checkpoint path, or a
-#'   checkpoint returned by [evo2_checkpoint()].
+#'   checkpoint returned by [evo2_checkpoint()]. A path is inspected and
+#'   registered immediately.
 #' @param revision Exact source checkpoint revision. `"recommended"` uses the
 #'   package model registry.
-#' @param config Named model-level settings.
+#' @param config Named model-level settings. Supported names are `tokenizer`,
+#'   `tokenizer_revision`, and `mixed_precision_recipe`.
 #'
 #' @return An S7 `Evo2Model`.
+#'
+#' @examples
+#' model <- evo2("7b")
+#' model
+#' model@context_length
+#'
 #' @export
 evo2 <- function(
   size = "7b",
@@ -683,7 +698,24 @@ resolve_model_compute <- function(model, compute = NULL) {
 #'   count and per-GPU compute capability in its cached capability report.
 #' @param compatible If `TRUE`, return only models compatible with `compute`.
 #'
-#' @return A data frame with one row per canonical model.
+#' @return A data frame with one row per canonical model and these columns:
+#'
+#' - `name` and `model_size` are the R and upstream recipe identifiers.
+#' - `parameters` and `context_length` describe model scale and maximum
+#'   nucleotide context.
+#' - `source`, `source_revision`, and `source_format` identify the registered
+#'   checkpoint input.
+#' - `precision_policy` and `training_precision_policy` record supported
+#'   inference and fine-tuning policies.
+#' - `download_size` is the approximate registered source download size.
+#' - `compatible` and `compatibility_note` report the result of checking the
+#'   supplied compute descriptor. They are `NA` or explanatory when no compute
+#'   descriptor is supplied.
+#'
+#' @examples
+#' models <- evo2_models()
+#' models[c("name", "parameters", "context_length", "download_size")]
+#'
 #' @export
 evo2_models <- function(compute = NULL, compatible = FALSE) {
   if (!is.null(compute) && !S7_inherits(compute, BioNeMoCompute)) {
@@ -696,7 +728,6 @@ evo2_models <- function(compute = NULL, compatible = FALSE) {
     stop("compute is required when compatible is TRUE")
   }
   registry <- evo2_model_registry()
-  registry$prepared <- FALSE
   compatibility <- if (is.null(compute)) {
     list(
       compatible = rep(NA, nrow(registry)),
@@ -718,7 +749,6 @@ evo2_models <- function(compute = NULL, compatible = FALSE) {
     "precision_policy",
     "training_precision_policy",
     "download_size",
-    "prepared",
     "compatible",
     "compatibility_note"
   )]

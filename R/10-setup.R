@@ -224,14 +224,69 @@ runtime_install_steps <- function(compute, target = "all") {
   c(list(capabilities), probes)
 }
 
-#' Plan installation of the pinned BioNeMo Evo 2 recipe
+#' Inspect how a BioNeMo recipe runtime will be installed or verified
 #'
-#' @param compute A BioNeMo compute descriptor.
+#' `bionemo_install_plan()` constructs the full default installation or
+#' verification plan for `compute`. It does not run its commands, pull or build
+#' an image, probe a GPU, or submit a Slurm job. Use it to review the selected
+#' recipe revision, image inputs, runtime commands, and working directories
+#' before changing the execution environment. [bionemo_install()] follows this
+#' contract but can skip an existing image build or optional pull according to
+#' its arguments and the current image state.
 #'
-#' @return A `BioNeMoSetupPlan` containing structured commands. Printing the
-#'   plan lists its ordered step IDs and purposes. `as.data.frame()` returns
-#'   `step`, `id`, `purpose`, credential-redacted shell command, working
-#'   directory, and structured `expected` columns.
+#' @section Plans for each execution environment:
+#'
+#' The plan depends on the backend and engine in `compute`:
+#'
+#' - Local/container with the verified package recipe includes steps to fetch
+#'   the exact recipe revision, verify the locked Dockerfile and base-image
+#'   digest, build the deterministic image with the package helper, resolve its
+#'   image ID, and probe the helper and all supported recipe commands.
+#' - Local/container with an explicit prebuilt image includes image-ID and label
+#'   checks followed by the same runtime probes. It does not include a rebuild.
+#' - Local/external and both Slurm engines include verification probes only.
+#'   Those environments are managed outside bionemor. A Slurm/container plan
+#'   assumes an existing Apptainer image.
+#'
+#' The plan describes the complete default installation check: inference,
+#' training, and checkpoint-conversion commands are all included. To diagnose
+#' one operation group after installation, use the `target` argument of
+#' [bionemo_doctor()].
+#'
+#' @section Inspecting a plan:
+#'
+#' Printing a plan lists its ordered step IDs and purposes. `as.data.frame()`
+#' exposes one row per step with these columns:
+#'
+#' - `step`: one-based execution order.
+#' - `id`: stable, machine-readable step name.
+#' - `purpose`: short description of the check or change.
+#' - `command`: rendered shell command with known credentials redacted.
+#' - `cwd`: working directory, also credential-redacted.
+#' - `expected`: list-column of structured values that the step must verify.
+#'
+#' Plan inspection is not a substitute for installation: image digests and
+#' live helper capabilities are resolved by [bionemo_install()] and returned on
+#' its updated compute descriptor.
+#'
+#' @param compute A BioNeMo compute descriptor from [bionemo_compute()].
+#'
+#' @return A `BioNeMoSetupPlan` with `target = "install"`, the original compute
+#'   descriptor, the plan path, ordered command steps, and `executed = FALSE`.
+#'
+#' @examples
+#' # Planning an external runtime is offline; the commands need not yet exist.
+#' compute <- bionemo_compute(
+#'   engine = "external",
+#'   workspace = file.path(tempdir(), "bionemor-plan-example")
+#' )
+#' plan <- bionemo_install_plan(compute)
+#' plan
+#'
+#' steps <- as.data.frame(plan)
+#' steps[c("step", "id", "purpose")]
+#'
+#' @seealso [bionemo_compute()], [bionemo_install()], [bionemo_doctor()]
 #' @export
 bionemo_install_plan <- function(compute) {
   if (!S7_inherits(compute, BioNeMoCompute)) {
@@ -868,14 +923,92 @@ verify_base_image_digest <- function(engine, recipe) {
   invisible(recipe)
 }
 
-#' Install or verify the pinned BioNeMo Evo 2 recipe runtime
+#' Install or verify a BioNeMo Evo 2 recipe runtime
 #'
-#' @param compute A BioNeMo compute descriptor.
-#' @param rebuild Rebuild an existing deterministic local image.
-#' @param pull Pull the locked digest-qualified base image before building.
-#' @param keep_source Keep the synthetic build context for inspection.
+#' `bionemo_install()` makes the runtime described by `compute` ready for
+#' bionemor operations. For the verified local/container configuration, it can
+#' build the package-pinned recipe image. For an explicit local image, an
+#' external environment, or either Slurm engine, it verifies the existing
+#' runtime instead. Installation is independent of model weights: prepare or
+#' attach a checkpoint separately with [evo2_model()] or [evo2_checkpoint()].
 #'
-#' @return The compute descriptor with resolved runtime metadata.
+#' @section Setup lifecycle:
+#'
+#' A typical setup has three explicit stages:
+#'
+#' 1. Create a descriptor with [bionemo_compute()]. This chooses the backend,
+#'    engine, workspace, recipe, image, and requested resources without probing
+#'    the runtime.
+#' 2. Inspect [bionemo_install_plan()] when the commands and immutable inputs
+#'    should be reviewed before execution.
+#' 3. Call `bionemo_install()` and retain its returned compute descriptor. The
+#'    return value contains the resolved image digest when applicable and a
+#'    validated capability report in `compute@config$capabilities`.
+#'
+#' [bionemo_doctor()] can then check the environment for a particular operation
+#' group and, optionally, a particular model checkpoint. Re-run installation
+#' after changing the recipe runtime or image. Use
+#' [bionemo_capabilities()] with `refresh = TRUE` when only a fresh runtime
+#' report is needed.
+#'
+#' @section What installation does:
+#'
+#' For the verified local/container path, installation checks for the
+#' deterministic derived image. When it must build, it fetches the exact locked
+#' BioNeMo Recipes revision, verifies the upstream Dockerfile blob, prepares a
+#' synthetic build context containing the package helper, optionally pulls the
+#' digest-qualified base image, verifies that digest, and builds the image.
+#' Existing explicit images are not rebuilt; their immutable ID and required
+#' provenance labels are verified.
+#'
+#' Every path performs a GPU-backed helper capability probe and checks the
+#' `--help` entry point for all inference, training, and conversion commands.
+#' The helper's protocol, recipe version, and recipe revision must match the
+#' compute descriptor. Local containers are probed by the configured
+#' Docker-compatible engine. Local external runtimes are probed directly.
+#'
+#' Slurm installation does not install packages or build an image. It submits
+#' synchronous probe jobs so the checks run in allocations rather than on the
+#' login host. External Slurm environments must already expose the helper and
+#' recipe commands. Slurm/container requires Apptainer and an existing image;
+#' a local SIF is hashed before probing and its digest is checked again inside
+#' each allocation.
+#'
+#' @param compute A BioNeMo compute descriptor from [bionemo_compute()]. Assign
+#'   the return value of `bionemo_install()` before using it for model
+#'   operations.
+#' @param rebuild Whether to rebuild an existing deterministic local image.
+#'   This is only supported for the package-managed verified recipe image; an
+#'   explicit prebuilt image is always verified in place.
+#' @param pull Whether to pull the locked digest-qualified base image before a
+#'   local build. The base-image digest is still verified when `FALSE`.
+#' @param keep_source Whether to keep the synthetic local build context after a
+#'   successful build. The content-addressed recipe source checkout remains in
+#'   the workspace recipe cache.
+#'
+#' @return The supplied `BioNeMoCompute` descriptor with resolved runtime
+#'   metadata. For containers this includes `image_digest`; all paths include a
+#'   validated capability report in `config$capabilities`.
+#'
+#' @examples
+#' \dontrun{
+#' # Build and verify the package-pinned local container runtime.
+#' compute <- bionemo_compute(
+#'   backend = "local",
+#'   engine = "container",
+#'   workspace = "~/evo2-work"
+#' )
+#' bionemo_install_plan(compute)
+#' compute <- bionemo_install(compute)
+#'
+#' # The returned descriptor carries immutable image and capability metadata.
+#' compute@image_digest
+#' compute@config$capabilities$runtime$gpus
+#' bionemo_doctor(compute, target = "inference", verbose = FALSE)
+#' }
+#'
+#' @seealso [bionemo_install_plan()], [bionemo_capabilities()],
+#'   [bionemo_doctor()], [evo2_model()]
 #' @export
 bionemo_install <- function(
   compute,
@@ -993,12 +1126,26 @@ bionemo_install <- function(
   compute
 }
 
-#' Deprecated recipe setup alias
+#' Deprecated alias for installation planning
 #'
-#' @param compute A BioNeMo compute descriptor.
+#' `bionemo_setup()` is deprecated in favor of [bionemo_install_plan()]. It
+#' only returns an inspection plan; it does not execute the plan or modify the
+#' recipe runtime. Use [bionemo_install()] when the runtime should be built or
+#' verified.
+#'
+#' @param compute A BioNeMo compute descriptor from [bionemo_compute()].
 #' @param ... Unused.
 #'
-#' @return A `BioNeMoSetupPlan`.
+#' @return A `BioNeMoSetupPlan`, as returned by [bionemo_install_plan()].
+#'
+#' @examples
+#' \dontrun{
+#' # Use the replacement directly.
+#' plan <- bionemo_install_plan(compute)
+#' compute <- bionemo_install(compute)
+#' }
+#'
+#' @seealso [bionemo_install_plan()], [bionemo_install()]
 #' @export
 bionemo_setup <- function(compute, ...) {
   .Deprecated("bionemo_install_plan")
@@ -1765,12 +1912,89 @@ doctor_checkpoint <- function(compute, model) {
 
 #' Diagnose a BioNeMo Recipes execution environment
 #'
-#' @param compute A BioNeMo compute descriptor.
-#' @param model Optional Evo 2 model.
-#' @param target Operation target.
-#' @param verbose Include complete probe output when printing.
+#' `bionemo_doctor()` checks whether a compute descriptor is ready for one or
+#' more groups of Evo 2 operations. It performs live runtime probes; it does not
+#' rely on the cached capability report stored by [bionemo_install()]. A model
+#' is optional because the runtime can be diagnosed before weights are prepared.
+#' Supply one to add model compatibility and checkpoint checks. The doctor does
+#' not install software, build containers, or prepare checkpoints.
 #'
-#' @return A `BioNeMoDoctor`.
+#' @section Targets:
+#'
+#' `target` selects which upstream recipe commands must be advertised:
+#'
+#' - `"inference"` checks `infer_evo2` and `predict_evo2`, which support
+#'   generation, scoring, and embeddings.
+#' - `"training"` checks `preprocess_evo2` and `train_evo2`.
+#' - `"conversion"` checks Savanna-to-MBridge and NeMo2-to-MBridge conversion,
+#'   MBridge-to-Vortex export, and optimizer-state removal.
+#' - `"all"` checks every command above.
+#'
+#' Every target also checks the backend commands, required host tools, writable
+#' workspace, helper protocol, recipe identity, runtime software versions, GPU
+#' visibility and count, and image metadata and digest availability. When
+#' `model` is supplied, the doctor also checks registry compatibility,
+#' checkpoint presence, and the checkpoint's reported model size. These are
+#' readiness checks; the doctor does not run generation, training, or conversion
+#' on user data.
+#'
+#' With a Slurm backend, host and runtime checks submit short synchronous jobs
+#' so that tools, GPUs, and the runtime are inspected on compute nodes. This can
+#' create probe files under `workspace/.bionemor` and consume scheduler time.
+#'
+#' @section Results:
+#'
+#' Printing the returned `BioNeMoDoctor` shows its target, overall status, and a
+#' table of `check`, `status`, and `detail`. The overall `ok` property is `TRUE`
+#' only when no row has `status = "fail"`. Set `verbose = TRUE` to print any
+#' complete credential-redacted probe output recorded for failed checks.
+#'
+#' `as.data.frame()` returns all check data with four columns:
+#'
+#' - `check`: the component or command inspected.
+#' - `status`: `"pass"` or `"fail"`.
+#' - `detail`: a concise explanation of the result.
+#' - `output`: credential-redacted probe output when one was retained, otherwise
+#'   `""`.
+#'
+#' @param compute A BioNeMo compute descriptor whose runtime has been built or
+#'   selected, usually the value returned by [bionemo_install()].
+#' @param model Optional Evo 2 model. Supplying a model adds compatibility,
+#'   checkpoint-storage, and checkpoint-content checks.
+#' @param target Operation group to check: `"all"`, `"inference"`,
+#'   `"training"`, or `"conversion"`.
+#' @param verbose Whether printing the result should include complete retained
+#'   probe output in addition to the check table. This does not change the
+#'   checks performed or the columns returned by `as.data.frame()`.
+#'
+#' @return A `BioNeMoDoctor` with `target`, logical `ok`, a `checks` data frame,
+#'   and the selected `verbose` print setting. Use `as.data.frame()` to inspect
+#'   the `check`, `status`, `detail`, and `output` columns programmatically.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(
+#'   engine = "external",
+#'   workspace = "/shared/projects/evo2"
+#' )
+#' compute <- bionemo_install(compute)
+#'
+#' doctor <- bionemo_doctor(
+#'   compute,
+#'   target = "inference",
+#'   verbose = FALSE
+#' )
+#' doctor
+#'
+#' checks <- as.data.frame(doctor)
+#' checks[checks$status == "fail", c("check", "detail")]
+#'
+#' # Add checkpoint and model compatibility checks.
+#' model <- evo2("7b", checkpoint = "/shared/models/evo2-7b-mbridge")
+#' bionemo_doctor(compute, model, target = "inference")
+#' }
+#'
+#' @seealso [bionemo_install()], [bionemo_capabilities()], [evo2_models()]
 #' @export
 bionemo_doctor <- function(
   compute,

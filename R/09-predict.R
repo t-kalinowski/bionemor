@@ -229,21 +229,34 @@ generation_prompt_rows <- function(input) {
 
 #' Generate DNA continuations with Evo 2
 #'
+#' All prompts are written to one request and processed while the recipe keeps
+#' the model loaded. Prompt tokens plus `num_tokens` must fit the model context
+#' and any smaller `max_sequence_length` in [evo2_inference_control()].
+#'
 #' @param object An Evo 2 model with an explicit checkpoint.
 #' @param prompt Prompts as a character vector, data frame, FASTA path, or
-#'   `DNAStringSet`.
+#'   `DNAStringSet`. Character-vector names or an `id` data-frame column become
+#'   output IDs.
 #' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
 #'   attached by [evo2_model()] or a previous fine-tuning run.
-#' @param num_tokens Generation length.
+#' @param num_tokens Maximum number of new tokens per prompt.
 #' @param n Samples per prompt. The pinned recipe currently supports only one.
-#' @param temperature,top_k,top_p Sampling controls. At most one of `top_k`
-#'   and `top_p` may be positive. Set `top_k = 0` when using top-p sampling.
+#' @param temperature,top_k,top_p Sampling temperature and top-k or nucleus
+#'   filtering. At most one of `top_k` and `top_p` may be positive. Set
+#'   `top_k = 0` when using top-p sampling.
 #' @param seed Optional positive random seed. The pinned recipe maps zero to its
 #'   default seed, so zero is rejected rather than recorded as if it were used.
-#' @param return_probabilities Whether to return per-token probabilities.
-#' @param normalize Sequence normalization mode.
-#' @param validate Mechanical output validation level.
-#' @param control Evo 2 inference controls.
+#' @param return_probabilities Whether to retain generated-token log
+#'   probabilities and probabilities in list columns.
+#' @param normalize Sequence normalization mode. `"evo2"` accepts a leading
+#'   [evo2_phylo_tag()], validates the DNA portion, and uppercases the complete
+#'   prompt, including the tag. `"dna"` accepts IUPAC DNA only, and `"none"`
+#'   sends text unchanged.
+#' @param validate Mechanical output validation level. `"basic"` records
+#'   warnings for non-ACGT symbols, extreme GC fraction, long homopolymers, low
+#'   complexity, and duplicate completions. `"strict"` also rejects non-ACGT
+#'   output. `"none"` skips these checks.
+#' @param control Controls from [evo2_inference_control()].
 #' @param output Optional directory for a copy of portable outputs.
 #' @param name Optional run name.
 #' @param async Whether to return before completion.
@@ -266,6 +279,24 @@ generation_prompt_rows <- function(input) {
 #'     validation messages.
 #'
 #'   With `async = TRUE`, a `BioNeMoJob`.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_install(compute)
+#' model <- evo2_model("7b", compute)
+#'
+#' generated <- evo2_generate(
+#'   model,
+#'   c(reference = "ACGTACGT"),
+#'   num_tokens = 32L,
+#'   seed = 17L
+#' )
+#' generated[c("input_id", "prompt", "completion", "finish_reason")]
+#' }
+#'
+#' @references
+#' [BioNeMo Recipes autoregressive generation](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#autoregressive-generation-infer_evo2)
 #' @export
 evo2_generate <- function(
   object,
@@ -765,20 +796,26 @@ materialize_generation_job <- function(job, descriptor) {
 
 #' Score DNA sequences with Evo 2
 #'
+#' Scores are sums or means of token log probabilities selected by the
+#' recipe's loss mask. Higher values indicate that the model assigns greater
+#' likelihood to the sequence under the requested reduction.
+#'
 #' @param object An Evo 2 model with an explicit checkpoint.
 #' @param newdata Sequences or a FASTA path.
 #' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
 #'   attached by [evo2_model()] or a previous fine-tuning run.
-#' @param reduction Aggregate score reduction.
-#' @param strand Strand rule.
+#' @param reduction `"mean"` divides each strand's log-probability sum by its
+#'   scored token count; `"sum"` retains the total.
+#' @param strand Score the supplied sequence, its reverse complement, or both.
 #' @param batch_size Prediction micro-batch size. The inference control's
 #'   `micro_batch_size` must remain one.
-#' @param prepend_bos Whether to prepend the beginning-of-sequence token.
+#' @param prepend_bos Whether the prediction entry point should prepend the
+#'   beginning-of-sequence token before scoring.
 #' @param mask_phylogenetic_tags Reserved for upstream support. It must be
 #'   `FALSE` because the pinned prediction entry point does not apply it.
 #' @param normalize Sequence normalization mode. With `normalize = "none"`,
 #'   reverse-strand operations require uppercase IUPAC DNA.
-#' @param control Evo 2 inference controls.
+#' @param control Controls from [evo2_inference_control()].
 #' @param output Optional directory for a copy of portable outputs.
 #' @param name Optional run name.
 #' @param async Whether to return before completion.
@@ -794,6 +831,24 @@ materialize_generation_job <- function(job, descriptor) {
 #'   `id`, `sequence_length`, `tokens_scored`, `score`, `forward_score`,
 #'   `reverse_score`, `reduction`, and `strand`. With `async = TRUE`, a
 #'   `BioNeMoJob`.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_install(compute)
+#' model <- evo2_model("7b", compute)
+#'
+#' scores <- evo2_score(
+#'   model,
+#'   c(reference = "ACGTACGT", variant = "ACGTTCGT"),
+#'   reduction = "mean",
+#'   strand = "both"
+#' )
+#' scores
+#' }
+#'
+#' @references
+#' [BioNeMo Recipes batch sequence scoring](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#batch-sequence-scoring-predict_evo2)
 #' @export
 evo2_score <- function(
   object,
@@ -1000,14 +1055,37 @@ materialize_score_job <- function(job, descriptor) {
 
 #' Write positional Evo 2 log-probability profiles
 #'
+#' Profiles retain one log probability per scored nucleotide. Positions are
+#' one-based coordinates in the supplied sequence. Reverse-strand positions
+#' are mapped back to those coordinates; `strand = "both"` averages forward
+#' and reverse values at each aligned position. Context parallelism must be
+#' one.
+#'
 #' @inheritParams evo2_score
-#' @param metric Positional metric.
-#' @param output Required Parquet output path.
+#' @param metric Positional metric. The current recipe supports
+#'   `"log_probability"`.
+#' @param output Required Parquet output path inside the compute workspace for
+#'   container execution.
 #'
 #' @return With `async = FALSE`, a `BioNeMoArtifact` for a Parquet file with
 #'   columns `id` (string), `position` (int64), `base` (string),
 #'   `log_probability` (double), and `strand` (string). With `async = TRUE`, a
 #'   `BioNeMoJob`.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_install(compute)
+#' model <- evo2_model("7b", compute)
+#'
+#' profile <- evo2_profile(
+#'   model,
+#'   c(reference = "ACGTACGT"),
+#'   strand = "both",
+#'   output = "outputs/reference-profile.parquet"
+#' )
+#' profile@path
+#' }
 #' @export
 evo2_profile <- function(
   object,
@@ -1151,9 +1229,12 @@ materialize_profile_job <- function(job, descriptor) {
 #' Extract Evo 2 sequence embeddings
 #'
 #' @inheritParams evo2_score
-#' @param layer Final or one-based decoder layer.
-#' @param pool Pooling rule. With `pool = "none"`, `output` is required and
-#'   `strand = "both"` is not supported.
+#' @param layer `"last"` or a one-based decoder layer. R layer `1` maps to
+#'   upstream layer `0`; `"last"` maps to upstream `-1`.
+#' @param pool Pooling across non-padding sequence positions. `"mean"` and
+#'   `"max"` aggregate values; `"first"` and `"last"` select an endpoint. With
+#'   `pool = "none"`, `output` is required and `strand = "both"` is not
+#'   supported.
 #' @param output Optional output file. Required when `pool = "none"`.
 #'
 #' @details Embeddings currently require `context_parallel_size = 1`. With a
@@ -1170,6 +1251,25 @@ materialize_profile_job <- function(job, descriptor) {
 #' @return With `async = FALSE`, an `evo2_embeddings` numeric matrix for
 #'   pooled output or a `BioNeMoArtifact` for unpooled output. With
 #'   `async = TRUE`, a `BioNeMoJob`.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_install(compute)
+#' model <- evo2_model("7b", compute)
+#'
+#' embeddings <- evo2_embed(
+#'   model,
+#'   c(reference = "ACGTACGT", variant = "ACGTTCGT"),
+#'   pool = "mean",
+#'   strand = "both"
+#' )
+#' dim(embeddings)
+#' embeddings[, 1:4, drop = FALSE]
+#' }
+#'
+#' @references
+#' [BioNeMo Recipes embedding extraction](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#batch-sequence-scoring-predict_evo2)
 #' @export
 evo2_embed <- function(
   object,

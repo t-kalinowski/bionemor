@@ -19,21 +19,59 @@ evo2_recipe_lock <- function() {
   lock
 }
 
-#' Describe the pinned BioNeMo Evo 2 recipe
+#' Describe a BioNeMo Evo 2 recipe
 #'
-#' Automatic local image builds are limited to the verified package lock.
-#' Use an external runtime or supply an explicit prebuilt image when `recipe`
-#' is unverified.
+#' A recipe identifies the software environment used to prepare checkpoints,
+#' run inference, and fine-tune Evo 2. It records the BioNeMo Recipes source,
+#' its exact revision, the Evo 2 recipe directory and version, the base image,
+#' and the helper protocol expected by this version of bionemor. It does not
+#' describe model weights or allocate compute resources.
 #'
-#' @param revision Exact BioNeMo Recipes commit. `"recommended"` uses the
-#'   package lock.
-#' @param repository Optional BioNeMo Recipes repository.
-#' @param base_image Optional NGC PyTorch base image. A digest-qualified
-#'   reference records its digest; the locked image and digest are canonicalized
-#'   to the package lock.
-#' @param allow_mutable Allow a revision other than a full commit SHA.
+#' `evo2_recipe()` is offline: it reads the package's recipe lock and returns a
+#' descriptor without cloning source, pulling an image, or starting a runtime.
+#' Use [bionemo_compute()] to choose where and how the recipe will run, then use
+#' [bionemo_install()] to build or verify that runtime.
 #'
-#' @return An S7 `BioNeMoRecipe`.
+#' @section Verified and custom recipes:
+#'
+#' The default recipe is verified because its repository, revision, and base
+#' image match the package lock. bionemor can build its deterministic local
+#' container image from this verified recipe. Changing any of those inputs
+#' creates an unverified descriptor. An unverified recipe must use an externally
+#' managed runtime or an explicit prebuilt container image; bionemor will not
+#' infer how to build it.
+#'
+#' Custom descriptors still use the Evo 2 recipe directory, recipe version, and
+#' helper protocol from the package lock. The supplied runtime must implement
+#' that same contract; these values are not discovered from a custom repository.
+#'
+#' A full commit SHA keeps the recipe source immutable. Use a mutable revision
+#' only when the runtime is intentionally managed at a branch or tag; this
+#' requires `allow_mutable = TRUE`. Digest-qualified base-image references
+#' retain their SHA-256 digest in the descriptor. The package's locked base
+#' image is stored in canonical, non-digest-qualified form together with its
+#' locked digest.
+#'
+#' @param revision BioNeMo Recipes revision. `"recommended"` selects the exact
+#'   commit in the package lock. Otherwise, supply a full 40-character commit
+#'   SHA unless `allow_mutable = TRUE`.
+#' @param repository BioNeMo Recipes repository URL. `NULL` uses the repository
+#'   in the package lock.
+#' @param base_image Base image reference. `NULL` uses the locked base image. A
+#'   reference ending in `@sha256:<digest>` records the digest separately.
+#' @param allow_mutable Whether `revision` may be a mutable name rather than a
+#'   full commit SHA.
+#'
+#' @return An S7 `BioNeMoRecipe` descriptor. Its `verified` property is `TRUE`
+#'   only when the repository, revision, and base image match the package lock.
+#'
+#' @examples
+#' # This only reads the lock bundled with bionemor.
+#' recipe <- evo2_recipe()
+#' recipe
+#'
+#' @seealso [bionemo_compute()], [bionemo_install_plan()],
+#'   [bionemo_install()]
 #' @export
 evo2_recipe <- function(
   revision = "recommended",
@@ -203,22 +241,127 @@ slurm_sif_verification_lines <- function(compute) {
   )
 }
 
-#' Describe BioNeMo execution resources
+#' Describe where BioNeMo operations run
 #'
-#' @param backend Execution backend.
-#' @param engine Container execution or an externally managed recipe runtime.
-#' @param workspace Writable workspace shared with the runtime.
-#' @param recipe A recipe descriptor from [evo2_recipe()].
-#' @param image Container image. `NULL` selects the deterministic local image
-#'   name derived from `recipe`. Slurm container execution requires a readable
-#'   SIF on the shared filesystem or a digest-qualified image URI. Unverified
-#'   recipes require an explicit prebuilt image for local container execution.
-#' @param gpus,nodes Positive integer resource counts. Version 1 supports one
-#'   node.
-#' @param queue,account,walltime Optional Slurm fields.
-#' @param config Named site-specific configuration.
+#' A compute descriptor records where commands run, how the BioNeMo recipe
+#' runtime is supplied, which workspace is shared with that runtime, and which
+#' GPU or scheduler resources to request. Constructing the descriptor creates
+#' the workspace if needed, but does not install software, start a container,
+#' probe a GPU, or submit a Slurm job.
 #'
-#' @return An S7 `BioNeMoCompute`.
+#' @section Models and compute:
+#'
+#' A model and compute have separate roles. [evo2()] describes the model size,
+#' checkpoint, and model-level settings. `bionemo_compute()` describes the
+#' execution environment. They are coupled when an operation such as
+#' [evo2_generate()], [evo2_score()], [evo2_embed()], or [fit()] runs: the
+#' operation uses the supplied compute descriptor, or the descriptor already
+#' bound to a model returned by [evo2_model()]. Keeping them separate lets one
+#' runtime be installed and diagnosed before weights are prepared, and lets the
+#' same model descriptor run in more than one compatible environment.
+#'
+#' @section Backends and engines:
+#'
+#' `backend` selects where bionemor launches commands:
+#'
+#' - `"local"` launches them from the current machine.
+#' - `"slurm"` writes a job script, submits it with `sbatch`, reads its state
+#'   with `sacct`, and cancels it with `scancel`.
+#'
+#' `engine` selects how the recipe runtime is provided:
+#'
+#' - `"container"` runs commands in an image. Local execution uses Docker by
+#'   default; set `config = list(container_engine = "podman")` to use another
+#'   Docker-compatible command. Slurm execution uses Apptainer and requires an
+#'   existing SIF path or digest-qualified image URI.
+#' - `"external"` runs the recipe commands and `bionemor-evo2-helper` directly
+#'   in an environment managed outside bionemor. Those commands must be on the
+#'   execution environment's `PATH`. `image` must be `NULL`.
+#'
+#' bionemor can build the verified recipe image only for the local/container
+#' combination. For either external combination, and for Slurm/container,
+#' [bionemo_install()] verifies an existing environment instead of creating it.
+#'
+#' @section Workspace and image:
+#'
+#' `workspace` is normalized, created if absent, and required to be writable.
+#' It is the working directory for external commands and is mounted at the same
+#' absolute path inside containers. Relative checkpoint, dataset, and artifact
+#' destinations resolve below this directory, and bionemor stores durable run
+#' metadata in its `.bionemor` subdirectory. For container and Slurm execution,
+#' these inputs and outputs must remain visible at their recorded paths. The
+#' submitting process and Slurm compute nodes must therefore resolve the
+#' workspace to the same shared storage.
+#'
+#' With the verified recipe and local/container execution, `image = NULL` or
+#' the recipe's locked base-image tag or digest-qualified reference selects the
+#' deterministic derived image that [bionemo_install()] builds. Any other image
+#' reference is treated as a prebuilt recipe image and inspected rather than
+#' rebuilt.
+#' Slurm/container requires `image`: a local SIF must be readable on shared
+#' storage, while a digest-qualified URI records its supplied digest. External
+#' runtimes do not use an image property.
+#'
+#' @section Resources and site settings:
+#'
+#' `gpus` is the required GPU count used for compatibility checks and Slurm
+#' requests. Local containers expose all available GPUs. `nodes` is currently
+#' restricted to one. `queue`, `account`, and `walltime` become Slurm
+#' `--partition`, `--account`, and `--time` directives and are ignored by the
+#' local backend.
+#'
+#' `config` is for site-specific runtime metadata. The supported user-facing
+#' setting is `container_engine` for local containers. [bionemo_install()]
+#' stores a validated capability report in `config$capabilities` on the returned
+#' descriptor; users normally should not populate that entry themselves.
+#'
+#' @param backend Where commands are launched: `"local"` or `"slurm"`.
+#' @param engine How the recipe runtime is supplied: `"container"` or
+#'   `"external"`.
+#' @param workspace Writable workspace used by R and the runtime. It must not be
+#'   the filesystem root. Slurm requires the same absolute path on the
+#'   submitting host and compute nodes.
+#' @param recipe Recipe descriptor from [evo2_recipe()].
+#' @param image Container image. For local/container execution, `NULL` or the
+#'   verified recipe's base-image tag or digest-qualified reference selects the
+#'   deterministic derived recipe image; another reference selects a prebuilt
+#'   recipe image. Slurm/container requires a readable SIF on shared storage or
+#'   a digest-qualified image URI. Unverified recipes require an explicit image
+#'   unless `engine = "external"`.
+#' @param gpus,nodes Positive integer resource counts. `nodes` must currently be
+#'   `1`.
+#' @param queue,account,walltime Optional Slurm partition, account, and time
+#'   limit. These values are passed to `sbatch` without interpretation.
+#' @param config Named list of site-specific settings. Use `container_engine`
+#'   to replace the default `"docker"` command for local containers.
+#'
+#' @return An S7 `BioNeMoCompute` descriptor. The returned object describes
+#'   execution but is not installed or verified until [bionemo_install()] runs.
+#'
+#' @examples
+#' # Descriptor construction is offline and does not require a GPU.
+#' workspace <- file.path(tempdir(), "bionemor-compute-example")
+#' compute <- bionemo_compute(
+#'   engine = "external",
+#'   workspace = workspace
+#' )
+#' compute
+#'
+#' \dontrun{
+#' # A site-managed runtime on a Slurm cluster.
+#' slurm_compute <- bionemo_compute(
+#'   backend = "slurm",
+#'   engine = "external",
+#'   workspace = "/shared/projects/evo2",
+#'   gpus = 4L,
+#'   queue = "gpu",
+#'   account = "biology",
+#'   walltime = "01:00:00"
+#' )
+#' }
+#'
+#' @seealso [evo2()], [evo2_model()], [bionemo_install_plan()],
+#'   [bionemo_install()], [bionemo_doctor()]
 #' @export
 bionemo_compute <- function(
   backend = c("local", "slurm"),
@@ -354,12 +497,60 @@ method(print, BioNeMoCompute) <- function(x, ...) {
   invisible(x)
 }
 
-#' Report capabilities advertised by the installed recipe runtime
+#' Report capabilities of a BioNeMo recipe runtime
 #'
-#' @param compute A BioNeMo compute descriptor.
-#' @param refresh Ignore a cached helper report and probe again.
+#' `bionemo_capabilities()` runs the package helper in the environment described
+#' by `compute` and parses its JSON report. The probe verifies that the helper's
+#' protocol, recipe version, and recipe revision match the compute descriptor.
+#' It also reports whether the recipe commands used for inference, training,
+#' and checkpoint conversion are available.
 #'
-#' @return The parsed helper capability report with runtime provenance.
+#' This is a live GPU-backed probe when no cached report is used. A local
+#' container is started with GPU access, an external runtime runs the helper
+#' directly, and a Slurm backend submits a synchronous probe allocation. The
+#' probe does not prepare a model or inspect model weights.
+#'
+#' @section Report contents:
+#'
+#' The returned named list contains helper, protocol, recipe, tokenizer,
+#' command, feature, and runtime information. `runtime` includes reported
+#' software versions, CUDA availability, the GPU count, driver information, and
+#' per-GPU properties. bionemor adds `image`, `image_digest`, and the UTC
+#' `probed_at` time so the report records where it came from.
+#'
+#' [bionemo_install()] saves the validated report in
+#' `compute@config$capabilities` on the compute descriptor it returns. With
+#' `refresh = FALSE`, this function returns that cached list when present;
+#' otherwise it probes the runtime. `refresh = TRUE` always probes again. Calling
+#' this function does not modify the supplied compute descriptor.
+#'
+#' @param compute A BioNeMo compute descriptor. Its runtime must expose the
+#'   package helper. Use [bionemo_install()] to verify the helper and every
+#'   required recipe command.
+#' @param refresh Whether to ignore `compute@config$capabilities` and run a new
+#'   runtime probe.
+#'
+#' @return A named list parsed from the helper capability report, with `image`,
+#'   `image_digest`, and `probed_at` runtime provenance added by bionemor.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(
+#'   engine = "external",
+#'   workspace = "/shared/projects/evo2"
+#' )
+#' compute <- bionemo_install(compute)
+#'
+#' capabilities <- bionemo_capabilities(compute)
+#' capabilities[c("protocol_version", "recipe_version", "probed_at")]
+#' capabilities$commands
+#' capabilities$runtime$gpus
+#'
+#' # Probe again after the runtime or GPU allocation changes.
+#' capabilities <- bionemo_capabilities(compute, refresh = TRUE)
+#' }
+#'
+#' @seealso [bionemo_install()], [bionemo_doctor()]
 #' @export
 bionemo_capabilities <- function(compute, refresh = FALSE) {
   if (!S7_inherits(compute, BioNeMoCompute)) {

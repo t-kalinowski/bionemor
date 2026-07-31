@@ -15,3 +15,9 @@ One normalized path.
 \description{
 Return a checkpoint path
 }
+\examples{
+checkpoint_path("checkpoints/evo2-7b")
+}
+\seealso{
+\code{\link[=checkpoint_manifest]{checkpoint_manifest()}}, \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}
+}

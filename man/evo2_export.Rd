@@ -32,13 +32,36 @@ evo2_export(
 \value{
 A Vortex \code{BioNeMoCheckpoint}, or a \code{BioNeMoJob} when
 \code{async = TRUE}.
-
-The upstream exporter writes a shared \code{config.json} beside the \code{.pt} file,
-so each destination directory may contain only one Vortex checkpoint.
-The checkpoint inspector selects the Transformer Engine key mapping and
-adds \code{--no-te} for a non-TE MBridge checkpoint. An unidentified key layout
-is rejected before export.
 }
 \description{
-Export an Evo 2 checkpoint
+Export a dense MBridge checkpoint to the weights-only Vortex format used by
+optimized inference runtimes. When \code{strip_optimizer = TRUE}, the recipe first
+writes an intermediate MBridge checkpoint without optimizer state and exports
+that checkpoint. LoRA checkpoints cannot be exported because they depend on
+their dense base checkpoint.
+}
+\details{
+The upstream exporter writes a shared \code{config.json} beside the \code{.pt} file,
+so each destination directory may contain only one Vortex checkpoint. The
+checkpoint inspector selects the Transformer Engine key mapping and adds
+\code{--no-te} for a non-TE MBridge checkpoint. An unidentified key layout is
+rejected before export.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+model <- evo2_model("7b", compute)
+vortex <- evo2_export(
+  model,
+  path = "exports/evo2-7b/model.pt",
+  compute = compute
+)
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#exporting-to-vortex-format}{Pinned BioNeMo Recipes Evo 2 Vortex export documentation}
+}
+\seealso{
+\code{\link[=evo2_checkpoint]{evo2_checkpoint()}}, \code{\link[=checkpoint_manifest]{checkpoint_manifest()}}
 }

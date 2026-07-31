@@ -13,10 +13,28 @@ count and per-GPU compute capability in its cached capability report.}
 \item{compatible}{If \code{TRUE}, return only models compatible with \code{compute}.}
 }
 \value{
-A data frame with one row per canonical model.
+A data frame with one row per canonical model and these columns:
+\itemize{
+\item \code{name} and \code{model_size} are the R and upstream recipe identifiers.
+\item \code{parameters} and \code{context_length} describe model scale and maximum
+nucleotide context.
+\item \code{source}, \code{source_revision}, and \code{source_format} identify the registered
+checkpoint input.
+\item \code{precision_policy} and \code{training_precision_policy} record supported
+inference and fine-tuning policies.
+\item \code{download_size} is the approximate registered source download size.
+\item \code{compatible} and \code{compatibility_note} report the result of checking the
+supplied compute descriptor. They are \code{NA} or explanatory when no compute
+descriptor is supplied.
+}
 }
 \description{
 \code{evo2_models()} reports available model sizes and compatibility metadata; it
 does not construct or prepare a model. Use \code{\link[=evo2]{evo2()}} for an offline
 descriptor or \code{\link[=evo2_model]{evo2_model()}} for a ready model.
+}
+\examples{
+models <- evo2_models()
+models[c("name", "parameters", "context_length", "download_size")]
+
 }

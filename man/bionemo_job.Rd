@@ -2,16 +2,50 @@
 % Please edit documentation in R/07-jobs.R
 \name{bionemo_job}
 \alias{bionemo_job}
-\title{Re-open a persisted BioNeMo job}
+\title{Reopen a persisted BioNeMo job}
 \usage{
 bionemo_job(path)
 }
 \arguments{
-\item{path}{A persisted run directory.}
+\item{path}{Path to a run directory created by bionemor. It must contain the
+persisted request, command plan, and state files.}
 }
 \value{
-A \code{BioNeMoJob}.
+A \code{BioNeMoJob} for the persisted run.
 }
 \description{
-Re-open a persisted BioNeMo job
+Each operation dispatched through the job runner creates a durable run
+directory under \verb{<workspace>/.bionemor/runs/<name>}. The directory records
+the request, command plan, state, logs, outputs, and provenance needed to
+inspect the run after the R session that started it has ended. A
+\code{BioNeMoJob} is a handle to those persisted files and the local or Slurm
+execution backend.
 }
+\details{
+Operations that support \code{async} return their typed result directly when
+\code{async = FALSE}. With \code{async = TRUE}, they return a \code{BioNeMoJob} immediately.
+Pass that job to \code{\link[=job_status]{job_status()}}, \code{\link[=job_logs]{job_logs()}}, \code{\link[=job_wait]{job_wait()}}, \code{\link[=job_cancel]{job_cancel()}},
+or \code{\link[=job_result]{job_result()}}. \code{bionemo_job()} reconstructs the same handle from its run
+directory, including for a run that is still active or already complete. It
+does not resubmit or restart the operation.
+}
+\examples{
+\dontrun{
+# Save job_path(job), then reopen the run in this or a later R session.
+job <- bionemo_job(
+  "/shared/workspace/.bionemor/runs/my-generation"
+)
+job_status(job)
+result <- job_wait(job)
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=job_cancel]{job_cancel()}},
+\code{\link[=job_logs]{job_logs()}},
+\code{\link[=job_path]{job_path()}},
+\code{\link[=job_result]{job_result()}},
+\code{\link[=job_status]{job_status()}},
+\code{\link[=job_wait]{job_wait()}}
+}
+\concept{BioNeMo job lifecycle}

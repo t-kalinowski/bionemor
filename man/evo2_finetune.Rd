@@ -20,28 +20,73 @@ evo2_finetune(
 \arguments{
 \item{object}{An Evo 2 model with an MBridge checkpoint.}
 
-\item{data}{An \code{Evo2Dataset} or accepted raw sequence input.}
+\item{data}{An \code{\link[=evo2_dataset]{evo2_dataset()}} result or any input accepted by its \code{train}
+argument.}
 
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{steps}{Positive training steps.}
+\item{steps}{Positive number of optimizer steps.}
 
-\item{method}{A LoRA or full fine-tuning descriptor.}
+\item{method}{Fine-tuning strategy from \code{\link[=evo2_lora]{evo2_lora()}} or \code{\link[=evo2_full]{evo2_full()}}.}
 
-\item{control}{Fine-tuning controls.}
+\item{control}{Training controls from \code{\link[=evo2_fit_control]{evo2_fit_control()}}.}
 
-\item{path}{Result directory.}
+\item{path}{Result directory. Relative paths resolve below the compute
+workspace, and \code{NULL} uses \verb{artifacts/<name>}. Container execution requires
+the result to remain inside the workspace.}
 
-\item{name}{Run name.}
+\item{name}{Optional durable run name.}
 
-\item{async}{Whether to return a durable job.}
+\item{async}{Whether to return a durable job immediately.}
 
-\item{timeout}{Complete operation timeout in seconds.}
+\item{timeout}{Complete operation timeout in seconds. This limits the
+launched operation; \code{\link[=job_wait]{job_wait()}} has a separate client-side wait timeout.}
 }
 \value{
-A fitted \code{Evo2Model} or \code{BioNeMoJob}.
+With \code{async = FALSE}, a fitted \code{Evo2Model} bound to the same compute
+descriptor. With \code{async = TRUE}, a \code{BioNeMoJob}; \code{\link[=job_wait]{job_wait()}} materializes
+the fitted model.
 }
 \description{
-Fine-tune an Evo 2 model
+\code{evo2_finetune()} runs \code{train_evo2} from an MBridge checkpoint. Raw
+sequence inputs and unprepared \code{\link[=evo2_dataset]{evo2_dataset()}} objects are prepared
+automatically using default preprocessing controls. Call \code{\link[=evo2_prepare]{evo2_prepare()}}
+first when preprocessing must be customized or reused.
+}
+\details{
+\code{steps} counts optimizer steps, not epochs. The fitting control determines
+data parallelism and gradient accumulation from the allocated GPU count and
+model-parallel settings. Training requires GPUs with compute capability 8.0
+or newer; model-specific precision restrictions are enforced before launch.
+
+A LoRA result contains adapter weights and records the dense base checkpoint;
+that base checkpoint must remain at the recorded path for later inference.
+LoRA-on-LoRA fine-tuning and full fine-tuning from a LoRA checkpoint are not
+supported.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_install(compute)
+model <- evo2_model("1b", compute)
+data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
+
+run <- evo2_finetune(
+  model,
+  data,
+  steps = 500L,
+  method = evo2_lora(targets = c("attention", "mlp")),
+  control = evo2_fit_control(
+    sequence_length = 1024L,
+    precision = "bf16"
+  ),
+  async = TRUE
+)
+fitted <- job_wait(run)
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#fine-tuning-from-an-existing-checkpoint}{BioNeMo Recipes Evo 2 fine-tuning}
 }

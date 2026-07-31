@@ -7,15 +7,18 @@
 evo2(size = "7b", checkpoint = NULL, revision = "recommended", config = list())
 }
 \arguments{
-\item{size}{Canonical Evo 2 model name or a known upstream alias.}
+\item{size}{Canonical model name from \code{\link[=evo2_models]{evo2_models()}} or a known upstream
+alias such as \code{"evo2_7b"}.}
 
 \item{checkpoint}{\code{NULL}, an existing MBridge checkpoint path, or a
-checkpoint returned by \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}.}
+checkpoint returned by \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}. A path is inspected and
+registered immediately.}
 
 \item{revision}{Exact source checkpoint revision. \code{"recommended"} uses the
 package model registry.}
 
-\item{config}{Named model-level settings.}
+\item{config}{Named model-level settings. Supported names are \code{tokenizer},
+\code{tokenizer_revision}, and \code{mixed_precision_recipe}.}
 }
 \value{
 An S7 \code{Evo2Model}.
@@ -25,4 +28,17 @@ An S7 \code{Evo2Model}.
 download or load weights, and operations on the returned model require an
 explicit compute descriptor. Use \code{\link[=evo2_model]{evo2_model()}} for the direct, synchronous
 path to a model backed by the recommended checkpoint and bound to compute.
+}
+\details{
+A model records the architecture, context length, source revision, model
+settings, and optional checkpoint. A \code{\link[=bionemo_compute]{bionemo_compute()}} descriptor records
+where and how work runs. Keeping \code{evo2()} unbound lets an existing checkpoint
+be used with another compatible runtime; execution still checks checkpoint
+visibility, recipe revision, and GPU compatibility.
+}
+\examples{
+model <- evo2("7b")
+model
+model@context_length
+
 }

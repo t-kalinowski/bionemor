@@ -483,11 +483,24 @@ prepare_stranded_input <- function(input, run_path, strand) {
 
 #' Construct an Evo 2 phylogenetic prompt tag
 #'
+#' Evo 2 represents taxonomy context as a pipe-enclosed, semicolon-delimited tag
+#' with the short rank keys `d`, `p`, `c`, `o`, `f`, `g`, and `s`. Missing ranks
+#' are serialized as `None`. With `uppercase = TRUE`, the complete serialized
+#' tag, including missing-rank markers, is converted to uppercase.
+#'
 #' @param domain,phylum,class,order,family,genus,species Optional taxonomy
-#'   ranks.
+#'   ranks. Values cannot contain `;`, `|`, or line breaks.
 #' @param uppercase Whether to uppercase the serialized tag.
 #'
 #' @return One Evo 2 phylogenetic prompt tag.
+#'
+#' @examples
+#' evo2_phylo_tag(
+#'   domain = "Bacteria",
+#'   phylum = "Proteobacteria",
+#'   genus = "Escherichia"
+#' )
+#'
 #' @export
 evo2_phylo_tag <- function(
   domain = NULL,

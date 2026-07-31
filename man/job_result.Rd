@@ -7,11 +7,42 @@
 job_result(x)
 }
 \arguments{
-\item{x}{A BioNeMo job.}
+\item{x}{A \code{BioNeMoJob} returned by an asynchronous operation or
+\code{\link[=bionemo_job]{bionemo_job()}}.}
 }
 \value{
-The operation's typed result.
+The operation's typed result, such as an \code{evo2_generation} or
+\code{evo2_scores} data frame, an embedding matrix, an \code{Evo2Model}, an
+\code{Evo2Dataset}, a \code{BioNeMoCheckpoint}, or a \code{BioNeMoArtifact}.
 }
 \description{
-Return a completed BioNeMo job result
+\code{job_result()} refreshes job state and materializes the portable outputs of a
+successful run as the same typed R object returned by the corresponding
+synchronous operation. It does not wait for an active job; use \code{\link[=job_wait]{job_wait()}}
+when the operation may still be running.
 }
+\details{
+A failed, cancelled, active, or unknown job produces a typed bionemor error.
+The condition includes the run path and available log context so the durable
+run can be inspected after the error is caught.
+}
+\examples{
+\dontrun{
+job <- bionemo_job(
+  "/shared/workspace/.bionemor/runs/my-generation"
+)
+if (job_status(job) == "succeeded") {
+  generated <- job_result(job)
+}
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=bionemo_job]{bionemo_job()}},
+\code{\link[=job_cancel]{job_cancel()}},
+\code{\link[=job_logs]{job_logs()}},
+\code{\link[=job_path]{job_path()}},
+\code{\link[=job_status]{job_status()}},
+\code{\link[=job_wait]{job_wait()}}
+}
+\concept{BioNeMo job lifecycle}

@@ -12,17 +12,100 @@ bionemo_doctor(
 )
 }
 \arguments{
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor whose runtime has been built or
+selected, usually the value returned by \code{\link[=bionemo_install]{bionemo_install()}}.}
 
-\item{model}{Optional Evo 2 model.}
+\item{model}{Optional Evo 2 model. Supplying a model adds compatibility,
+checkpoint-storage, and checkpoint-content checks.}
 
-\item{target}{Operation target.}
+\item{target}{Operation group to check: \code{"all"}, \code{"inference"},
+\code{"training"}, or \code{"conversion"}.}
 
-\item{verbose}{Include complete probe output when printing.}
+\item{verbose}{Whether printing the result should include complete retained
+probe output in addition to the check table. This does not change the
+checks performed or the columns returned by \code{as.data.frame()}.}
 }
 \value{
-A \code{BioNeMoDoctor}.
+A \code{BioNeMoDoctor} with \code{target}, logical \code{ok}, a \code{checks} data frame,
+and the selected \code{verbose} print setting. Use \code{as.data.frame()} to inspect
+the \code{check}, \code{status}, \code{detail}, and \code{output} columns programmatically.
 }
 \description{
-Diagnose a BioNeMo Recipes execution environment
+\code{bionemo_doctor()} checks whether a compute descriptor is ready for one or
+more groups of Evo 2 operations. It performs live runtime probes; it does not
+rely on the cached capability report stored by \code{\link[=bionemo_install]{bionemo_install()}}. A model
+is optional because the runtime can be diagnosed before weights are prepared.
+Supply one to add model compatibility and checkpoint checks. The doctor does
+not install software, build containers, or prepare checkpoints.
+}
+\section{Targets}{
+
+
+\code{target} selects which upstream recipe commands must be advertised:
+\itemize{
+\item \code{"inference"} checks \code{infer_evo2} and \code{predict_evo2}, which support
+generation, scoring, and embeddings.
+\item \code{"training"} checks \code{preprocess_evo2} and \code{train_evo2}.
+\item \code{"conversion"} checks Savanna-to-MBridge and NeMo2-to-MBridge conversion,
+MBridge-to-Vortex export, and optimizer-state removal.
+\item \code{"all"} checks every command above.
+}
+
+Every target also checks the backend commands, required host tools, writable
+workspace, helper protocol, recipe identity, runtime software versions, GPU
+visibility and count, and image metadata and digest availability. When
+\code{model} is supplied, the doctor also checks registry compatibility,
+checkpoint presence, and the checkpoint's reported model size. These are
+readiness checks; the doctor does not run generation, training, or conversion
+on user data.
+
+With a Slurm backend, host and runtime checks submit short synchronous jobs
+so that tools, GPUs, and the runtime are inspected on compute nodes. This can
+create probe files under \code{workspace/.bionemor} and consume scheduler time.
+}
+
+\section{Results}{
+
+
+Printing the returned \code{BioNeMoDoctor} shows its target, overall status, and a
+table of \code{check}, \code{status}, and \code{detail}. The overall \code{ok} property is \code{TRUE}
+only when no row has \code{status = "fail"}. Set \code{verbose = TRUE} to print any
+complete credential-redacted probe output recorded for failed checks.
+
+\code{as.data.frame()} returns all check data with four columns:
+\itemize{
+\item \code{check}: the component or command inspected.
+\item \code{status}: \code{"pass"} or \code{"fail"}.
+\item \code{detail}: a concise explanation of the result.
+\item \code{output}: credential-redacted probe output when one was retained, otherwise
+\code{""}.
+}
+}
+
+\examples{
+\dontrun{
+compute <- bionemo_compute(
+  engine = "external",
+  workspace = "/shared/projects/evo2"
+)
+compute <- bionemo_install(compute)
+
+doctor <- bionemo_doctor(
+  compute,
+  target = "inference",
+  verbose = FALSE
+)
+doctor
+
+checks <- as.data.frame(doctor)
+checks[checks$status == "fail", c("check", "detail")]
+
+# Add checkpoint and model compatibility checks.
+model <- evo2("7b", checkpoint = "/shared/models/evo2-7b-mbridge")
+bionemo_doctor(compute, model, target = "inference")
+}
+
+}
+\seealso{
+\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=evo2_models]{evo2_models()}}
 }

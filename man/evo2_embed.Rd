@@ -27,12 +27,15 @@ evo2_embed(
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{layer}{Final or one-based decoder layer.}
+\item{layer}{\code{"last"} or a one-based decoder layer. R layer \code{1} maps to
+upstream layer \code{0}; \code{"last"} maps to upstream \code{-1}.}
 
-\item{pool}{Pooling rule. With \code{pool = "none"}, \code{output} is required and
-\code{strand = "both"} is not supported.}
+\item{pool}{Pooling across non-padding sequence positions. \code{"mean"} and
+\code{"max"} aggregate values; \code{"first"} and \code{"last"} select an endpoint. With
+\code{pool = "none"}, \code{output} is required and \code{strand = "both"} is not
+supported.}
 
-\item{strand}{Strand rule.}
+\item{strand}{Score the supplied sequence, its reverse complement, or both.}
 
 \item{batch_size}{Prediction micro-batch size. The inference control's
 \code{micro_batch_size} must remain one.}
@@ -40,7 +43,7 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 \item{normalize}{Sequence normalization mode. With \code{normalize = "none"},
 reverse-strand operations require uppercase IUPAC DNA.}
 
-\item{control}{Evo 2 inference controls.}
+\item{control}{Controls from \code{\link[=evo2_inference_control]{evo2_inference_control()}}.}
 
 \item{output}{Optional output file. Required when \code{pool = "none"}.}
 
@@ -67,4 +70,24 @@ With \code{pool = "none"}, the result is a Parquet artifact with columns \code{i
 (string), \code{position} (int64), \code{embedding} (list of doubles), and \code{strand}
 (string). Unpooled output requires \code{output} and does not support
 \code{strand = "both"}.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_install(compute)
+model <- evo2_model("7b", compute)
+
+embeddings <- evo2_embed(
+  model,
+  c(reference = "ACGTACGT", variant = "ACGTTCGT"),
+  pool = "mean",
+  strand = "both"
+)
+dim(embeddings)
+embeddings[, 1:4, drop = FALSE]
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#batch-sequence-scoring-predict_evo2}{BioNeMo Recipes embedding extraction}
 }

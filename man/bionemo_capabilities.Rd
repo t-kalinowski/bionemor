@@ -2,18 +2,69 @@
 % Please edit documentation in R/03-compute.R
 \name{bionemo_capabilities}
 \alias{bionemo_capabilities}
-\title{Report capabilities advertised by the installed recipe runtime}
+\title{Report capabilities of a BioNeMo recipe runtime}
 \usage{
 bionemo_capabilities(compute, refresh = FALSE)
 }
 \arguments{
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor. Its runtime must expose the
+package helper. Use \code{\link[=bionemo_install]{bionemo_install()}} to verify the helper and every
+required recipe command.}
 
-\item{refresh}{Ignore a cached helper report and probe again.}
+\item{refresh}{Whether to ignore \code{compute@config$capabilities} and run a new
+runtime probe.}
 }
 \value{
-The parsed helper capability report with runtime provenance.
+A named list parsed from the helper capability report, with \code{image},
+\code{image_digest}, and \code{probed_at} runtime provenance added by bionemor.
 }
 \description{
-Report capabilities advertised by the installed recipe runtime
+\code{bionemo_capabilities()} runs the package helper in the environment described
+by \code{compute} and parses its JSON report. The probe verifies that the helper's
+protocol, recipe version, and recipe revision match the compute descriptor.
+It also reports whether the recipe commands used for inference, training,
+and checkpoint conversion are available.
+}
+\details{
+This is a live GPU-backed probe when no cached report is used. A local
+container is started with GPU access, an external runtime runs the helper
+directly, and a Slurm backend submits a synchronous probe allocation. The
+probe does not prepare a model or inspect model weights.
+}
+\section{Report contents}{
+
+
+The returned named list contains helper, protocol, recipe, tokenizer,
+command, feature, and runtime information. \code{runtime} includes reported
+software versions, CUDA availability, the GPU count, driver information, and
+per-GPU properties. bionemor adds \code{image}, \code{image_digest}, and the UTC
+\code{probed_at} time so the report records where it came from.
+
+\code{\link[=bionemo_install]{bionemo_install()}} saves the validated report in
+\code{compute@config$capabilities} on the compute descriptor it returns. With
+\code{refresh = FALSE}, this function returns that cached list when present;
+otherwise it probes the runtime. \code{refresh = TRUE} always probes again. Calling
+this function does not modify the supplied compute descriptor.
+}
+
+\examples{
+\dontrun{
+compute <- bionemo_compute(
+  engine = "external",
+  workspace = "/shared/projects/evo2"
+)
+compute <- bionemo_install(compute)
+
+capabilities <- bionemo_capabilities(compute)
+capabilities[c("protocol_version", "recipe_version", "probed_at")]
+capabilities$commands
+capabilities$runtime$gpus
+
+# Probe again after the runtime or GPU allocation changes.
+capabilities <- bionemo_capabilities(compute, refresh = TRUE)
+}
+
+}
+\seealso{
+\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}
 }

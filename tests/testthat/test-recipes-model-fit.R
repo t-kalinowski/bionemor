@@ -1,5 +1,6 @@
 test_that("the shipped registry defines the supported recipe models", {
   models <- evo2_models()
+  expect_false("prepared" %in% names(models))
   expect_equal(
     models$name,
     c("1b-base", "7b-base", "7b", "20b", "40b-base", "40b")

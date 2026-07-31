@@ -32,6 +32,15 @@ the canonical model name, source revision, and recipe revision. An explicit
 the registered source. Existing incomplete or mismatched destinations are
 rejected without being overwritten.
 }
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+model <- evo2_model("7b", compute)
+
+# The prepared model remembers where it runs.
+evo2_score(model, c(example = "ACGTACGT"))
+}
+}
 \seealso{
 \code{\link[=evo2]{evo2()}}, \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}, \code{\link[=evo2_models]{evo2_models()}}
 }

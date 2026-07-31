@@ -7,13 +7,46 @@
 job_cancel(x, force = FALSE)
 }
 \arguments{
-\item{x}{A BioNeMo job.}
+\item{x}{A \code{BioNeMoJob} returned by an asynchronous operation or
+\code{\link[=bionemo_job]{bionemo_job()}}.}
 
-\item{force}{Whether to use immediate termination.}
+\item{force}{Whether to request immediate termination. The default first
+requests an orderly stop.}
 }
 \value{
-The updated job, invisibly.
+\code{x}, updated to the backend's terminal state, invisibly.
 }
 \description{
-Cancel a BioNeMo job
+\code{job_cancel()} asks the local or Slurm backend to stop an active job and
+waits for the backend to report a terminal state. The default requests an
+orderly termination; local execution escalates if the process does not stop.
+\code{force = TRUE} requests immediate termination instead. A job that is already
+terminal is returned unchanged.
 }
+\details{
+Cancellation races with normal completion. The final state may therefore be
+\code{"succeeded"} or \code{"failed"} if the operation finishes before cancellation is
+confirmed. Cancelling does not delete the run directory, logs, or outputs.
+}
+\examples{
+\dontrun{
+job <- bionemo_job(
+  "/shared/workspace/.bionemor/runs/my-generation"
+)
+job_cancel(job)
+job_status(job)
+
+# To skip orderly termination, use this instead on an active job:
+# job_cancel(job, force = TRUE)
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=bionemo_job]{bionemo_job()}},
+\code{\link[=job_logs]{job_logs()}},
+\code{\link[=job_path]{job_path()}},
+\code{\link[=job_result]{job_result()}},
+\code{\link[=job_status]{job_status()}},
+\code{\link[=job_wait]{job_wait()}}
+}
+\concept{BioNeMo job lifecycle}

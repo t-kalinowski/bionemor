@@ -4,20 +4,23 @@
 \name{bionemor-package}
 \alias{bionemor}
 \alias{bionemor-package}
-\title{Use BioNeMo Recipes Evo 2 without leaving R}
+\title{Run BioNeMo Recipes Evo 2 workflows from R}
 \description{
 \code{bionemor} prepares MBridge checkpoints, runs generation, scoring, and
 embeddings, and fine-tunes Evo 2 models with the pinned NVIDIA BioNeMo
-Recipes runtime. Inputs and results remain ordinary R objects; users do not
-need to write Python or interact with Python objects.
+Recipes runtime. Inputs and results are ordinary R vectors, data frames,
+matrices, and S7 objects.
 }
 \details{
-\code{\link[=evo2_model]{evo2_model()}} provides the direct path to a ready model using the
-recommended checkpoint. \code{\link[=evo2]{evo2()}} and \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} expose the
-lower-level workflow for custom sources and asynchronous preparation.
+\code{\link[=evo2_model]{evo2_model()}} is the direct path to a ready model. It prepares or reuses the
+recommended checkpoint and binds the compute descriptor used for later calls
+to \code{\link[=evo2_generate]{evo2_generate()}}, \code{\link[=evo2_score]{evo2_score()}}, \code{\link[=evo2_embed]{evo2_embed()}}, and \code{\link[=evo2_finetune]{evo2_finetune()}}.
+\code{\link[=evo2]{evo2()}} and \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} expose the lower-level workflow for custom
+checkpoint sources and explicit compute overrides.
 
-The Recipes runtime runs out of process and writes portable files and
-manifests. NIM is not used.
+Runtime operations dispatched through the job runner write a durable run
+directory containing their request, logs, state, and portable result. A
+\link[=bionemo_job]{BioNeMoJob} can be reopened after the R session ends.
 
 Operational failures inherit from \code{bionemor_error} and a stable \verb{BN_*}
 code-specific class. Conditions retain run and model context when available.

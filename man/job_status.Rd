@@ -7,13 +7,60 @@
 job_status(x, refresh = TRUE)
 }
 \arguments{
-\item{x}{A BioNeMo job.}
+\item{x}{A \code{BioNeMoJob} returned by an asynchronous operation or
+\code{\link[=bionemo_job]{bionemo_job()}}.}
 
-\item{refresh}{Whether to query the execution backend.}
+\item{refresh}{Whether to query the execution backend for current state.
+Set this to \code{FALSE} to read the state held by the job handle without a
+routine backend query.}
 }
 \value{
-One state string.
+A length-one character vector containing the job state.
 }
 \description{
-Return a BioNeMo job state
+With \code{refresh = TRUE}, \code{job_status()} reconciles the persisted state with the
+execution backend. Local jobs are checked against their runner process, and
+Slurm jobs are checked with scheduler accounting. Terminal states are
+persisted in the run directory. With \code{refresh = FALSE}, the function returns
+the state held by the job handle without a routine backend query; that value
+may be stale. Reopening a job with \code{\link[=bionemo_job]{bionemo_job()}} loads its persisted state.
 }
+\section{States}{
+
+
+A job has one of these state strings:
+\itemize{
+\item \code{"created"}: the durable run directory has been initialized.
+\item \code{"submitted"}: the backend accepted the job and it is waiting to start.
+\item \code{"starting"}: the local runner is starting the operation.
+\item \code{"running"}: the operation is running or finalizing its outputs.
+\item \code{"succeeded"}: the operation completed and its result can be read.
+\item \code{"failed"}: the operation ended with an error.
+\item \code{"cancelled"}: cancellation was confirmed.
+\item \code{"unknown"}: the backend state could not be mapped to a supported state.
+}
+
+The terminal states are \code{"succeeded"}, \code{"failed"}, and \code{"cancelled"}.
+\code{\link[=job_wait]{job_wait()}} and \code{\link[=job_result]{job_result()}} report non-success states as typed bionemor
+errors.
+}
+
+\examples{
+\dontrun{
+job <- bionemo_job(
+  "/shared/workspace/.bionemor/runs/my-generation"
+)
+job_status(job)
+job_status(job, refresh = FALSE)
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=bionemo_job]{bionemo_job()}},
+\code{\link[=job_cancel]{job_cancel()}},
+\code{\link[=job_logs]{job_logs()}},
+\code{\link[=job_path]{job_path()}},
+\code{\link[=job_result]{job_result()}},
+\code{\link[=job_wait]{job_wait()}}
+}
+\concept{BioNeMo job lifecycle}

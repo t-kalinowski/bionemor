@@ -2,22 +2,105 @@
 % Please edit documentation in R/10-setup.R
 \name{bionemo_install}
 \alias{bionemo_install}
-\title{Install or verify the pinned BioNeMo Evo 2 recipe runtime}
+\title{Install or verify a BioNeMo Evo 2 recipe runtime}
 \usage{
 bionemo_install(compute, rebuild = FALSE, pull = TRUE, keep_source = FALSE)
 }
 \arguments{
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor from \code{\link[=bionemo_compute]{bionemo_compute()}}. Assign
+the return value of \code{bionemo_install()} before using it for model
+operations.}
 
-\item{rebuild}{Rebuild an existing deterministic local image.}
+\item{rebuild}{Whether to rebuild an existing deterministic local image.
+This is only supported for the package-managed verified recipe image; an
+explicit prebuilt image is always verified in place.}
 
-\item{pull}{Pull the locked digest-qualified base image before building.}
+\item{pull}{Whether to pull the locked digest-qualified base image before a
+local build. The base-image digest is still verified when \code{FALSE}.}
 
-\item{keep_source}{Keep the synthetic build context for inspection.}
+\item{keep_source}{Whether to keep the synthetic local build context after a
+successful build. The content-addressed recipe source checkout remains in
+the workspace recipe cache.}
 }
 \value{
-The compute descriptor with resolved runtime metadata.
+The supplied \code{BioNeMoCompute} descriptor with resolved runtime
+metadata. For containers this includes \code{image_digest}; all paths include a
+validated capability report in \code{config$capabilities}.
 }
 \description{
-Install or verify the pinned BioNeMo Evo 2 recipe runtime
+\code{bionemo_install()} makes the runtime described by \code{compute} ready for
+bionemor operations. For the verified local/container configuration, it can
+build the package-pinned recipe image. For an explicit local image, an
+external environment, or either Slurm engine, it verifies the existing
+runtime instead. Installation is independent of model weights: prepare or
+attach a checkpoint separately with \code{\link[=evo2_model]{evo2_model()}} or \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}.
+}
+\section{Setup lifecycle}{
+
+
+A typical setup has three explicit stages:
+\enumerate{
+\item Create a descriptor with \code{\link[=bionemo_compute]{bionemo_compute()}}. This chooses the backend,
+engine, workspace, recipe, image, and requested resources without probing
+the runtime.
+\item Inspect \code{\link[=bionemo_install_plan]{bionemo_install_plan()}} when the commands and immutable inputs
+should be reviewed before execution.
+\item Call \code{bionemo_install()} and retain its returned compute descriptor. The
+return value contains the resolved image digest when applicable and a
+validated capability report in \code{compute@config$capabilities}.
+}
+
+\code{\link[=bionemo_doctor]{bionemo_doctor()}} can then check the environment for a particular operation
+group and, optionally, a particular model checkpoint. Re-run installation
+after changing the recipe runtime or image. Use
+\code{\link[=bionemo_capabilities]{bionemo_capabilities()}} with \code{refresh = TRUE} when only a fresh runtime
+report is needed.
+}
+
+\section{What installation does}{
+
+
+For the verified local/container path, installation checks for the
+deterministic derived image. When it must build, it fetches the exact locked
+BioNeMo Recipes revision, verifies the upstream Dockerfile blob, prepares a
+synthetic build context containing the package helper, optionally pulls the
+digest-qualified base image, verifies that digest, and builds the image.
+Existing explicit images are not rebuilt; their immutable ID and required
+provenance labels are verified.
+
+Every path performs a GPU-backed helper capability probe and checks the
+\code{--help} entry point for all inference, training, and conversion commands.
+The helper's protocol, recipe version, and recipe revision must match the
+compute descriptor. Local containers are probed by the configured
+Docker-compatible engine. Local external runtimes are probed directly.
+
+Slurm installation does not install packages or build an image. It submits
+synchronous probe jobs so the checks run in allocations rather than on the
+login host. External Slurm environments must already expose the helper and
+recipe commands. Slurm/container requires Apptainer and an existing image;
+a local SIF is hashed before probing and its digest is checked again inside
+each allocation.
+}
+
+\examples{
+\dontrun{
+# Build and verify the package-pinned local container runtime.
+compute <- bionemo_compute(
+  backend = "local",
+  engine = "container",
+  workspace = "~/evo2-work"
+)
+bionemo_install_plan(compute)
+compute <- bionemo_install(compute)
+
+# The returned descriptor carries immutable image and capability metadata.
+compute@image_digest
+compute@config$capabilities$runtime$gpus
+bionemo_doctor(compute, target = "inference", verbose = FALSE)
+}
+
+}
+\seealso{
+\code{\link[=bionemo_install_plan]{bionemo_install_plan()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}},
+\code{\link[=bionemo_doctor]{bionemo_doctor()}}, \code{\link[=evo2_model]{evo2_model()}}
 }

@@ -53,13 +53,40 @@ dataset_source <- function(x, id_col, sequence_col) {
 
 #' Describe an Evo 2 dataset
 #'
-#' @param train,validation,test Sequence inputs or FASTA paths.
+#' `evo2_dataset()` records sequence partitions before the recipe converts them
+#' to indexed training data. Each input may be a named character vector, a data
+#' frame, an `XStringSet` such as `DNAStringSet`, or an existing FASTA or
+#' gzip-compressed FASTA path.
+#'
+#' Character-vector names become sequence IDs; unnamed vectors receive
+#' `seq_1`, `seq_2`, and so on. Data frames use `id_col` and `sequence_col`.
+#' IDs must be non-empty and unique, and sequences must be non-empty.
+#'
+#' @param train,validation,test Sequence inputs. `train` is required.
+#'   `validation` and `test` may be `NULL`.
 #' @param split Named train, validation, and test proportions used when
-#'   explicit validation and test inputs are absent.
-#' @param seed Stable split seed.
-#' @param id_col,sequence_col Data-frame column names.
+#'   both explicit validation and test inputs are absent. Assignment uses a
+#'   stable hash of `seed` and sequence ID, so it is unchanged by input order.
+#'   The proportions are probabilities and need not produce exact row counts.
+#' @param seed Non-negative seed used for stable hash partitioning.
+#' @param id_col,sequence_col Data-frame column names containing sequence IDs
+#'   and sequence text.
 #'
 #' @return An S7 `Evo2Dataset`.
+#'
+#' @examples
+#' sequences <- c(
+#'   first = "ACGTACGT",
+#'   second = "TGCATGCA",
+#'   third = "GATTACA"
+#' )
+#' data <- evo2_dataset(
+#'   sequences,
+#'   split = c(train = 0.7, validation = 0.2, test = 0.1),
+#'   seed = 17L
+#' )
+#' data@provenance$partition_method
+#'
 #' @export
 evo2_dataset <- function(
   train,
@@ -329,16 +356,44 @@ preprocess_record <- function(
 
 #' Prepare indexed data for Evo 2 fine-tuning
 #'
-#' @param data An `Evo2Dataset` or accepted sequence input.
+#' `evo2_prepare()` writes each dataset partition as FASTA, calls the pinned
+#' `preprocess_evo2` entry point, and returns an `Evo2Dataset` that points to
+#' the resulting indexed files. Its manifest records input digests, model size,
+#' tokenizer and recipe revisions, preprocessing controls, and output digests.
+#' [evo2_finetune()] checks those fields before training.
+#'
+#' @param data An [evo2_dataset()] result or any input accepted by its `train`
+#'   argument.
 #' @param model An Evo 2 model descriptor.
 #' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
 #'   attached by [evo2_model()] or a previous fine-tuning run.
-#' @param path Destination inside the compute workspace.
-#' @param control Preprocessing controls.
+#' @param path Destination path. Relative paths resolve below the compute
+#'   workspace. Container execution requires the destination to remain inside
+#'   that workspace.
+#' @param control Preprocessing controls from [evo2_preprocess_control()].
 #' @param overwrite Whether to replace an existing destination.
 #' @param async Whether to return a durable job.
 #'
-#' @return An `Evo2Dataset` or `BioNeMoJob`.
+#' @return With `async = FALSE`, a prepared `Evo2Dataset`. With
+#'   `async = TRUE`, a `BioNeMoJob`; [job_wait()] materializes the dataset.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_install(compute)
+#' model <- evo2_model("1b", compute)
+#' data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
+#'
+#' prepared <- evo2_prepare(
+#'   data,
+#'   model,
+#'   path = "datasets/example",
+#'   control = evo2_preprocess_control(sample_length = 1024L)
+#' )
+#' }
+#'
+#' @references
+#' [BioNeMo Recipes Evo 2 preprocessing](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#data-preprocessing-preprocess_evo2)
 #' @export
 evo2_prepare <- function(
   data,
@@ -852,19 +907,64 @@ fit_control_args <- function(control, model_record) {
 
 #' Fine-tune an Evo 2 model
 #'
+#' `evo2_finetune()` runs `train_evo2` from an MBridge checkpoint. Raw
+#' sequence inputs and unprepared [evo2_dataset()] objects are prepared
+#' automatically using default preprocessing controls. Call [evo2_prepare()]
+#' first when preprocessing must be customized or reused.
+#'
+#' `steps` counts optimizer steps, not epochs. The fitting control determines
+#' data parallelism and gradient accumulation from the allocated GPU count and
+#' model-parallel settings. Training requires GPUs with compute capability 8.0
+#' or newer; model-specific precision restrictions are enforced before launch.
+#'
+#' A LoRA result contains adapter weights and records the dense base checkpoint;
+#' that base checkpoint must remain at the recorded path for later inference.
+#' LoRA-on-LoRA fine-tuning and full fine-tuning from a LoRA checkpoint are not
+#' supported.
+#'
 #' @param object An Evo 2 model with an MBridge checkpoint.
-#' @param data An `Evo2Dataset` or accepted raw sequence input.
+#' @param data An [evo2_dataset()] result or any input accepted by its `train`
+#'   argument.
 #' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
 #'   attached by [evo2_model()] or a previous fine-tuning run.
-#' @param steps Positive training steps.
-#' @param method A LoRA or full fine-tuning descriptor.
-#' @param control Fine-tuning controls.
-#' @param path Result directory.
-#' @param name Run name.
-#' @param async Whether to return a durable job.
-#' @param timeout Complete operation timeout in seconds.
+#' @param steps Positive number of optimizer steps.
+#' @param method Fine-tuning strategy from [evo2_lora()] or [evo2_full()].
+#' @param control Training controls from [evo2_fit_control()].
+#' @param path Result directory. Relative paths resolve below the compute
+#'   workspace, and `NULL` uses `artifacts/<name>`. Container execution requires
+#'   the result to remain inside the workspace.
+#' @param name Optional durable run name.
+#' @param async Whether to return a durable job immediately.
+#' @param timeout Complete operation timeout in seconds. This limits the
+#'   launched operation; [job_wait()] has a separate client-side wait timeout.
 #'
-#' @return A fitted `Evo2Model` or `BioNeMoJob`.
+#' @return With `async = FALSE`, a fitted `Evo2Model` bound to the same compute
+#'   descriptor. With `async = TRUE`, a `BioNeMoJob`; [job_wait()] materializes
+#'   the fitted model.
+#'
+#' @examples
+#' \dontrun{
+#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_install(compute)
+#' model <- evo2_model("1b", compute)
+#' data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
+#'
+#' run <- evo2_finetune(
+#'   model,
+#'   data,
+#'   steps = 500L,
+#'   method = evo2_lora(targets = c("attention", "mlp")),
+#'   control = evo2_fit_control(
+#'     sequence_length = 1024L,
+#'     precision = "bf16"
+#'   ),
+#'   async = TRUE
+#' )
+#' fitted <- job_wait(run)
+#' }
+#'
+#' @references
+#' [BioNeMo Recipes Evo 2 fine-tuning](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#fine-tuning-from-an-existing-checkpoint)
 #' @export
 evo2_finetune <- function(
   object,

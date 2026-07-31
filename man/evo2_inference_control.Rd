@@ -23,41 +23,69 @@ evo2_inference_control(
 )
 }
 \arguments{
-\item{tensor_parallel_size, pipeline_parallel_size, context_parallel_size}{Model-parallel rank counts. Prediction currently requires pipeline
-parallelism of one. Positional profiles and embeddings also require
-context parallelism of one.}
+\item{tensor_parallel_size, pipeline_parallel_size, context_parallel_size}{Model-parallel rank counts. Their product cannot exceed the GPUs allocated
+by \code{\link[=bionemo_compute]{bionemo_compute()}}. Generation requires the product to equal the
+allocated GPU count. Pipeline parallelism must be one. Positional profiles
+and embeddings also require context parallelism of one.}
 
 \item{micro_batch_size}{Reserved for upstream support and must remain one.
 Use the task-specific \code{batch_size} argument for prediction and
 \code{max_batch_size} for generation.}
 
-\item{max_sequence_length}{Optional generation context limit.}
+\item{max_sequence_length}{Optional generation context limit. \code{NULL} lets
+the recipe and model determine the limit.}
 
-\item{max_batch_size}{Maximum generation batch size.}
+\item{max_batch_size}{Maximum prompt records admitted to one generation call
+and used to size upstream buffers.}
 
-\item{precision}{Semantic inference precision.}
+\item{precision}{Semantic inference precision. \code{"auto"} follows the
+checkpoint and model registry; \code{"bf16"} and \code{"fp8"} request an explicit
+policy.}
 
-\item{mixed_precision_recipe}{Optional exact upstream precision recipe.}
+\item{mixed_precision_recipe}{Optional exact upstream precision recipe. When
+supplied, it takes precedence over the semantic \code{precision} mapping.}
 
-\item{vortex_style_fp8}{Whether to use the Vortex-style FP8 path.}
+\item{vortex_style_fp8}{Whether to use the Vortex-compatible FP8 path.
+\code{"auto"} follows checkpoint provenance and the model registry.}
 
-\item{cuda_graphs}{CUDA graph implementation.}
+\item{cuda_graphs}{CUDA graph implementation. \code{"auto"} selects local graphs
+unless \code{subquadratic_ops = TRUE}.}
 
-\item{subquadratic_ops}{Whether to enable subquadratic operators.}
+\item{subquadratic_ops}{Whether to enable the fused Hyena kernels used by
+batch prediction and generation prefill. They may incur a one-time
+compilation cost.}
 
-\item{chunked_prefill}{Whether to enable chunked prefill.}
+\item{chunked_prefill}{Whether generation should prefill long prompts in
+chunks.}
 
 \item{dynamic_max_tokens}{Optional dynamic-batching token limit.}
 
 \item{dynamic_block_size}{Dynamic-batching block size.}
 
-\item{extra}{Named allowlisted advanced upstream settings. Prediction
-supports \code{no_sequence_parallel} and \code{min_length}; generation supports no
-extra settings.}
+\item{extra}{Named advanced prediction settings. The pinned prediction
+entry point applies \code{no_sequence_parallel} and \code{min_length}. Generation
+rejects non-empty \code{extra}; settings accepted by an upstream parser but not
+applied by the pinned entry point are rejected before launch.}
 }
 \value{
 An S7 \code{Evo2InferenceControl}.
 }
 \description{
-Construct typed Evo 2 inference controls
+\code{evo2_inference_control()} describes model parallelism, numerical precision,
+and recipe optimizations shared by generation, scoring, profiles, and
+embeddings. Task-specific sampling, pooling, strand, and batch arguments
+stay on the corresponding inference function.
+}
+\examples{
+control <- evo2_inference_control(
+  tensor_parallel_size = 2L,
+  precision = "bf16",
+  subquadratic_ops = TRUE
+)
+control@tensor_parallel_size
+control@precision
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#autoregressive-generation-infer_evo2}{Pinned BioNeMo Recipes Evo 2 inference and prediction}
 }

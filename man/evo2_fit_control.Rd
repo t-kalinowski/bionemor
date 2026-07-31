@@ -42,27 +42,34 @@ evo2_fit_control(
 )
 }
 \arguments{
-\item{sequence_length}{Training sequence length.}
+\item{sequence_length}{Tokens in each training sample. It cannot exceed the
+selected model's context length.}
 
-\item{global_batch_size, micro_batch_size}{Global and per-rank batch sizes.}
+\item{global_batch_size, micro_batch_size}{Global samples per optimizer step
+and samples processed by each data-parallel rank per forward pass.}
 
-\item{learning_rate, minimum_learning_rate}{Initial and minimum learning
-rates.}
+\item{learning_rate, minimum_learning_rate}{Initial and floor learning rates.}
 
-\item{warmup_steps, decay_steps, constant_steps}{Learning-rate schedule
-lengths.}
+\item{warmup_steps, decay_steps, constant_steps}{Warm-up, optional decay, and
+constant learning-rate schedule lengths passed to the recipe.}
 
 \item{weight_decay}{Optimizer weight decay.}
 
-\item{eval_interval, eval_iters}{Evaluation cadence and iteration count.}
+\item{eval_interval, eval_iters}{Optimizer steps between evaluations and
+validation iterations per evaluation.}
 
-\item{log_interval}{Logging cadence.}
+\item{log_interval}{Optimizer steps between log records.}
 
-\item{tensor_parallel_size, pipeline_parallel_size, context_parallel_size}{Model-parallel rank counts.}
+\item{tensor_parallel_size, pipeline_parallel_size, context_parallel_size}{Model-parallel rank counts. Their product must divide the allocated GPU
+count.}
 
-\item{precision}{Semantic training precision.}
+\item{precision}{Semantic training precision. \code{"auto"} and \code{"bf16"} use
+\code{bf16_mixed}; \code{"fp8-current"} uses the current-scaling FP8 recipe when the
+model registry permits it. The supported 1B fine-tuning path is BF16.}
 
-\item{mixed_precision_recipe}{Optional exact upstream precision recipe.}
+\item{mixed_precision_recipe}{Optional exact upstream precision recipe. It
+overrides \code{precision}; bionemor's supported training contract rejects the
+delayed-scaling FP8 recipe because it is not working in the pinned source.}
 
 \item{precision_aware_optimizer}{Whether to use the precision-aware
 optimizer.}
@@ -72,9 +79,12 @@ gradients in BF16.}
 
 \item{gradient_reduce_fp32}{Whether to reduce gradients in FP32.}
 
-\item{activation_checkpointing}{Activation checkpointing policy.}
+\item{activation_checkpointing}{Activation checkpointing policy. \code{"full"}
+recomputes full layers, \code{"selective"} uses selective recomputation, and
+\code{"none"} disables it; \code{"auto"} leaves the recipe default.}
 
-\item{activation_checkpoint_layers}{Optional checkpointing layer interval.}
+\item{activation_checkpoint_layers}{Optional number of layers between full
+activation checkpoints.}
 
 \item{overlap_parameter_gather, overlap_gradient_reduce}{Whether to overlap
 distributed parameter and gradient communication.}
@@ -85,21 +95,46 @@ distributed parameter and gradient communication.}
 
 \item{hidden_dropout, attention_dropout}{Training dropout probabilities.}
 
-\item{checkpoint_async}{Whether to write checkpoints asynchronously.}
+\item{checkpoint_async}{Whether the recipe writes checkpoints
+asynchronously.}
 
 \item{keep_checkpoints}{Number of checkpoints to retain, or \code{-1} for all.}
 
-\item{workers}{Data-loading worker count.}
+\item{workers}{Data-loader worker processes.}
 
 \item{seed}{Training seed.}
 
 \item{dataset_seed}{Optional dataset seed. \code{NULL} uses \code{seed}.}
 
-\item{extra}{Named allowlisted advanced upstream settings.}
+\item{extra}{Named advanced settings passed to the pinned recipe. Supported
+names are \code{sequence_parallel}, \code{no_fp8_wgrad}, \code{no_fp8_param_gather},
+\code{average_in_collective}, \code{eod_pad_in_loss_mask},
+\code{cross_entropy_loss_fusion}, \code{fp32_residual_connection},
+\code{seq_len_interpolation_factor}, \code{adam_beta1}, \code{adam_beta2},
+\code{adam_epsilon}, \code{gc_interval}, \code{enable_preemption}, and
+\code{no_renormalize_loss}.}
 }
 \value{
 An S7 \code{Evo2FitControl}.
 }
 \description{
-Construct typed Evo 2 fitting controls
+These controls map to the pinned \code{train_evo2} entry point. The allocated GPU
+count is divided by tensor, pipeline, and context parallelism to obtain data
+parallelism. Gradient accumulation is then
+\code{global_batch_size / (micro_batch_size * data_parallel_size)} and must be an
+integer.
+}
+\examples{
+control <- evo2_fit_control(
+  sequence_length = 1024L,
+  global_batch_size = 8L,
+  micro_batch_size = 1L,
+  precision = "bf16",
+  activation_checkpointing = "full"
+)
+control@global_batch_size
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#fine-tuning-from-an-existing-checkpoint}{Pinned BioNeMo Recipes Evo 2 training}
 }

@@ -7,11 +7,37 @@
 job_path(x)
 }
 \arguments{
-\item{x}{A BioNeMo job.}
+\item{x}{A \code{BioNeMoJob} returned by an asynchronous operation or
+\code{\link[=bionemo_job]{bionemo_job()}}.}
 }
 \value{
-One normalized path.
+A length-one character vector containing the normalized absolute run
+path.
 }
 \description{
-Return the run directory for a BioNeMo job
+The run directory is the durable identity of a job. Save this path to reopen
+the job with \code{\link[=bionemo_job]{bionemo_job()}} in another R session. Keep the directory intact:
+status updates, logs, result materialization, and provenance all use files
+stored below it.
 }
+\examples{
+\dontrun{
+job <- bionemo_job(
+  "/shared/workspace/.bionemor/runs/my-generation"
+)
+path <- job_path(job)
+
+# Reopen the same run later.
+same_job <- bionemo_job(path)
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=bionemo_job]{bionemo_job()}},
+\code{\link[=job_cancel]{job_cancel()}},
+\code{\link[=job_logs]{job_logs()}},
+\code{\link[=job_result]{job_result()}},
+\code{\link[=job_status]{job_status()}},
+\code{\link[=job_wait]{job_wait()}}
+}
+\concept{BioNeMo job lifecycle}

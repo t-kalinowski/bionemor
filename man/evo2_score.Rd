@@ -28,14 +28,16 @@ evo2_score(
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{reduction}{Aggregate score reduction.}
+\item{reduction}{\code{"mean"} divides each strand's log-probability sum by its
+scored token count; \code{"sum"} retains the total.}
 
-\item{strand}{Strand rule.}
+\item{strand}{Score the supplied sequence, its reverse complement, or both.}
 
 \item{batch_size}{Prediction micro-batch size. The inference control's
 \code{micro_batch_size} must remain one.}
 
-\item{prepend_bos}{Whether to prepend the beginning-of-sequence token.}
+\item{prepend_bos}{Whether the prediction entry point should prepend the
+beginning-of-sequence token before scoring.}
 
 \item{mask_phylogenetic_tags}{Reserved for upstream support. It must be
 \code{FALSE} because the pinned prediction entry point does not apply it.}
@@ -43,7 +45,7 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 \item{normalize}{Sequence normalization mode. With \code{normalize = "none"},
 reverse-strand operations require uppercase IUPAC DNA.}
 
-\item{control}{Evo 2 inference controls.}
+\item{control}{Controls from \code{\link[=evo2_inference_control]{evo2_inference_control()}}.}
 
 \item{output}{Optional directory for a copy of portable outputs.}
 
@@ -58,7 +60,9 @@ With \code{async = FALSE}, an \code{evo2_scores} data frame with columns
 \code{BioNeMoJob}.
 }
 \description{
-Score DNA sequences with Evo 2
+Scores are sums or means of token log probabilities selected by the
+recipe's loss mask. Higher values indicate that the model assigns greater
+likelihood to the sequence under the requested reduction.
 }
 \details{
 The recipe first computes reduced log probabilities separately for
@@ -67,4 +71,23 @@ strand-specific values and are \code{NA} for strands that were not requested.
 \code{score} equals the available strand score, or the arithmetic mean of both
 values when \code{strand = "both"}. The \code{reduction} column records whether each
 strand was reduced by its token mean or sum.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_install(compute)
+model <- evo2_model("7b", compute)
+
+scores <- evo2_score(
+  model,
+  c(reference = "ACGTACGT", variant = "ACGTTCGT"),
+  reduction = "mean",
+  strand = "both"
+)
+scores
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#batch-sequence-scoring-predict_evo2}{BioNeMo Recipes batch sequence scoring}
 }

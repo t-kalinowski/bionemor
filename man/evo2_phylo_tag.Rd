@@ -17,7 +17,7 @@ evo2_phylo_tag(
 }
 \arguments{
 \item{domain, phylum, class, order, family, genus, species}{Optional taxonomy
-ranks.}
+ranks. Values cannot contain \verb{;}, \code{|}, or line breaks.}
 
 \item{uppercase}{Whether to uppercase the serialized tag.}
 }
@@ -25,5 +25,16 @@ ranks.}
 One Evo 2 phylogenetic prompt tag.
 }
 \description{
-Construct an Evo 2 phylogenetic prompt tag
+Evo 2 represents taxonomy context as a pipe-enclosed, semicolon-delimited tag
+with the short rank keys \code{d}, \code{p}, \code{c}, \code{o}, \code{f}, \code{g}, and \code{s}. Missing ranks
+are serialized as \code{None}. With \code{uppercase = TRUE}, the complete serialized
+tag, including missing-rank markers, is converted to uppercase.
+}
+\examples{
+evo2_phylo_tag(
+  domain = "Bacteria",
+  phylum = "Proteobacteria",
+  genus = "Escherichia"
+)
+
 }

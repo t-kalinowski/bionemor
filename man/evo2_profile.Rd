@@ -26,9 +26,10 @@ evo2_profile(
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{metric}{Positional metric.}
+\item{metric}{Positional metric. The current recipe supports
+\code{"log_probability"}.}
 
-\item{strand}{Strand rule.}
+\item{strand}{Score the supplied sequence, its reverse complement, or both.}
 
 \item{batch_size}{Prediction micro-batch size. The inference control's
 \code{micro_batch_size} must remain one.}
@@ -36,9 +37,10 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 \item{normalize}{Sequence normalization mode. With \code{normalize = "none"},
 reverse-strand operations require uppercase IUPAC DNA.}
 
-\item{control}{Evo 2 inference controls.}
+\item{control}{Controls from \code{\link[=evo2_inference_control]{evo2_inference_control()}}.}
 
-\item{output}{Required Parquet output path.}
+\item{output}{Required Parquet output path inside the compute workspace for
+container execution.}
 
 \item{name}{Optional run name.}
 
@@ -51,5 +53,24 @@ columns \code{id} (string), \code{position} (int64), \code{base} (string),
 \code{BioNeMoJob}.
 }
 \description{
-Write positional Evo 2 log-probability profiles
+Profiles retain one log probability per scored nucleotide. Positions are
+one-based coordinates in the supplied sequence. Reverse-strand positions
+are mapped back to those coordinates; \code{strand = "both"} averages forward
+and reverse values at each aligned position. Context parallelism must be
+one.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_install(compute)
+model <- evo2_model("7b", compute)
+
+profile <- evo2_profile(
+  model,
+  c(reference = "ACGTACGT"),
+  strand = "both",
+  output = "outputs/reference-profile.parquet"
+)
+profile@path
+}
 }

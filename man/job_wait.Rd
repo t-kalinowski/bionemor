@@ -2,21 +2,61 @@
 % Please edit documentation in R/07-jobs.R
 \name{job_wait}
 \alias{job_wait}
-\title{Wait for a BioNeMo job}
+\title{Wait for a BioNeMo job and return its result}
 \usage{
 job_wait(x, poll = 2, timeout = Inf)
 }
 \arguments{
-\item{x}{A BioNeMo job.}
+\item{x}{A \code{BioNeMoJob} returned by an asynchronous operation or
+\code{\link[=bionemo_job]{bionemo_job()}}.}
 
-\item{poll}{Polling interval in seconds.}
+\item{poll}{Positive polling interval in seconds.}
 
-\item{timeout}{Maximum time spent waiting. A wait timeout does not cancel
-the job.}
+\item{timeout}{Positive maximum number of seconds to spend waiting, or \code{Inf}
+to wait without a limit. A wait timeout does not cancel the job.}
 }
 \value{
 The operation's typed result.
 }
 \description{
-Wait for a BioNeMo job
+\code{job_wait()} refreshes job state every \code{poll} seconds until the run succeeds,
+reaches a non-success state, or the wait reaches \code{timeout}. A successful run
+is materialized as the same typed R object returned by the corresponding
+operation with \code{async = FALSE}. Failed, cancelled, and unknown states produce
+typed bionemor errors with the run path and available log context.
 }
+\details{
+\code{timeout} limits only this call to \code{job_wait()}. It is measured from the time
+the call starts, does not change the operation's own execution timeout, and
+does not cancel the job. After a wait timeout, use \code{\link[=job_status]{job_status()}} or
+\code{\link[=job_logs]{job_logs()}} to inspect the still-running job, call \code{job_wait()} again, or
+cancel it explicitly with \code{\link[=job_cancel]{job_cancel()}}.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "/shared/workspace")
+model <- evo2(
+  "7b",
+  checkpoint = "/shared/workspace/checkpoints/evo2-7b"
+)
+job <- evo2_generate(
+  model,
+  c(example = "ACGT"),
+  compute,
+  num_tokens = 32L,
+  async = TRUE
+)
+
+generated <- job_wait(job, poll = 2, timeout = 600)
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=bionemo_job]{bionemo_job()}},
+\code{\link[=job_cancel]{job_cancel()}},
+\code{\link[=job_logs]{job_logs()}},
+\code{\link[=job_path]{job_path()}},
+\code{\link[=job_result]{job_result()}},
+\code{\link[=job_status]{job_status()}}
+}
+\concept{BioNeMo job lifecycle}

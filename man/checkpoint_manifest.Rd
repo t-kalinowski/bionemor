@@ -10,8 +10,12 @@ checkpoint_manifest(x)
 \item{x}{A checkpoint, model, or one checkpoint path.}
 }
 \value{
-A named list.
+A named list containing checkpoint identity, provenance, format,
+recipe revision, source revision, and inspection metadata.
 }
 \description{
 Read checkpoint provenance
+}
+\seealso{
+\code{\link[=checkpoint_path]{checkpoint_path()}}, \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}
 }

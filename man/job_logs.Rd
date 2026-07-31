@@ -7,15 +7,42 @@
 job_logs(x, tail = NULL, stream = c("both", "stdout", "stderr"))
 }
 \arguments{
-\item{x}{A BioNeMo job.}
+\item{x}{A \code{BioNeMoJob} returned by an asynchronous operation or
+\code{\link[=bionemo_job]{bionemo_job()}}.}
 
-\item{tail}{Optional number of final lines.}
+\item{tail}{\code{NULL} to return every available line, or a positive integer
+giving the number of final lines to return.}
 
-\item{stream}{Log stream to read.}
+\item{stream}{Which persisted log stream to read: \code{"stdout"}, \code{"stderr"}, or
+\code{"both"}.}
 }
 \value{
-A character vector.
+A character vector with one log line per element. The result is empty
+when no selected log file has content.
 }
 \description{
-Read BioNeMo job logs
+\code{job_logs()} reads a snapshot of the persisted log files, so it can be called
+while a job is running and again after completion. With \code{stream = "both"},
+stdout is returned first and stderr second; the two files are not merged in
+chronological order. \code{tail} is applied after the selected streams are
+combined. Credential-like values are redacted before lines are returned.
 }
+\examples{
+\dontrun{
+job <- bionemo_job(
+  "/shared/workspace/.bionemor/runs/my-generation"
+)
+job_logs(job, tail = 20L)
+job_logs(job, tail = 20L, stream = "stderr")
+}
+}
+\seealso{
+Other BioNeMo job lifecycle:
+\code{\link[=bionemo_job]{bionemo_job()}},
+\code{\link[=job_cancel]{job_cancel()}},
+\code{\link[=job_path]{job_path()}},
+\code{\link[=job_result]{job_result()}},
+\code{\link[=job_status]{job_status()}},
+\code{\link[=job_wait]{job_wait()}}
+}
+\concept{BioNeMo job lifecycle}

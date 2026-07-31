@@ -15,24 +15,51 @@ evo2_prepare(
 )
 }
 \arguments{
-\item{data}{An \code{Evo2Dataset} or accepted sequence input.}
+\item{data}{An \code{\link[=evo2_dataset]{evo2_dataset()}} result or any input accepted by its \code{train}
+argument.}
 
 \item{model}{An Evo 2 model descriptor.}
 
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{path}{Destination inside the compute workspace.}
+\item{path}{Destination path. Relative paths resolve below the compute
+workspace. Container execution requires the destination to remain inside
+that workspace.}
 
-\item{control}{Preprocessing controls.}
+\item{control}{Preprocessing controls from \code{\link[=evo2_preprocess_control]{evo2_preprocess_control()}}.}
 
 \item{overwrite}{Whether to replace an existing destination.}
 
 \item{async}{Whether to return a durable job.}
 }
 \value{
-An \code{Evo2Dataset} or \code{BioNeMoJob}.
+With \code{async = FALSE}, a prepared \code{Evo2Dataset}. With
+\code{async = TRUE}, a \code{BioNeMoJob}; \code{\link[=job_wait]{job_wait()}} materializes the dataset.
 }
 \description{
-Prepare indexed data for Evo 2 fine-tuning
+\code{evo2_prepare()} writes each dataset partition as FASTA, calls the pinned
+\code{preprocess_evo2} entry point, and returns an \code{Evo2Dataset} that points to
+the resulting indexed files. Its manifest records input digests, model size,
+tokenizer and recipe revisions, preprocessing controls, and output digests.
+\code{\link[=evo2_finetune]{evo2_finetune()}} checks those fields before training.
+}
+\examples{
+\dontrun{
+compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_install(compute)
+model <- evo2_model("1b", compute)
+data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
+
+prepared <- evo2_prepare(
+  data,
+  model,
+  path = "datasets/example",
+  control = evo2_preprocess_control(sample_length = 1024L)
+)
+}
+
+}
+\references{
+\href{https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#data-preprocessing-preprocess_evo2}{BioNeMo Recipes Evo 2 preprocessing}
 }
