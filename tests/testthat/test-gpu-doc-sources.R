@@ -31,6 +31,21 @@ test_that("GPU documentation has an explicit manual render workflow", {
     function(lines) any(grepl("error = FALSE", lines, fixed = TRUE)),
     logical(1)
   )))
+  gpu_source_text <- vapply(
+    source_text[1:3],
+    paste,
+    collapse = "\n",
+    FUN.VALUE = character(1)
+  )
+  expect_true(all(grepl(
+    "stopifnot(doctor@ok)",
+    gpu_source_text,
+    fixed = TRUE
+  )))
+
+  readme_source <- gpu_source_text[[1L]]
+  expect_match(readme_source, "without leaving R", fixed = TRUE)
+  expect_match(readme_source, "Slurm support is experimental", fixed = TRUE)
 
   workflow <- paste(
     readLines(
@@ -48,6 +63,17 @@ test_that("GPU documentation has an explicit manual render workflow", {
   expect_match(
     paste(source_text[[3L]], collapse = "\n"),
     'paste0(run_id, "-tiny-evo2-128")',
+    fixed = TRUE
+  )
+  slurm_source <- paste(source_text[[4L]], collapse = "\n")
+  expect_match(
+    slurm_source,
+    'checkpoint = "/shared/models/evo2-7b-mbridge",\n  compute = compute',
+    fixed = TRUE
+  )
+  expect_match(
+    slurm_source,
+    "candidate_sequences,\n  async = TRUE",
     fixed = TRUE
   )
 })

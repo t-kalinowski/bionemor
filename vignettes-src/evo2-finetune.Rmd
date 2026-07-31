@@ -60,12 +60,14 @@ model <- evo2(
   compute = compute
 )
 
-bionemo_doctor(
+doctor <- bionemo_doctor(
   compute,
   model = model,
   target = "training",
   verbose = FALSE
 )
+stopifnot(doctor@ok)
+doctor
 ```
 
 The capture reuses a prepared custom checkpoint. In a new workspace, use

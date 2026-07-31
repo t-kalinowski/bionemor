@@ -58,7 +58,9 @@ compute <- bionemo_compute(
 
 bionemo_install_plan(compute)
 compute <- bionemo_install(compute)
-bionemo_doctor(compute, target = "inference", verbose = FALSE)
+doctor <- bionemo_doctor(compute, target = "inference", verbose = FALSE)
+stopifnot(doctor@ok)
+doctor
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed outside

@@ -43,6 +43,10 @@ then replaces `README.md` and three static package vignettes. The generated
 vignettes contain ordinary fenced R code and output, not executable knitr
 chunks, so package installation and vignette rendering do not require a GPU.
 
+If an existing image fails its helper-label check after the package helper
+changes, rebuild it once with `bionemo_install(compute, rebuild = TRUE)` before
+rendering again.
+
 The README and `bionemor` article run dense generation, scoring, and pooled
 embeddings. The fine-tuning article prepares fixed 127-base synthetic inputs,
 runs two BF16 rank-4 LoRA optimizer steps, and checks fitted scoring and

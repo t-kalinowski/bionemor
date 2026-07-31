@@ -21,8 +21,8 @@ stopifnot(
 # bionemor
 
 `bionemor` prepares Evo 2 models, runs batch inference, and fine-tunes with
-NVIDIA BioNeMo Recipes from R. Inputs and results are R vectors, data frames,
-matrices, and durable job objects.
+NVIDIA BioNeMo Recipes without leaving R. Inputs and results are R vectors,
+data frames, matrices, and durable job objects.
 
 The main workflow is:
 
@@ -73,7 +73,9 @@ plan <- bionemo_install_plan(compute)
 plan
 
 compute <- bionemo_install(compute)
-bionemo_doctor(compute, target = "all", verbose = FALSE)
+doctor <- bionemo_doctor(compute, target = "all", verbose = FALSE)
+stopifnot(doctor@ok)
+doctor
 ```
 
 `bionemo_install()` performs GPU-backed capability and command probes. A
@@ -273,7 +275,7 @@ The package includes three articles:
 
 The first two contain output captured in the target GPU environment. The Slurm
 article remains a reference because scheduler behavior must be validated on the
-target cluster.
+target cluster. Slurm support is experimental.
 
 Every operation stores its request, command plan, state, logs, outputs, and
 provenance under the compute workspace. Reopen a run after the launching R
