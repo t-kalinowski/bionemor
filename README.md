@@ -1,25 +1,27 @@
 # bionemor
 
-`bionemor` prepares MBridge checkpoints, fine-tunes Evo 2 models, and runs
-batch inference with NVIDIA BioNeMo Recipes from R. R writes portable inputs
-and manifests, then invokes the pinned recipe in an external process. It does
-not initialize Python inside R or return Python objects.
+`bionemor` lets you prepare Evo 2 models, run batch inference, and fine-tune
+with NVIDIA BioNeMo Recipes without leaving R. You work with R vectors, data
+frames, matrices, and durable job objects. You do not need to write Python,
+handle Python objects, or move the rest of your workflow to Python.
 
-NIM is not used. The package wraps the open-source Evo 2 Megatron recipe. NIM
-only informed a few generation defaults and output checks.
+The package supports a direct path from setup to useful work:
 
-## Install the recipe runtime
+1. Configure and verify a pinned recipe runtime once.
+2. Prepare or reuse the recommended checkpoint with `evo2_model()`.
+3. Generate, score, embed, or fine-tune DNA sequences from R.
 
-The package locks BioNeMo Recipes to an exact source revision. The default
-container is built from the verified upstream Evo 2 Dockerfile. Its `FROM`
-image is bound to the locked digest before the package helper and provenance
-labels are appended. The package also activates the Dockerfile's documented
-`uv` fallback with a digest-pinned image because the locked NGC base does not
-contain `uv`. The NGC PyTorch base image alone does not contain the recipe
-commands.
+## Install bionemor
 
-The local container path requires Git, `tar`, and an NVIDIA GPU exposed through
-Docker.
+```r
+pak::pak("t-kalinowski/bionemor")
+```
+
+## Set up the recipe runtime once
+
+The default local setup builds the verified Evo 2 recipe container. It requires
+Git, `tar`, Docker, and an NVIDIA GPU exposed through Docker.
+
 Authenticate Docker to `nvcr.io` with an NGC API key before installing:
 
 ```bash
@@ -27,9 +29,7 @@ echo "$NGC_API_KEY" | docker login nvcr.io \
   --username '$oauthtoken' --password-stdin
 ```
 
-`bionemo_install()` pulls the locked NGC PyTorch base image, builds the recipe
-image, and runs GPU-backed capability and command probes. It is not a CPU-only
-setup step.
+Then inspect the exact setup steps, install the runtime, and verify it:
 
 ```r
 library(bionemor)
@@ -41,53 +41,64 @@ compute <- bionemo_compute(
 )
 
 plan <- bionemo_install_plan(compute)
+plan
+as.data.frame(plan)
+
 compute <- bionemo_install(compute)
 bionemo_doctor(compute, target = "all")
 ```
 
-`bionemo_install_plan()` shows the pinned source, build, and verification steps
-without running them. A site-managed recipe environment can instead use
-`engine = "external"`. Slurm container jobs require an existing Apptainer image
-visible on the shared filesystem.
+`bionemo_install()` performs GPU-backed capability and command probes, so this
+is not a CPU-only setup step. A site-managed recipe environment can use
+`engine = "external"`.
 
-Automatic image builds are limited to the verified package recipe. A custom
-repository, revision, or base image requires `engine = "external"` or an
-explicit prebuilt `image`; `bionemo_install()` verifies that image's recipe and
-helper labels before use.
+## Prepare a model
 
-## Prepare an Evo 2 checkpoint
-
-MBridge is the runtime checkpoint format. The recommended open-source path
-converts an Arc Savanna checkpoint from Hugging Face:
+List the package's pinned model registry with `evo2_models()`. The plural
+function reports available sizes and compatibility metadata; it does not
+prepare weights.
 
 ```r
-base <- evo2("7b")
-
-checkpoint <- evo2_checkpoint(
-  base,
-  source = "recommended",
-  path = "checkpoints/evo2-7b-mbridge",
-  compute = compute
-)
-
-model <- evo2("7b", checkpoint = checkpoint)
+evo2_models()
 ```
 
-Checkpoint preparation is explicit. Constructing `evo2()` does not download or
-load weights. Registration requires the current MBridge distributed-checkpoint
-metadata and at least one non-empty weight shard. Recommended tokenizers resolve
-to an absolute path in the selected container or external recipe runtime.
-
-## Generate and score sequences
-
-Generation batches all prompts into one recipe invocation and returns a data
-frame. The run directory preserves the request JSONL, raw recipe response,
-generated FASTA, validation summary, command plan, logs, and provenance.
+`evo2_model()` is the shortest path to a ready model. It prepares the
+registry-recommended dense checkpoint on the first call and reuses it on later
+calls when its manifest matches the model and pinned runtime:
 
 ```r
+model <- evo2_model("7b", compute)
+```
+
+Checkpoint preparation is synchronous and may take substantial time and
+storage. Pass `path` to choose the checkpoint destination:
+
+```r
+model <- evo2_model(
+  "7b",
+  compute,
+  path = "checkpoints/evo2-7b-mbridge"
+)
+```
+
+The names are deliberately distinct: `evo2_models()` lists the registry,
+`evo2()` creates an offline descriptor, and `evo2_model()` prepares a ready
+model. For custom sources, explicit conversion controls, or asynchronous
+preparation, use `evo2()` with `evo2_checkpoint()`.
+
+## Run inference
+
+Generation, scoring, and pooled embeddings return ordinary R objects:
+
+```r
+sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+)
+
 generated <- evo2_generate(
   model,
-  c(first = "ACGTACGTACGT", second = "GCTAGCTAGCTA"),
+  sequences,
   compute = compute,
   num_tokens = 64L,
   seed = 1L
@@ -95,18 +106,31 @@ generated <- evo2_generate(
 
 scores <- evo2_score(
   model,
-  c(reference = "ACGTACGTACGT", variant = "ACGTACGTTCGT"),
+  sequences,
   compute = compute,
   reduction = "mean",
   strand = "both"
 )
+
+embeddings <- evo2_embed(
+  model,
+  sequences,
+  compute = compute,
+  pool = "mean",
+  strand = "both"
+)
 ```
 
-`predict()` remains a compatibility wrapper for generation, scoring, and
-pooled embeddings. Raw PyTorch prediction tensors are not a public result
-format.
+Generation returns one data-frame row per prompt, including the prompt,
+completion, token counts, optional per-token probabilities, and mechanical
+sequence checks. Scores include the reduced log probability for each requested
+strand and their average when `strand = "both"`. Pooled embeddings are a
+numeric matrix whose row names preserve the input IDs.
 
 ## Fine-tune with LoRA
+
+Fine-tuning accepts named character vectors, FASTA files, or an
+`Evo2Dataset`. Raw inputs are prepared automatically:
 
 ```r
 data <- evo2_dataset(
@@ -129,7 +153,7 @@ run <- evo2_finetune(
     sequence_length = 8192L,
     global_batch_size = 8L,
     micro_batch_size = 1L,
-    precision = "auto"
+    precision = "bf16"
   ),
   path = "runs/splice-lora",
   async = TRUE
@@ -140,30 +164,52 @@ job_logs(run, tail = 50L)
 fitted <- job_wait(run)
 ```
 
-Complete worked examples:
+The fitted result is another `Evo2Model`, so the same inference functions work
+without changing interfaces:
+
+```r
+fitted_scores <- evo2_score(fitted, sequences, compute)
+```
+
+Two complete examples cover the details:
 
 - [Fine-tune Evo 2 and retain the checkpoint](vignettes/evo2-finetune.Rmd)
-- [Load an Evo 2 checkpoint for inference](vignettes/evo2-inference.Rmd)
+- [Run Evo 2 inference from R](vignettes/evo2-inference.Rmd)
 
-The documented original 1B fine-tuning path uses BF16 even though inference
-from that source requires Vortex-style FP8. `train_evo2` does not expose a
-Vortex-style training mode, so 20B, 40B, and MBridge checkpoints configured for
-that mode fail before launch. FP8 delayed scaling is also unavailable in the
-pinned recipe. Full fine-tuning cannot start from a LoRA checkpoint.
+## Runtime and checkpoint details
 
-Jobs persist their request, plan, state, logs, and outputs under the compute
-workspace. `bionemo_job(job_path(run))` reopens a run after the launching R
-session exits. Terminal manifests include parallel origin maps that distinguish
-values supplied by the user, package defaults, adapter defaults, and values
-resolved from the model, checkpoint, data, or compute environment. Checkpoint
-trust decisions and original inference-input source metadata remain attached to
-downstream runs.
+BioNeMo Recipes runs in an external process. R writes portable JSONL, FASTA,
+YAML, Parquet, and manifest files, launches the pinned recipe, and converts its
+outputs back to R objects. Python remains an implementation detail of that
+runtime; using `bionemor` does not require a Python-facing workflow.
 
-Operational failures inherit from `bionemor_error` and from a stable
-code-specific class such as `BN_CHECKPOINT_INCOMPLETE`, `BN_NO_GPU`, or
-`BN_TIMEOUT`. The condition's `code` field contains the same value. When
-available, conditions also retain the run path, operation, model, checkpoint,
-recipe revision, log paths, and upstream exit status.
+MBridge is the runtime checkpoint format. The recommended open-source path
+converts the registered Arc Savanna source from Hugging Face. The default
+checkpoint path includes the canonical model name, source revision, and recipe
+revision so an updated package does not silently reuse incompatible weights.
+
+NIM is not used. The package wraps the open-source Evo 2 Megatron recipe; NIM
+only informed a few generation defaults and output checks.
+
+Automatic image builds are limited to the verified package recipe. A custom
+repository, revision, or base image requires `engine = "external"` or an
+explicit prebuilt `image`. Slurm support is experimental and requires an
+existing Apptainer image visible on the shared filesystem.
+
+## Durable runs and explicit failures
+
+Every operation keeps its request, command plan, state, logs, outputs, and
+provenance under the compute workspace. Reopen a run after the launching R
+session exits:
+
+```r
+same_run <- bionemo_job(job_path(run))
+job_status(same_run)
+result <- job_wait(same_run)
+```
+
+Operational failures inherit from `bionemor_error` and a stable code-specific
+class such as `BN_CHECKPOINT_INCOMPLETE`, `BN_NO_GPU`, or `BN_TIMEOUT`.
 
 Generated sequence is model output, not a validated biological design. The
 package reports mechanical sequence checks; downstream biological validation

@@ -16,5 +16,7 @@ count and per-GPU compute capability in its cached capability report.}
 A data frame with one row per canonical model.
 }
 \description{
-List the package's pinned Evo 2 model registry
+\code{evo2_models()} reports available model sizes and compatibility metadata; it
+does not construct or prepare a model. Use \code{\link[=evo2]{evo2()}} for an offline
+descriptor or \code{\link[=evo2_model]{evo2_model()}} for a ready model.
 }

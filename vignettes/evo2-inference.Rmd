@@ -1,8 +1,8 @@
 ---
-title: "Load an Evo 2 checkpoint for inference"
+title: "Run Evo 2 inference from R"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Load an Evo 2 checkpoint for inference}
+  %\VignetteIndexEntry{Run Evo 2 inference from R}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -11,10 +11,9 @@ vignette: |
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-This example starts from a fresh R session, registers the LoRA checkpoint
-created in [Fine-tune Evo 2 and retain the checkpoint](evo2-finetune.html),
-and runs scoring and generation. The same `evo2()` call registers a dense
-MBridge checkpoint.
+This example starts from a fresh R session, prepares or reuses the recommended
+dense checkpoint, and runs scoring, generation, and embeddings without leaving
+R.
 
 ## Recreate the compute description
 
@@ -35,28 +34,10 @@ compute <- bionemo_compute(
 compute <- bionemo_install(compute, pull = FALSE)
 ```
 
-## Register the checkpoint
+## Prepare or reuse the model
 
 ```{r checkpoint}
-fitted_checkpoint <- readLines(
-  file.path(workspace, "fitted-checkpoint.txt"),
-  n = 1L,
-  warn = FALSE
-)
-
-stopifnot(
-  length(fitted_checkpoint) == 1L,
-  dir.exists(fitted_checkpoint)
-)
-
-manifest <- checkpoint_manifest(fitted_checkpoint)
-stopifnot(
-  identical(manifest$format, "mbridge"),
-  identical(manifest$kind, "lora"),
-  dir.exists(manifest$base_checkpoint_path)
-)
-
-model <- evo2("7b", checkpoint = fitted_checkpoint)
+model <- evo2_model("7b", compute)
 
 checks <- as.data.frame(
   bionemo_doctor(
@@ -70,10 +51,10 @@ stopifnot(!any(checks$status == "fail"))
 checks
 ```
 
-Pass the checkpoint root containing `bionemor-checkpoint.json`, not one of its
-`iter_*` directories. A LoRA adapter is not standalone: its manifest refers
-to the exact dense base iteration used during fitting. Moving only the adapter
-is rejected before inference starts.
+The first call prepares the registry-recommended dense MBridge checkpoint. A
+later call reuses it only when the manifest matches the selected model and
+pinned recipe runtime. To attach a custom or fitted checkpoint instead, pass
+its root to `evo2("7b", checkpoint = "/path/to/checkpoint")`.
 
 ## Score sequences
 
@@ -94,10 +75,16 @@ scores <- evo2_score(
 stopifnot(
   nrow(scores) == length(sequences),
   identical(scores$id, names(sequences)),
-  all(is.finite(scores$score))
+  all(is.finite(scores$score)),
+  all(is.finite(scores$forward_score)),
+  all(is.na(scores$reverse_score))
 )
 scores
 ```
+
+`score`, `forward_score`, and `reverse_score` are reduced log probabilities.
+With both strands, `score` is the arithmetic mean of the forward and reverse
+values.
 
 ## Generate continuations
 
@@ -119,7 +106,33 @@ generated[c("input_id", "prompt", "completion", "finish_reason")]
 ```
 
 Generation currently supports one sample per prompt. Use a positive seed and
-set at most one of `top_k` and `top_p` to a positive value.
+set at most one of `top_k` and `top_p` to a positive value. The result also
+contains token counts, optional `log_probabilities` and `probabilities` list
+columns, mechanical sequence summaries, and a `validation_warnings` list
+column.
+
+## Extract embeddings
+
+```{r embed}
+embeddings <- evo2_embed(
+  model,
+  sequences,
+  compute = compute,
+  pool = "mean",
+  strand = "both"
+)
+
+stopifnot(
+  identical(rownames(embeddings), names(sequences)),
+  all(startsWith(colnames(embeddings), "dim_")),
+  all(is.finite(embeddings))
+)
+```
+
+Pooling is applied within each strand. With `strand = "both"`, the forward and
+reverse pooled vectors are averaged. With `pool = "none"`, `evo2_embed()`
+writes a Parquet artifact with `id`, `position`, `embedding`, and `strand`
+columns.
 
 ## Reopen an asynchronous inference run
 
@@ -132,7 +145,7 @@ run <- evo2_generate(
   compute = compute,
   num_tokens = 8L,
   seed = 1L,
-  name = "fitted-generation",
+  name = "batch-generation",
   async = TRUE
 )
 

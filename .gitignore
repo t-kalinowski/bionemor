@@ -1,6 +1,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.pytest_cache/
 .ruff_cache/
 *.tar.gz
 *.Rcheck/

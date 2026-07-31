@@ -1,8 +1,8 @@
 ---
-title: "Test the Evo 2 recipe on Brev"
+title: "Validate the Evo 2 workflow on Brev"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Test the Evo 2 recipe on Brev}
+  %\VignetteIndexEntry{Validate the Evo 2 workflow on Brev}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -11,15 +11,19 @@ vignette: |
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-This guide provisions one Brev L40S instance, builds the locked BioNeMo
-Recipes Evo 2 image, and runs R on the host against that container. NIM is not
-used.
+This guide provisions one Brev L40S instance, builds the package-locked
+BioNeMo Recipes Evo 2 image, and runs R on the host against that container.
+The workflow is opt-in because it starts billable compute.
 
-The locked 7B workflow was exercised on one Brev L40S on July 30, 2026. The
-acceptance run converted and registered an MBridge checkpoint, scored a probe,
-completed two LoRA optimizer steps, and ran scoring and generation through the
-fitted checkpoint. The provisioning commands below remain opt-in because they
-start billable compute.
+Two checks remain separate:
+
+1. A quick smoke test verifies dense generation, scoring, and pooled
+   embeddings.
+2. The full acceptance capture adds fixed synthetic preprocessing, two BF16
+   rank-4 LoRA optimizer steps, and fitted scoring and generation.
+
+The scripts upload an existing MBridge checkpoint. They do not test or claim
+checkpoint conversion.
 
 ## Inspect before provisioning
 
@@ -37,10 +41,10 @@ Inspect the current Brev catalog and price, then request the exact instance:
 
 There is no GPU-type fallback.
 
-## Build and run
+## Run the quick smoke test
 
-The smoke test requires an existing 7B MBridge checkpoint. Place it under the
-remote workspace before running the build:
+The build script requires an existing 7B MBridge checkpoint under the remote
+workspace:
 
 ```{bash, eval = FALSE}
 brev copy ./ bionemor-evo2:/home/ubuntu/bionemor/
@@ -53,23 +57,45 @@ brev exec bionemor-evo2 \
 ```
 
 The script checks out the locked upstream source, verifies the official Evo 2
-Dockerfile, binds its base image to the release-lock digest, and appends the
-package helper. It installs the R package on the host, verifies the checkpoint,
-and runs generation, scoring, and pooled embedding extraction.
+Dockerfile, binds its base image to the release-lock digest, appends the
+package helper, and builds the image. It then installs the R package, verifies
+the uploaded checkpoint, and runs the quick inference smoke.
 
-Stop the instance after an individual run:
+Stop an instance after a manual run:
 
 ```{bash, eval = FALSE}
 brev stop bionemor-evo2
 ```
 
-The explicit runner provisions, copies, runs, and stops the instance from an
-`EXIT` trap:
+## Capture the full public-API workflow
+
+The explicit runner provisions the instance, uploads the checkpoint and
+package source, runs both checks, copies the completed evidence locally, and
+stops the instance from an `EXIT` trap:
 
 ```{bash, eval = FALSE}
 BIONEMOR_EVO2_CHECKPOINT_SOURCE=/path/to/evo2-7b \
   ./inst/scripts/brev-evo2-run.sh --run bionemor-evo2
 ```
 
-The runner uploads that checkpoint to the remote workspace. `--run` is
-required because the command provisions billable compute.
+The acceptance script uses fixed 127-base synthetic inputs. Preprocessing
+appends the end-of-document token to produce 128-token samples. It checks dense
+score, generation, and embeddings; runs two LoRA steps; then checks fitted
+score and generation. Seeded generation is checked for shape and token count,
+not exact generated bases.
+
+Evidence is published only after every operation and assertion succeeds. The
+runner copies a bounded record to `validation/brev-evo2/<date>/` before
+stopping the instance:
+
+- full-precision summary JSON;
+- compact dense and fitted outputs;
+- redacted terminal manifests;
+- retained LoRA inspection metadata.
+
+It does not copy checkpoints, weight shards, tensors, container images, logs,
+or complete workspaces. A capture records one mechanical synthetic workflow;
+it is not a benchmark or a biological-quality evaluation. No dated capture is
+checked in until this opt-in workflow completes successfully.
+
+NIM is not used by either check.

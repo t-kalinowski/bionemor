@@ -48,13 +48,22 @@ reverse-strand operations require uppercase IUPAC DNA.}
 \item{async}{Whether to return before completion.}
 }
 \value{
-An \code{evo2_embeddings} matrix, \code{BioNeMoArtifact}, or \code{BioNeMoJob}.
+With \code{async = FALSE}, an \code{evo2_embeddings} numeric matrix for
+pooled output or a \code{BioNeMoArtifact} for unpooled output. With
+\code{async = TRUE}, a \code{BioNeMoJob}.
 }
 \description{
 Extract Evo 2 sequence embeddings
 }
 \details{
-Embeddings currently require \code{context_parallel_size = 1}. Unpooled
-embeddings use a Parquet artifact with columns \code{id} (string), \code{position}
-(int64), \code{embedding} (list of doubles), and \code{strand} (string).
+Embeddings currently require \code{context_parallel_size = 1}. With a
+pooling rule, token embeddings are pooled independently for each strand.
+With \code{strand = "both"}, the forward and reverse pooled vectors are then
+averaged. The returned matrix preserves input IDs as row names and names
+its columns \code{dim_1}, \code{dim_2}, and so on.
+
+With \code{pool = "none"}, the result is a Parquet artifact with columns \code{id}
+(string), \code{position} (int64), \code{embedding} (list of doubles), and \code{strand}
+(string). Unpooled output requires \code{output} and does not support
+\code{strand = "both"}.
 }

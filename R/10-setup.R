@@ -228,7 +228,10 @@ runtime_install_steps <- function(compute, target = "all") {
 #'
 #' @param compute A BioNeMo compute descriptor.
 #'
-#' @return A `BioNeMoSetupPlan` containing structured commands.
+#' @return A `BioNeMoSetupPlan` containing structured commands. Printing the
+#'   plan lists its ordered step IDs and purposes. `as.data.frame()` returns
+#'   `step`, `id`, `purpose`, credential-redacted shell command, working
+#'   directory, and structured `expected` columns.
 #' @export
 bionemo_install_plan <- function(compute) {
   if (!S7_inherits(compute, BioNeMoCompute)) {
@@ -1807,7 +1810,66 @@ method(print, BioNeMoSetupPlan) <- function(x, ...) {
   cat("Target: ", x@target, "\n", sep = "")
   cat("Steps:  ", length(x@steps), "\n", sep = "")
   cat("Status: ", if (x@executed) "executed" else "planned", "\n", sep = "")
+  steps <- as.data.frame(x)
+  cat(
+    sprintf(
+      "%d. %s: %s\n",
+      steps$step,
+      steps$id,
+      steps$purpose
+    ),
+    sep = ""
+  )
   invisible(x)
+}
+
+method(as.data.frame, BioNeMoSetupPlan) <- function(
+  x,
+  row.names = NULL,
+  optional = FALSE,
+  ...
+) {
+  commands <- lapply(x@steps, `[[`, "command")
+  redactions <- unique(unlist(lapply(
+    commands,
+    function(command) {
+      c(
+        command$redactions,
+        unname(command$env[
+          names(command$env) %in% credential_environment_variables
+        ])
+      )
+    }
+  )))
+  redact <- function(value) {
+    redact_persisted_value(value, redactions)
+  }
+  cwd <- vapply(
+    commands,
+    function(command) command$cwd %||% NA_character_,
+    character(1)
+  )
+  result <- data.frame(
+    step = seq_along(x@steps),
+    id = vapply(x@steps, `[[`, character(1), "id"),
+    purpose = vapply(x@steps, `[[`, character(1), "purpose"),
+    command = vapply(
+      commands,
+      function(command) redact(render_shell_command(command)),
+      character(1)
+    ),
+    cwd = redact(cwd),
+    stringsAsFactors = FALSE
+  )
+  result$expected <- I(lapply(x@steps, function(step) {
+    redact(step$expected)
+  }))
+  base::as.data.frame(
+    result,
+    row.names = row.names,
+    optional = optional,
+    ...
+  )
 }
 
 method(print, BioNeMoDoctor) <- function(x, ...) {

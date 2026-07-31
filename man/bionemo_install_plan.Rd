@@ -10,7 +10,10 @@ bionemo_install_plan(compute)
 \item{compute}{A BioNeMo compute descriptor.}
 }
 \value{
-A \code{BioNeMoSetupPlan} containing structured commands.
+A \code{BioNeMoSetupPlan} containing structured commands. Printing the
+plan lists its ordered step IDs and purposes. \code{as.data.frame()} returns
+\code{step}, \code{id}, \code{purpose}, credential-redacted shell command, working
+directory, and structured \code{expected} columns.
 }
 \description{
 Plan installation of the pinned BioNeMo Evo 2 recipe

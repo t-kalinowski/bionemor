@@ -17,8 +17,9 @@ check. It exercises the training and checkpoint-loading path; two steps on
 repeated toy sequences do not produce a useful biological model.
 
 The example requires an NVIDIA GPU, the locked BioNeMo Recipes runtime, and
-enough storage for the Evo 2 7B dense checkpoint. The exact two-step
-configuration was exercised on one NVIDIA L40S.
+enough storage for the Evo 2 7B dense checkpoint. The opt-in Brev acceptance
+workflow requests one NVIDIA L40S and records the exact runtime and hardware
+only after the complete workflow succeeds.
 
 ## Configure the runtime and dense checkpoint
 
@@ -34,14 +35,11 @@ compute <- bionemo_compute(
 )
 compute <- bionemo_install(compute)
 
-base_checkpoint <- evo2_checkpoint(
-  evo2("7b"),
-  source = "recommended",
-  format = "savanna",
-  path = "checkpoints/evo2-7b-mbridge",
-  compute = compute
+model <- evo2_model(
+  "7b",
+  compute,
+  path = "checkpoints/evo2-7b-mbridge"
 )
-model <- evo2("7b", checkpoint = base_checkpoint)
 
 training_checks <- as.data.frame(
   bionemo_doctor(
@@ -55,9 +53,9 @@ stopifnot(!any(training_checks$status == "fail"))
 training_checks
 ```
 
-`evo2_checkpoint()` reuses a complete destination when its manifest matches
-the requested source and locked recipe. Constructing `evo2()` alone never
-downloads or loads weights.
+`evo2_model()` reuses a complete destination when its manifest matches the
+recommended source and locked recipe. Use `evo2()` and `evo2_checkpoint()` for
+custom checkpoint sources or asynchronous preparation.
 
 ## Prepare a tiny dataset
 
@@ -230,5 +228,5 @@ The smoke check verifies that the fitted checkpoint loads and returns
 well-formed results. It deliberately does not require two training steps to
 improve a score or generate exact bases.
 
-See [Load an Evo 2 checkpoint for inference](evo2-inference.html) for the
-fresh-session workflow.
+See [Run Evo 2 inference from R](evo2-inference.html) for the recommended
+dense-model workflow.

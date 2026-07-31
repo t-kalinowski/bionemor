@@ -7,6 +7,7 @@ test_that("installed metadata and exports describe the Recipes runtime", {
   expect_true(all(
     c(
       "bionemo_install",
+      "evo2_model",
       "evo2_generate",
       "evo2_score",
       "evo2_finetune"
@@ -63,6 +64,15 @@ test_that("public documentation states the current runtime and API contracts", {
 
   readme <- read_text("README.md")
   expect_false(grepl("tested source revision", readme, fixed = TRUE))
+  expect_match(
+    readme,
+    'pak::pak("t-kalinowski/bionemor")',
+    fixed = TRUE
+  )
+  expect_match(readme, "without leaving R", fixed = TRUE)
+  expect_match(readme, "## Run inference", fixed = TRUE)
+  expect_match(readme, "## Fine-tune", fixed = TRUE)
+  expect_match(readme, "Slurm support is experimental", fixed = TRUE)
   expect_match(readme, "Authenticate Docker to `nvcr.io`", fixed = TRUE)
   expect_match(readme, "GPU-backed", fixed = TRUE)
 
@@ -84,10 +94,19 @@ test_that("public documentation states the current runtime and API contracts", {
     "At most one of",
     fixed = TRUE
   )
+  expect_match(generation, "validation_warnings", fixed = TRUE)
+  expect_match(generation, "log_probabilities", fixed = TRUE)
+
+  scores <- read_text(file.path("man", "evo2_score.Rd"), "evo2_score")
+  expect_match(scores, "reduced log probabilities", fixed = TRUE)
+  expect_match(scores, "forward_score", fixed = TRUE)
+  expect_match(scores, "reverse_score", fixed = TRUE)
 
   embeddings <- read_text(file.path("man", "evo2_embed.Rd"), "evo2_embed")
   expect_match(embeddings, "With", fixed = TRUE)
   expect_match(embeddings, 'pool = "none"', fixed = TRUE)
+  expect_match(embeddings, "row names", fixed = TRUE)
+  expect_match(embeddings, "averaged", fixed = TRUE)
 
   specification <- testthat::test_path("..", "..", "SPEC.md")
   if (file.exists(specification)) {

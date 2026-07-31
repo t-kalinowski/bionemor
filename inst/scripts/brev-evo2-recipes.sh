@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  echo "Usage: $0 [--acceptance]" >&2
+}
+
+run_acceptance=false
+case "${1:-}" in
+  --acceptance)
+    run_acceptance=true
+    shift
+    ;;
+  "")
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
+if [[ $# -ne 0 ]]; then
+  usage
+  exit 2
+fi
+
 for command in awk docker git R Rscript; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "$command is not installed" >&2
@@ -15,6 +37,10 @@ appendage="$repo_dir/inst/docker/evo2-recipes/Dockerfile.append"
 helper="$repo_dir/inst/scripts/materialize-evo2.py"
 workspace="${BIONEMOR_EVO2_WORKSPACE:-/home/ubuntu/bionemor-workspace}"
 checkpoint="${BIONEMOR_EVO2_CHECKPOINT:-}"
+evidence="${BIONEMOR_EVO2_EVIDENCE:-}"
+capture_date="${BIONEMOR_EVO2_CAPTURE_DATE:-}"
+package_revision="${BIONEMOR_PACKAGE_REVISION:-}"
+package_dirty="${BIONEMOR_PACKAGE_DIRTY:-}"
 source_root="$(mktemp -d)"
 
 cleanup() {
@@ -45,6 +71,35 @@ case "$checkpoint" in
     exit 2
     ;;
 esac
+if [[ "$run_acceptance" == true ]]; then
+  if [[ ! "$evidence" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+    echo "BIONEMOR_EVO2_EVIDENCE must be a safe absolute path" >&2
+    exit 2
+  fi
+  case "$evidence" in
+    "$workspace"/*) ;;
+    *)
+      echo "BIONEMOR_EVO2_EVIDENCE must be inside BIONEMOR_EVO2_WORKSPACE" >&2
+      exit 2
+      ;;
+  esac
+  if [[ ! "$capture_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "BIONEMOR_EVO2_CAPTURE_DATE must use YYYY-MM-DD" >&2
+    exit 2
+  fi
+  if [[ "$(basename -- "$evidence")" != "$capture_date" ]]; then
+    echo "BIONEMOR_EVO2_EVIDENCE must end in the capture date" >&2
+    exit 2
+  fi
+  if [[ ! "$package_revision" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "BIONEMOR_PACKAGE_REVISION must be a full commit SHA" >&2
+    exit 2
+  fi
+  if [[ "$package_dirty" != true && "$package_dirty" != false ]]; then
+    echo "BIONEMOR_PACKAGE_DIRTY must be true or false" >&2
+    exit 2
+  fi
+fi
 
 mapfile -t lock < <(
   Rscript - "$lock_file" <<'RSCRIPT'
@@ -229,3 +284,15 @@ BIONEMOR_EVO2_CHECKPOINT="$checkpoint" \
   BIONEMOR_EVO2_IMAGE="$image_id" \
   BIONEMOR_EVO2_WORKSPACE="$workspace" \
   Rscript "$repo_dir/inst/scripts/brev-evo2-recipes-smoke.R"
+
+if [[ "$run_acceptance" == true ]]; then
+  BIONEMOR_EVO2_CAPTURE_DATE="$capture_date" \
+    BIONEMOR_EVO2_CHECKPOINT="$checkpoint" \
+    BIONEMOR_EVO2_EVIDENCE="$evidence" \
+    BIONEMOR_EVO2_IMAGE="$image_id" \
+    BIONEMOR_EVO2_WORKSPACE="$workspace" \
+    BIONEMOR_PACKAGE_DIRTY="$package_dirty" \
+    BIONEMOR_PACKAGE_REVISION="$package_revision" \
+    BIONEMOR_PACKAGE_SOURCE="$repo_dir" \
+    Rscript "$repo_dir/inst/scripts/brev-evo2-recipes-acceptance.R"
+fi

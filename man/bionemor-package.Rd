@@ -4,13 +4,21 @@
 \name{bionemor-package}
 \alias{bionemor}
 \alias{bionemor-package}
-\title{BioNeMo Recipes Evo 2 workflows from R}
+\title{Use BioNeMo Recipes Evo 2 without leaving R}
 \description{
-\code{bionemor} prepares MBridge checkpoints, fine-tunes models, and runs
-file-backed inference with the pinned NVIDIA BioNeMo Recipes Evo 2 runtime.
-NIM is not used.
+\code{bionemor} prepares MBridge checkpoints, runs generation, scoring, and
+embeddings, and fine-tunes Evo 2 models with the pinned NVIDIA BioNeMo
+Recipes runtime. Inputs and results remain ordinary R objects; users do not
+need to write Python or interact with Python objects.
 }
 \details{
+\code{\link[=evo2_model]{evo2_model()}} provides the direct path to a ready model using the
+recommended checkpoint. \code{\link[=evo2]{evo2()}} and \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} expose the
+lower-level workflow for custom sources and asynchronous preparation.
+
+The Recipes runtime runs out of process and writes portable files and
+manifests. NIM is not used.
+
 Operational failures inherit from \code{bionemor_error} and a stable \verb{BN_*}
 code-specific class. Conditions retain run and model context when available.
 

@@ -11,18 +11,21 @@ vignette: |
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-`bionemor` uses the pinned BioNeMo Recipes Evo 2 Megatron runtime. R constructs
-typed objects, writes JSONL, FASTA, YAML, and run manifests, and launches the
-recipe out of process. MBridge is the native checkpoint format.
+`bionemor` prepares Evo 2 models, runs inference, and fine-tunes with NVIDIA
+BioNeMo Recipes without leaving R. Inputs are R vectors, data frames, or FASTA
+files. Results are R data frames, matrices, artifacts, or durable job objects.
+You do not need to write Python or interact with Python objects.
 
-NIM is not used. The package does not connect to NIM endpoints, pull NIM
-images, or apply the NIM hardware matrix.
+Install the development package with:
 
-## Install or select the runtime
+```{r package-install, eval = FALSE}
+pak::pak("t-kalinowski/bionemor")
+```
 
-The default container is built from the verified upstream recipe Dockerfile at
-the locked commit. Its base image is bound to the release-lock digest before
-the package helper and provenance labels are appended.
+## Set up the runtime once
+
+The default local setup builds the verified upstream Evo 2 recipe container at
+the package's locked revision.
 
 The local container path requires Git, `tar`, and an NVIDIA GPU exposed through
 Docker.
@@ -45,39 +48,40 @@ compute <- bionemo_compute(
   workspace = normalizePath("~/evo2-work", mustWork = FALSE)
 )
 
-bionemo_install_plan(compute)
+plan <- bionemo_install_plan(compute)
+plan
+as.data.frame(plan)
+
 compute <- bionemo_install(compute)
 bionemo_doctor(compute, target = "all")
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed outside
-the package. `bionemo_install()` verifies that environment; it does not create
-a Python environment.
+the package.
 
-## Prepare a checkpoint
+## Prepare a model
 
-The recommended path converts an open Arc Savanna checkpoint to MBridge:
+`evo2_models()` lists the package's pinned model registry and compatibility
+metadata without preparing weights:
 
-```{r checkpoint, eval = FALSE}
-base <- evo2("7b")
-
-checkpoint <- evo2_checkpoint(
-  base,
-  source = "recommended",
-  format = "savanna",
-  path = "checkpoints/evo2-7b-mbridge",
-  compute = compute
-)
-
-model <- evo2("7b", checkpoint = checkpoint)
+```{r model-registry, eval = FALSE}
+evo2_models()
 ```
 
-Constructing `evo2()` is offline. Checkpoint download and conversion happen
-only in `evo2_checkpoint()`. MBridge registration requires distributed
-checkpoint metadata and at least one non-empty weight shard. Recommended
-tokenizers resolve inside the selected recipe runtime.
+`evo2_model()` prepares the recommended dense MBridge checkpoint and returns a
+ready model. A later call reuses a matching complete checkpoint:
 
-## Generation and scoring
+```{r checkpoint, eval = FALSE}
+model <- evo2_model("7b", compute)
+```
+
+Preparation is synchronous and can take substantial time and storage. Use
+`evo2()` and `evo2_checkpoint()` when you need a custom source, explicit
+conversion controls, or an asynchronous job. In short, `evo2_models()` lists
+models, `evo2()` describes one offline, and `evo2_model()` returns one with a
+checkpoint attached.
+
+## Run inference
 
 `evo2_generate()` writes all prompts to one JSONL file and loads the model once
 for the operation:
@@ -107,11 +111,13 @@ embeddings <- evo2_embed(
 )
 ```
 
-Generation and scores return ordinary R data frames. Pooled embeddings return
-a numeric matrix. Temporary PyTorch prediction tensors are converted inside
-the recipe environment and are not public results.
+Generation and scores return ordinary R data frames. Generation includes
+optional per-token probabilities and mechanical sequence checks. Scores retain
+the forward and reverse reduced log probabilities when both strands are
+requested. Pooled embeddings return a numeric matrix whose row names preserve
+the input IDs.
 
-## Fine-tuning
+## Fine-tune with LoRA
 
 ```{r fine-tuning, eval = FALSE}
 data <- evo2_dataset(
@@ -144,7 +150,7 @@ fitted <- job_wait(run)
 
 For complete examples, see
 [Fine-tune Evo 2 and retain the checkpoint](evo2-finetune.html) and
-[Load an Evo 2 checkpoint for inference](evo2-inference.html).
+[Run Evo 2 inference from R](evo2-inference.html).
 
 The LoRA checkpoint manifest records its dense base checkpoint. Inference
 fails before launch when that base is unavailable.
@@ -155,6 +161,20 @@ configured for Vortex-style FP8 and the original 20B and 40B sources are
 rejected before launch. FP8 delayed scaling is not offered. Full fine-tuning
 cannot start from a LoRA checkpoint.
 
+## Runtime and checkpoint details
+
+BioNeMo Recipes runs in an external process. R writes JSONL, FASTA, YAML,
+Parquet, and run manifests, launches the pinned recipe, and converts portable
+outputs back to R objects. Python remains inside that recipe runtime rather
+than becoming a user-facing API.
+
+MBridge is the native checkpoint format. Registration requires distributed
+checkpoint metadata and at least one non-empty weight shard. Recommended
+tokenizers resolve inside the selected recipe runtime.
+
+NIM is not used. The package does not connect to NIM endpoints, pull NIM
+images, or apply the NIM hardware matrix. Slurm support is experimental.
+
 ## Durable runs
 
 Each operation stores its request, structured command plan, state, logs,
@@ -164,7 +184,7 @@ inputs, portable outputs, and provenance in one run directory:
 path <- job_path(run)
 same_run <- bionemo_job(path)
 job_status(same_run)
-result <- job_result(same_run)
+result <- job_wait(same_run)
 ```
 
 A timeout passed to `job_wait()` only stops waiting. Call `job_cancel()` to

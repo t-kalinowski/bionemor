@@ -250,7 +250,24 @@ generation_prompt_rows <- function(input) {
 #' @param name Optional run name.
 #' @param async Whether to return before completion.
 #'
-#' @return An `evo2_generation` data frame or a `BioNeMoJob`.
+#' @return With `async = FALSE`, an `evo2_generation` data frame with one row
+#'   per prompt and these 17 columns:
+#'
+#'   - `id`, `input_id`, and `sample` identify the request and sample.
+#'   - `prompt`, `completion`, and `sequence` contain the input, generated
+#'     suffix, and their concatenation.
+#'   - `finish_reason` records why generation stopped.
+#'   - `prompt_tokens`, `generated_tokens`, and `total_tokens` report token
+#'     counts.
+#'   - `log_probabilities` and `probabilities` are list columns containing
+#'     per-generated-token values when `return_probabilities = TRUE`, and
+#'     `NULL` otherwise.
+#'   - `generated_bases`, `gc_fraction`, `ambiguous_fraction`, and
+#'     `longest_homopolymer` contain mechanical sequence summaries.
+#'   - `validation_warnings` is a list column of zero or more mechanical
+#'     validation messages.
+#'
+#'   With `async = TRUE`, a `BioNeMoJob`.
 #' @export
 evo2_generate <- function(
   object,
@@ -767,7 +784,17 @@ materialize_generation_job <- function(job, descriptor) {
 #' @param name Optional run name.
 #' @param async Whether to return before completion.
 #'
-#' @return An `evo2_scores` data frame or a `BioNeMoJob`.
+#' @details The recipe first computes reduced log probabilities separately for
+#'   each requested strand. `forward_score` and `reverse_score` retain those
+#'   strand-specific values and are `NA` for strands that were not requested.
+#'   `score` equals the available strand score, or the arithmetic mean of both
+#'   values when `strand = "both"`. The `reduction` column records whether each
+#'   strand was reduced by its token mean or sum.
+#'
+#' @return With `async = FALSE`, an `evo2_scores` data frame with columns
+#'   `id`, `sequence_length`, `tokens_scored`, `score`, `forward_score`,
+#'   `reverse_score`, `reduction`, and `strand`. With `async = TRUE`, a
+#'   `BioNeMoJob`.
 #' @export
 evo2_score <- function(
   object,
@@ -978,7 +1005,10 @@ materialize_score_job <- function(job, descriptor) {
 #' @param metric Positional metric.
 #' @param output Required Parquet output path.
 #'
-#' @return A `BioNeMoArtifact` or `BioNeMoJob`.
+#' @return With `async = FALSE`, a `BioNeMoArtifact` for a Parquet file with
+#'   columns `id` (string), `position` (int64), `base` (string),
+#'   `log_probability` (double), and `strand` (string). With `async = TRUE`, a
+#'   `BioNeMoJob`.
 #' @export
 evo2_profile <- function(
   object,
@@ -1127,11 +1157,20 @@ materialize_profile_job <- function(job, descriptor) {
 #'   `strand = "both"` is not supported.
 #' @param output Optional output file. Required when `pool = "none"`.
 #'
-#' @details Embeddings currently require `context_parallel_size = 1`. Unpooled
-#'   embeddings use a Parquet artifact with columns `id` (string), `position`
-#'   (int64), `embedding` (list of doubles), and `strand` (string).
+#' @details Embeddings currently require `context_parallel_size = 1`. With a
+#'   pooling rule, token embeddings are pooled independently for each strand.
+#'   With `strand = "both"`, the forward and reverse pooled vectors are then
+#'   averaged. The returned matrix preserves input IDs as row names and names
+#'   its columns `dim_1`, `dim_2`, and so on.
 #'
-#' @return An `evo2_embeddings` matrix, `BioNeMoArtifact`, or `BioNeMoJob`.
+#'   With `pool = "none"`, the result is a Parquet artifact with columns `id`
+#'   (string), `position` (int64), `embedding` (list of doubles), and `strand`
+#'   (string). Unpooled output requires `output` and does not support
+#'   `strand = "both"`.
+#'
+#' @return With `async = FALSE`, an `evo2_embeddings` numeric matrix for
+#'   pooled output or a `BioNeMoArtifact` for unpooled output. With
+#'   `async = TRUE`, a `BioNeMoJob`.
 #' @export
 evo2_embed <- function(
   object,

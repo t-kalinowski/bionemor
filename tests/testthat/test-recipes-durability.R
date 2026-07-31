@@ -456,7 +456,7 @@ test_that("terminal state waits for log redactors to exit", {
   expect_equal(job_status(job), "succeeded")
 })
 
-test_that("terminal status survives a runner exit during process inspection", {
+test_that("terminal status survives process inspection errors", {
   workspace <- tempfile("bionemor-process-exit-")
   bin <- tempfile("bionemor-bin-")
   log <- tempfile("bionemor-log-")
@@ -478,7 +478,7 @@ test_that("terminal status survives a runner exit during process inspection", {
   )
   job_wait(job, poll = 0.01, timeout = 5)
   finalizing <- file.path(job_path(job), "finalizing")
-  file.create(finalizing)
+  inspection_errno <- 2L
 
   testthat::local_mocked_bindings(
     ps_handle = function(pid) pid,
@@ -486,8 +486,8 @@ test_that("terminal status survives a runner exit during process inspection", {
     ps_create_time = function(handle) {
       stop(structure(
         list(
-          message = "No such file or directory",
-          errno = 2L,
+          message = "process inspection failed",
+          errno = inspection_errno,
           pid = NA_integer_
         ),
         class = c("os_error", "ps_error", "error", "condition")
@@ -496,8 +496,12 @@ test_that("terminal status survives a runner exit during process inspection", {
     .package = "ps"
   )
 
-  expect_equal(job_status(bionemo_job(job_path(job))), "succeeded")
-  expect_false(file.exists(finalizing))
+  for (errno in c(2L, 1L)) {
+    inspection_errno <- errno
+    file.create(finalizing)
+    expect_equal(job_status(bionemo_job(job_path(job))), "succeeded")
+    expect_false(file.exists(finalizing))
+  }
 })
 
 test_that("force cancellation recovers a hung terminal log drain", {

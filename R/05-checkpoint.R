@@ -463,7 +463,25 @@ assert_mbridge_dcp_weights <- function(path) {
 }
 
 checkpoint_manifest_resolved_path <- function(path, manifest) {
-  resolved <- manifest$inspection$resolved_path %||% path
+  recorded_root <- manifest$inspection$path
+  recorded_resolved <- manifest$inspection$resolved_path
+  resolved <- recorded_resolved %||% path
+  if (
+    is_scalar_string(recorded_root) &&
+      is_scalar_string(recorded_resolved) &&
+      path_is_within(recorded_resolved, recorded_root)
+  ) {
+    recorded_root <- normalize_path(recorded_root)
+    recorded_resolved <- normalize_path(recorded_resolved)
+    resolved <- if (identical(recorded_resolved, recorded_root)) {
+      path
+    } else {
+      file.path(
+        path,
+        substring(recorded_resolved, nchar(recorded_root) + 2L)
+      )
+    }
+  }
   if (!is_scalar_string(resolved) || !dir.exists(resolved)) {
     bionemor_abort(
       "BN_CHECKPOINT_INCOMPLETE",
@@ -1203,6 +1221,63 @@ evo2_checkpoint <- function(
     expected_result = descriptor,
     async = async
   )
+}
+
+#' Prepare a recommended Evo 2 model
+#'
+#' `evo2_model()` prepares or reuses the registry-recommended dense MBridge
+#' checkpoint and returns an Evo 2 model with that checkpoint attached. It does
+#' not install or diagnose the runtime. Preparation is synchronous.
+#'
+#' With `path = NULL`, the destination below the compute workspace is keyed by
+#' the canonical model name, source revision, and recipe revision. An explicit
+#' `path` changes only that destination or reuse location; it does not change
+#' the registered source. Existing incomplete or mismatched destinations are
+#' rejected without being overwritten.
+#'
+#' @param size Canonical Evo 2 model name or a known upstream alias.
+#' @param compute A compute specification.
+#' @param path Optional checkpoint destination or reuse location. Relative
+#'   paths are resolved below the compute workspace. `NULL` uses a
+#'   revision-qualified path below `checkpoints/`.
+#'
+#' @return An S7 `Evo2Model` with a `BioNeMoCheckpoint` attached.
+#' @seealso [evo2()], [evo2_checkpoint()], [evo2_models()]
+#' @export
+evo2_model <- function(size = "7b", compute, path = NULL) {
+  stopifnot(
+    "compute must be a BioNeMo compute specification" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ),
+    "path must be NULL or one non-empty string" = is.null(path) ||
+      is_scalar_string(path)
+  )
+
+  model <- evo2(size)
+  record <- evo2_model_record(model@size)
+  if (is.null(path)) {
+    path <- file.path(
+      "checkpoints",
+      paste0(
+        "evo2-",
+        record$name,
+        "-",
+        substr(record$source_revision, 1L, 12L),
+        "-",
+        substr(compute@recipe@revision, 1L, 12L),
+        "-mbridge"
+      )
+    )
+  }
+  checkpoint <- evo2_checkpoint(
+    model,
+    source = "recommended",
+    path = path,
+    compute = compute,
+    async = FALSE
+  )
+  evo2(model@size, checkpoint = checkpoint)
 }
 
 #' Export an Evo 2 checkpoint

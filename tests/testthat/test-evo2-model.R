@@ -1,0 +1,149 @@
+test_that("evo2_model prepares and reuses the canonical checkpoint", {
+  workspace <- tempfile("bionemor-evo2-model-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  testthat::local_mocked_bindings(
+    bionemo_install = function(...) {
+      stop("evo2_model must not install the runtime")
+    },
+    bionemo_install_plan = function(...) {
+      stop("evo2_model must not plan a runtime installation")
+    },
+    bionemo_doctor = function(...) {
+      stop("evo2_model must not run diagnostics")
+    },
+    .package = "bionemor"
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+
+  model <- evo2_model("7b-1m", compute)
+  registry <- evo2_models()
+  record <- registry[registry$name == "7b", , drop = FALSE]
+  expected <- file.path(
+    workspace,
+    "checkpoints",
+    paste0(
+      "evo2-7b-",
+      substr(record$source_revision, 1L, 12L),
+      "-",
+      substr(compute@recipe@revision, 1L, 12L),
+      "-mbridge"
+    )
+  )
+
+  expect_s3_class(model, "bionemor::Evo2Model")
+  expect_equal(model@size, "7b")
+  expect_s3_class(model@checkpoint, "bionemor::BioNeMoCheckpoint")
+  expect_equal(model@checkpoint@format, "mbridge")
+  expect_equal(model@checkpoint@kind, "dense")
+  expect_equal(checkpoint_path(model@checkpoint), normalizePath(expected))
+  expect_equal(
+    checkpoint_manifest(model@checkpoint)$source_revision,
+    record$source_revision
+  )
+
+  write("reuse-sentinel", file = log, append = TRUE)
+  reused <- evo2_model("evo2_7b", compute)
+
+  expect_equal(
+    checkpoint_path(reused@checkpoint),
+    checkpoint_path(model@checkpoint)
+  )
+  expect_true("reuse-sentinel" %in% readLines(log))
+})
+
+test_that("evo2_model accepts an explicit checkpoint destination", {
+  workspace <- tempfile("bionemor-evo2-model-path-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+
+  model <- evo2_model(
+    compute = compute,
+    path = "prepared/evo2-7b"
+  )
+
+  expect_equal(
+    checkpoint_path(model@checkpoint),
+    normalizePath(file.path(workspace, "prepared", "evo2-7b"))
+  )
+  expect_named(formals(evo2_model), c("size", "compute", "path"))
+})
+
+test_that("evo2_model reuses a relocated complete checkpoint", {
+  workspace <- tempfile("bionemor-evo2-model-relocated-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  prepared <- evo2_model(compute = compute)
+  original <- checkpoint_path(prepared)
+  moved <- file.path(workspace, "uploaded", basename(original))
+  dir.create(dirname(moved), recursive = TRUE)
+  write("relocation-sentinel", file = log, append = TRUE)
+
+  expect_true(file.rename(original, moved))
+  expect_false(file.exists(original))
+  stale_manifest <- checkpoint_manifest(moved)
+  expect_equal(stale_manifest$inspection$path, original)
+  expect_equal(stale_manifest$inspection$resolved_path, original)
+
+  reused <- evo2_model(compute = compute, path = moved)
+
+  expect_equal(checkpoint_path(reused), normalizePath(moved))
+  expect_equal(reused@checkpoint@format, "mbridge")
+  expect_equal(reused@checkpoint@kind, "dense")
+  expect_false(file.exists(original))
+  expect_true("relocation-sentinel" %in% readLines(log))
+})
+
+test_that("evo2_model rejects mismatched and incomplete destinations", {
+  workspace <- tempfile("bionemor-evo2-model-invalid-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  shared <- "checkpoints/shared"
+
+  evo2_model("7b", compute, path = shared)
+
+  expect_error(
+    evo2_model("7b-base", compute, path = shared),
+    "checkpoint manifest",
+    class = "BN_CHECKPOINT_SOURCE"
+  )
+
+  incomplete <- file.path(workspace, "checkpoints", "incomplete")
+  dir.create(incomplete, recursive = TRUE)
+  sentinel <- file.path(incomplete, "keep")
+  writeLines("keep", sentinel)
+
+  expect_error(
+    evo2_model("7b", compute, path = incomplete),
+    "checkpoint destination exists but is incomplete",
+    class = "BN_CHECKPOINT_INCOMPLETE"
+  )
+  expect_equal(readLines(sentinel), "keep")
+})

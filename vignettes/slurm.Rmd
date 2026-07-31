@@ -15,6 +15,10 @@ The Slurm backend submits one-node jobs with `sbatch`, reads allocation state
 with `sacct`, and cancels with `scancel`. The R process, compute nodes, and
 container must see the same workspace paths.
 
+Slurm support is experimental. Validate the full workflow against the target
+cluster's scheduler, shared filesystem, container runtime, and GPU allocation
+before relying on it for long runs.
+
 `bionemo_install()` verifies the runtime from a synchronous Slurm allocation.
 It writes a strict probe script below the shared workspace, submits it with
 `sbatch --parsable`, waits for its terminal `sacct` record, and reads the

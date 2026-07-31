@@ -44,7 +44,10 @@ reverse-strand operations require uppercase IUPAC DNA.}
 \item{async}{Whether to return before completion.}
 }
 \value{
-A \code{BioNeMoArtifact} or \code{BioNeMoJob}.
+With \code{async = FALSE}, a \code{BioNeMoArtifact} for a Parquet file with
+columns \code{id} (string), \code{position} (int64), \code{base} (string),
+\code{log_probability} (double), and \code{strand} (string). With \code{async = TRUE}, a
+\code{BioNeMoJob}.
 }
 \description{
 Write positional Evo 2 log-probability profiles

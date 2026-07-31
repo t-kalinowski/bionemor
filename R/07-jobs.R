@@ -724,6 +724,14 @@ unlink(file.path(run_path, "manifest-template.json"))
 
 process_identity_value <- function(pid) {
   pid <- as.integer(pid)
+  inaccessible_identity <- function() {
+    list(
+      schema_version = 1L,
+      pid = pid,
+      create_time = NA_character_,
+      cmdline = character()
+    )
+  }
   tryCatch(
     {
       handle <- ps::ps_handle(pid)
@@ -746,15 +754,13 @@ process_identity_value <- function(pid) {
       if (identical(error$errno, 2L)) {
         return(NULL)
       }
+      if (isTRUE(error$errno %in% c(1L, 13L))) {
+        return(inaccessible_identity())
+      }
       stop(error)
     },
     access_denied = function(error) {
-      list(
-        schema_version = 1L,
-        pid = pid,
-        create_time = NA_character_,
-        cmdline = character()
-      )
+      inaccessible_identity()
     }
   )
 }

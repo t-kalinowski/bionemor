@@ -3,6 +3,7 @@
 ^\.git$
 ^\.gitignore$
 ^\.dockerignore$
+^\.pytest_cache$
 ^\.ruff_cache$
 ^bionemor_[^/]+\.tar\.gz$
 ^bionemor\.Rcheck$
@@ -10,3 +11,4 @@
 ^\.Rproj\.user$
 ^[.]?air[.]toml$
 ^\.vscode$
+^validation$

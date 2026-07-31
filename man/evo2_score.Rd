@@ -51,8 +51,19 @@ reverse-strand operations require uppercase IUPAC DNA.}
 \item{async}{Whether to return before completion.}
 }
 \value{
-An \code{evo2_scores} data frame or a \code{BioNeMoJob}.
+With \code{async = FALSE}, an \code{evo2_scores} data frame with columns
+\code{id}, \code{sequence_length}, \code{tokens_scored}, \code{score}, \code{forward_score},
+\code{reverse_score}, \code{reduction}, and \code{strand}. With \code{async = TRUE}, a
+\code{BioNeMoJob}.
 }
 \description{
 Score DNA sequences with Evo 2
+}
+\details{
+The recipe first computes reduced log probabilities separately for
+each requested strand. \code{forward_score} and \code{reverse_score} retain those
+strand-specific values and are \code{NA} for strands that were not requested.
+\code{score} equals the available strand score, or the arithmetic mean of both
+values when \code{strand = "both"}. The \code{reduction} column records whether each
+strand was reduced by its token mean or sum.
 }

@@ -1,12 +1,13 @@
 Package: bionemor
-Title: BioNeMo Recipes Evo 2 Workflows from R
+Title: Use BioNeMo Recipes Evo 2 from R
 Version: 0.0.0.9000
 Authors@R:
     person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
-Description: An R interface to the versioned NVIDIA BioNeMo Recipes Evo 2
-    workflow. Prepares MBridge checkpoints, fine-tunes models, and runs
-    file-backed generation, scoring, and embedding operations through external
-    local, container, or Slurm processes.
+Description: Prepare MBridge checkpoints, run generation, scoring, and
+    embeddings, and fine-tune Evo 2 models with the versioned NVIDIA BioNeMo
+    Recipes runtime while working in R. Recipe commands run in external local
+    or container processes and return portable R results. Slurm support is
+    experimental.
 License: MIT + file LICENSE
 URL: https://github.com/t-kalinowski/bionemor
 BugReports: https://github.com/t-kalinowski/bionemor/issues

@@ -56,7 +56,25 @@ default seed, so zero is rejected rather than recorded as if it were used.}
 \item{async}{Whether to return before completion.}
 }
 \value{
-An \code{evo2_generation} data frame or a \code{BioNeMoJob}.
+With \code{async = FALSE}, an \code{evo2_generation} data frame with one row
+per prompt and these 17 columns:
+\itemize{
+\item \code{id}, \code{input_id}, and \code{sample} identify the request and sample.
+\item \code{prompt}, \code{completion}, and \code{sequence} contain the input, generated
+suffix, and their concatenation.
+\item \code{finish_reason} records why generation stopped.
+\item \code{prompt_tokens}, \code{generated_tokens}, and \code{total_tokens} report token
+counts.
+\item \code{log_probabilities} and \code{probabilities} are list columns containing
+per-generated-token values when \code{return_probabilities = TRUE}, and
+\code{NULL} otherwise.
+\item \code{generated_bases}, \code{gc_fraction}, \code{ambiguous_fraction}, and
+\code{longest_homopolymer} contain mechanical sequence summaries.
+\item \code{validation_warnings} is a list column of zero or more mechanical
+validation messages.
+}
+
+With \code{async = TRUE}, a \code{BioNeMoJob}.
 }
 \description{
 Generate DNA continuations with Evo 2

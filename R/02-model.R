@@ -573,7 +573,8 @@ register_model_checkpoint <- function(inspection, record) {
 #' Describe an Evo 2 model
 #'
 #' `evo2()` creates a compute-independent model descriptor. It does not
-#' download or load weights.
+#' download or load weights. Use [evo2_model()] for the direct, synchronous
+#' path to a model backed by the recommended checkpoint.
 #'
 #' @param size Canonical Evo 2 model name or a known upstream alias.
 #' @param checkpoint `NULL`, an existing MBridge checkpoint path, or a
@@ -655,6 +656,10 @@ evo2 <- function(
 }
 
 #' List the package's pinned Evo 2 model registry
+#'
+#' `evo2_models()` reports available model sizes and compatibility metadata; it
+#' does not construct or prepare a model. Use [evo2()] for an offline
+#' descriptor or [evo2_model()] for a ready model.
 #'
 #' @param compute Optional BioNeMo compute descriptor with an advertised GPU
 #'   count and per-GPU compute capability in its cached capability report.
