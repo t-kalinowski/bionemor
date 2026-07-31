@@ -493,6 +493,8 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     fitted@checkpoint@base_checkpoint,
     normalizePath(selected_base_checkpoint)
   )
+  fitted_score <- evo2_score(fitted, c(example = "ACGT"))
+  expect_equal(fitted_score$id, "example")
   run_manifest <- jsonlite::read_json(
     file.path(job_path(job), "manifest.json"),
     simplifyVector = FALSE

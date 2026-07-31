@@ -331,7 +331,8 @@ preprocess_record <- function(
 #'
 #' @param data An `Evo2Dataset` or accepted sequence input.
 #' @param model An Evo 2 model descriptor.
-#' @param compute A BioNeMo compute descriptor.
+#' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
+#'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param path Destination inside the compute workspace.
 #' @param control Preprocessing controls.
 #' @param overwrite Whether to replace an existing destination.
@@ -342,19 +343,16 @@ preprocess_record <- function(
 evo2_prepare <- function(
   data,
   model,
-  compute,
+  compute = NULL,
   path,
   control = evo2_preprocess_control(),
   overwrite = FALSE,
   async = FALSE
 ) {
   invocation <- match.call(expand.dots = FALSE)
+  compute <- resolve_model_compute(model, compute)
   stopifnot(
     "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
-    "compute must be a BioNeMo compute specification" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
     "path must be one non-empty string" = is_scalar_string(path),
     "control must be an Evo2PreprocessControl" = S7_inherits(
       control,
@@ -720,12 +718,10 @@ resolve_fit_precision <- function(control, model_record) {
 }
 
 lora_module_names <- function(method) {
-  mapping <- list(
-    hyena = c("dense_projection", "dense"),
-    attention = c("linear_qkv", "linear_proj"),
-    mlp = c("linear_fc1", "linear_fc2")
-  )
-  unname(unique(unlist(mapping[method@targets], use.names = FALSE)))
+  unname(unique(unlist(
+    evo2_lora_target_modules[method@targets],
+    use.names = FALSE
+  )))
 }
 
 fit_control_args <- function(control, model_record) {
@@ -858,7 +854,8 @@ fit_control_args <- function(control, model_record) {
 #'
 #' @param object An Evo 2 model with an MBridge checkpoint.
 #' @param data An `Evo2Dataset` or accepted raw sequence input.
-#' @param compute A BioNeMo compute descriptor.
+#' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
+#'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param steps Positive training steps.
 #' @param method A LoRA or full fine-tuning descriptor.
 #' @param control Fine-tuning controls.
@@ -872,7 +869,7 @@ fit_control_args <- function(control, model_record) {
 evo2_finetune <- function(
   object,
   data,
-  compute,
+  compute = NULL,
   steps,
   method = evo2_lora(),
   control = evo2_fit_control(),
@@ -882,12 +879,9 @@ evo2_finetune <- function(
   timeout = Inf
 ) {
   invocation <- match.call(expand.dots = FALSE)
+  compute <- resolve_model_compute(object, compute)
   stopifnot(
     "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
-    "compute must be a BioNeMo compute specification" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
     "steps must be a positive integer" = is_scalar_integerish(steps, min = 1),
     "method must be an Evo2FineTuneMethod" = S7_inherits(
       method,
@@ -1290,6 +1284,7 @@ materialize_finetune_job <- function(job, descriptor) {
   Evo2Model(
     family = descriptor$family,
     checkpoint = checkpoint,
+    compute = job@compute,
     task = "causal_lm",
     config = descriptor$config,
     provenance = list(
@@ -1308,7 +1303,7 @@ materialize_finetune_job <- function(job, descriptor) {
 method(fit, Evo2Model) <- function(
   object,
   data,
-  compute,
+  compute = NULL,
   steps,
   control = evo2_fit_control(),
   method = evo2_lora(),

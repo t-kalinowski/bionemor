@@ -147,3 +147,37 @@ test_that("evo2_model rejects mismatched and incomplete destinations", {
   )
   expect_equal(readLines(sentinel), "keep")
 })
+
+test_that("evo2_model binds compute for inference", {
+  workspace <- tempfile("bionemor-evo2-model-compute-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  model <- evo2_model("7b", compute)
+  sequences <- c(first = "ACGTACGT", second = "TGCATGCA")
+
+  generated <- evo2_generate(
+    model,
+    sequences,
+    num_tokens = 4L,
+    seed = 17L
+  )
+  scores <- evo2_score(model, sequences)
+  embeddings <- evo2_embed(model, sequences)
+
+  expect_equal(generated$input_id, names(sequences))
+  expect_equal(scores$id, names(sequences))
+  expect_equal(rownames(embeddings), names(sequences))
+
+  unbound <- evo2("7b", checkpoint = model@checkpoint)
+  expect_error(
+    evo2_score(unbound, sequences),
+    "compute is required for an unbound model"
+  )
+})

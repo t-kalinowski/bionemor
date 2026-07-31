@@ -7,7 +7,7 @@
 evo2_finetune(
   object,
   data,
-  compute,
+  compute = NULL,
   steps,
   method = evo2_lora(),
   control = evo2_fit_control(),
@@ -22,7 +22,8 @@ evo2_finetune(
 
 \item{data}{An \code{Evo2Dataset} or accepted raw sequence input.}
 
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{steps}{Positive training steps.}
 

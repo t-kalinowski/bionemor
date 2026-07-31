@@ -7,7 +7,7 @@
 evo2_score(
   object,
   newdata,
-  compute,
+  compute = NULL,
   reduction = c("mean", "sum"),
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
@@ -25,7 +25,8 @@ evo2_score(
 
 \item{newdata}{Sequences or a FASTA path.}
 
-\item{compute}{A BioNeMo compute specification.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{reduction}{Aggregate score reduction.}
 

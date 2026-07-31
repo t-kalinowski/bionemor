@@ -9,7 +9,7 @@
 fit(
   object,
   data,
-  compute,
+  compute = NULL,
   steps,
   control = evo2_fit_control(),
   method = evo2_lora(),
@@ -24,7 +24,7 @@ predict(
   object,
   newdata,
   type = c("score", "generate", "embedding", "response", "raw"),
-  compute,
+  compute = NULL,
   ...
 )
 }
@@ -33,7 +33,8 @@ predict(
 
 \item{data}{An \code{Evo2Dataset} or accepted raw sequence input.}
 
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{steps}{Positive training steps.}
 

@@ -20,6 +20,7 @@ BioNeMoModel <- new_class(
   properties = list(
     family = prop_string(),
     checkpoint = new_property(class = class_any, default = NULL),
+    compute = new_property(class = class_any, default = NULL),
     task = prop_string(),
     config = prop_list(),
     provenance = prop_list()

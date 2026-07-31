@@ -7,7 +7,7 @@
 evo2_prepare(
   data,
   model,
-  compute,
+  compute = NULL,
   path,
   control = evo2_preprocess_control(),
   overwrite = FALSE,
@@ -19,7 +19,8 @@ evo2_prepare(
 
 \item{model}{An Evo 2 model descriptor.}
 
-\item{compute}{A BioNeMo compute descriptor.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{path}{Destination inside the compute workspace.}
 

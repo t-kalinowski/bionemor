@@ -7,7 +7,7 @@
 evo2_profile(
   object,
   newdata,
-  compute,
+  compute = NULL,
   metric = c("log_probability"),
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
@@ -23,7 +23,8 @@ evo2_profile(
 
 \item{newdata}{Sequences or a FASTA path.}
 
-\item{compute}{A BioNeMo compute specification.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{metric}{Positional metric.}
 

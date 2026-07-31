@@ -5,7 +5,8 @@
 #'
 #' @param object An Evo 2 model.
 #' @param data An `Evo2Dataset` or accepted raw sequence input.
-#' @param compute A BioNeMo compute descriptor.
+#' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
+#'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param steps Positive training steps.
 #' @param control Fine-tuning controls.
 #' @param method A LoRA or full fine-tuning descriptor.
@@ -26,7 +27,7 @@
 #' fit(
 #'   object,
 #'   data,
-#'   compute,
+#'   compute = NULL,
 #'   steps,
 #'   control = evo2_fit_control(),
 #'   method = evo2_lora(),
@@ -41,7 +42,7 @@
 #'   object,
 #'   newdata,
 #'   type = c("score", "generate", "embedding", "response", "raw"),
-#'   compute,
+#'   compute = NULL,
 #'   ...
 #' )
 #'

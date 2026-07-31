@@ -7,7 +7,7 @@
 evo2_embed(
   object,
   newdata,
-  compute,
+  compute = NULL,
   layer = "last",
   pool = c("mean", "max", "first", "last", "none"),
   strand = c("forward", "reverse", "both"),
@@ -24,7 +24,8 @@ evo2_embed(
 
 \item{newdata}{Sequences or a FASTA path.}
 
-\item{compute}{A BioNeMo compute specification.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{layer}{Final or one-based decoder layer.}
 

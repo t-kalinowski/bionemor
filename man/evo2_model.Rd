@@ -20,8 +20,10 @@ An S7 \code{Evo2Model} with a \code{BioNeMoCheckpoint} attached.
 }
 \description{
 \code{evo2_model()} prepares or reuses the registry-recommended dense MBridge
-checkpoint and returns an Evo 2 model with that checkpoint attached. It does
-not install or diagnose the runtime. Preparation is synchronous.
+checkpoint and returns an Evo 2 model with that checkpoint and \code{compute}
+attached. Inference and fine-tuning functions use that compute descriptor by
+default. The function does not install or diagnose the runtime. Preparation
+is synchronous.
 }
 \details{
 With \code{path = NULL}, the destination below the compute workspace is keyed by

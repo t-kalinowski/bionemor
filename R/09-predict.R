@@ -1,10 +1,7 @@
 validate_inference_context <- function(object, compute, control) {
+  compute <- resolve_model_compute(object, compute)
   stopifnot(
     "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
-    "compute must be a BioNeMo compute specification" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ),
     "control must be an Evo 2 inference control" = S7_inherits(
       control,
       Evo2InferenceControl
@@ -235,7 +232,8 @@ generation_prompt_rows <- function(input) {
 #' @param object An Evo 2 model with an explicit checkpoint.
 #' @param prompt Prompts as a character vector, data frame, FASTA path, or
 #'   `DNAStringSet`.
-#' @param compute A BioNeMo compute specification.
+#' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
+#'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param num_tokens Generation length.
 #' @param n Samples per prompt. The pinned recipe currently supports only one.
 #' @param temperature,top_k,top_p Sampling controls. At most one of `top_k`
@@ -272,7 +270,7 @@ generation_prompt_rows <- function(input) {
 evo2_generate <- function(
   object,
   prompt,
-  compute,
+  compute = NULL,
   num_tokens = 100L,
   n = 1L,
   temperature = 0.7,
@@ -769,7 +767,8 @@ materialize_generation_job <- function(job, descriptor) {
 #'
 #' @param object An Evo 2 model with an explicit checkpoint.
 #' @param newdata Sequences or a FASTA path.
-#' @param compute A BioNeMo compute specification.
+#' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
+#'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param reduction Aggregate score reduction.
 #' @param strand Strand rule.
 #' @param batch_size Prediction micro-batch size. The inference control's
@@ -799,7 +798,7 @@ materialize_generation_job <- function(job, descriptor) {
 evo2_score <- function(
   object,
   newdata,
-  compute,
+  compute = NULL,
   reduction = c("mean", "sum"),
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
@@ -1013,7 +1012,7 @@ materialize_score_job <- function(job, descriptor) {
 evo2_profile <- function(
   object,
   newdata,
-  compute,
+  compute = NULL,
   metric = c("log_probability"),
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
@@ -1175,7 +1174,7 @@ materialize_profile_job <- function(job, descriptor) {
 evo2_embed <- function(
   object,
   newdata,
-  compute,
+  compute = NULL,
   layer = "last",
   pool = c("mean", "max", "first", "last", "none"),
   strand = c("forward", "reverse", "both"),
@@ -1391,7 +1390,8 @@ materialize_embedding_job <- function(job, descriptor) {
 #' @param object An Evo 2 model.
 #' @param newdata Sequences or prompts.
 #' @param type Inference operation.
-#' @param compute A BioNeMo compute specification.
+#' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
+#'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param ... Arguments passed to the task-specific function.
 #'
 #' @return The task-specific result.
@@ -1400,7 +1400,7 @@ method(predict, Evo2Model) <- function(
   object,
   newdata,
   type = c("score", "generate", "embedding", "response", "raw"),
-  compute,
+  compute = NULL,
   ...
 ) {
   type <- match.arg(type)

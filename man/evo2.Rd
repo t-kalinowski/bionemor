@@ -22,6 +22,7 @@ An S7 \code{Evo2Model}.
 }
 \description{
 \code{evo2()} creates a compute-independent model descriptor. It does not
-download or load weights. Use \code{\link[=evo2_model]{evo2_model()}} for the direct, synchronous
-path to a model backed by the recommended checkpoint.
+download or load weights, and operations on the returned model require an
+explicit compute descriptor. Use \code{\link[=evo2_model]{evo2_model()}} for the direct, synchronous
+path to a model backed by the recommended checkpoint and bound to compute.
 }

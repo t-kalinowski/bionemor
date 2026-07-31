@@ -7,7 +7,7 @@
 evo2_generate(
   object,
   prompt,
-  compute,
+  compute = NULL,
   num_tokens = 100L,
   n = 1L,
   temperature = 0.7,
@@ -29,7 +29,8 @@ evo2_generate(
 \item{prompt}{Prompts as a character vector, data frame, FASTA path, or
 \code{DNAStringSet}.}
 
-\item{compute}{A BioNeMo compute specification.}
+\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
+attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{num_tokens}{Generation length.}
 

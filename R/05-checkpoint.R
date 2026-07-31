@@ -1226,8 +1226,10 @@ evo2_checkpoint <- function(
 #' Prepare a recommended Evo 2 model
 #'
 #' `evo2_model()` prepares or reuses the registry-recommended dense MBridge
-#' checkpoint and returns an Evo 2 model with that checkpoint attached. It does
-#' not install or diagnose the runtime. Preparation is synchronous.
+#' checkpoint and returns an Evo 2 model with that checkpoint and `compute`
+#' attached. Inference and fine-tuning functions use that compute descriptor by
+#' default. The function does not install or diagnose the runtime. Preparation
+#' is synchronous.
 #'
 #' With `path = NULL`, the destination below the compute workspace is keyed by
 #' the canonical model name, source revision, and recipe revision. An explicit
@@ -1277,7 +1279,9 @@ evo2_model <- function(size = "7b", compute, path = NULL) {
     compute = compute,
     async = FALSE
   )
-  evo2(model@size, checkpoint = checkpoint)
+  model <- evo2(model@size, checkpoint = checkpoint)
+  model@compute <- compute
+  model
 }
 
 #' Export an Evo 2 checkpoint

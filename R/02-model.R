@@ -573,8 +573,9 @@ register_model_checkpoint <- function(inspection, record) {
 #' Describe an Evo 2 model
 #'
 #' `evo2()` creates a compute-independent model descriptor. It does not
-#' download or load weights. Use [evo2_model()] for the direct, synchronous
-#' path to a model backed by the recommended checkpoint.
+#' download or load weights, and operations on the returned model require an
+#' explicit compute descriptor. Use [evo2_model()] for the direct, synchronous
+#' path to a model backed by the recommended checkpoint and bound to compute.
 #'
 #' @param size Canonical Evo 2 model name or a known upstream alias.
 #' @param checkpoint `NULL`, an existing MBridge checkpoint path, or a
@@ -645,6 +646,7 @@ evo2 <- function(
   Evo2Model(
     family = "evo2",
     checkpoint = checkpoint,
+    compute = NULL,
     task = "causal_lm",
     config = config,
     provenance = list(),
@@ -653,6 +655,22 @@ evo2 <- function(
     context_length = as.integer(record$context_length),
     revision = revision
   )
+}
+
+resolve_model_compute <- function(model, compute = NULL) {
+  stopifnot("model must be an Evo 2 model" = S7_inherits(model, Evo2Model))
+  if (is.null(compute)) {
+    compute <- model@compute
+    if (!S7_inherits(compute, BioNeMoCompute)) {
+      stop(
+        "compute is required for an unbound model; use evo2_model() or supply compute"
+      )
+    }
+  }
+  if (!S7_inherits(compute, BioNeMoCompute)) {
+    stop("compute must be a BioNeMo compute specification")
+  }
+  compute
 }
 
 #' List the package's pinned Evo 2 model registry
@@ -756,6 +774,16 @@ method(print, BioNeMoModel) <- function(x, ...) {
       "\n",
       sep = ""
     )
+    if (S7_inherits(x@compute, BioNeMoCompute)) {
+      cat(
+        "Compute:    ",
+        x@compute@backend,
+        "/",
+        x@compute@engine,
+        "\n",
+        sep = ""
+      )
+    }
     return(invisible(x))
   }
   cat("<BioNeMo model>\n", sep = "")

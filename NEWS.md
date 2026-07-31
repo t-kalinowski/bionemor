@@ -9,7 +9,8 @@
 * Added task-specific generation, sequence scoring, embeddings, dataset
   preparation, and LoRA or full fine-tuning APIs.
 * Added `evo2_model()` as the direct path to a ready model backed by the
-  recommended dense MBridge checkpoint.
+  recommended dense MBridge checkpoint. Prepared and fitted models retain
+  their compute descriptor, so downstream operations do not require it again.
 * Made install plans inspectable as ordered data frames with redacted,
   shell-quoted commands.
 * Added structured command plans and durable run directories that can be
@@ -18,6 +19,3 @@
   source provenance into downstream runs.
 * Added stable `BN_*` condition classes with operation and run context for
   model, runtime, checkpoint, protocol, and output failures.
-* Kept Python inside the external recipe runtime: R users work with R inputs,
-  durable jobs, and portable results without interacting with Python objects.
-  NIM remains outside this package.
