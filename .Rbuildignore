@@ -12,3 +12,6 @@
 ^[.]?air[.]toml$
 ^\.vscode$
 ^validation$
+^README[.]Rmd$
+^vignettes-src$
+^tools/render-gpu-docs[.]R$

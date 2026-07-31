@@ -1,0 +1,276 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+options(width = 92)
+
+docs_gpu <- Sys.getenv("BIONEMOR_DOCS_GPU")
+docs_date <- Sys.getenv("BIONEMOR_DOCS_RENDER_DATE")
+docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
+stopifnot(
+  nzchar(docs_gpu),
+  nzchar(docs_date),
+  nzchar(docs_revision)
+)
+```
+
+# bionemor
+
+`bionemor` prepares Evo 2 models, runs batch inference, and fine-tunes with
+NVIDIA BioNeMo Recipes from R. Inputs and results are R vectors, data frames,
+matrices, and durable job objects.
+
+The main workflow is:
+
+1. Configure and verify a pinned recipe runtime once.
+2. Prepare or reuse the recommended checkpoint with `evo2_model()`.
+3. Generate, score, embed, or fine-tune DNA sequences.
+
+The output below was rendered on `r docs_date` with an `r docs_gpu` using
+package revision `r substr(docs_revision, 1L, 12L)`. See
+[`vignettes-src/`](vignettes-src/) and
+[`tools/render-gpu-docs.R`](tools/render-gpu-docs.R) for the executable sources
+and manual render command.
+
+## Install bionemor
+
+```r
+pak::pak("t-kalinowski/bionemor")
+```
+
+## Set up the recipe runtime once
+
+The default local setup builds the verified Evo 2 recipe container. It requires
+Git, `tar`, Docker, and an NVIDIA GPU exposed through Docker.
+
+Authenticate Docker to `nvcr.io` with an NGC API key before installing:
+
+```bash
+echo "$NGC_API_KEY" | docker login nvcr.io \
+  --username '$oauthtoken' --password-stdin
+```
+
+Then inspect the setup plan, install the runtime, and verify it:
+
+```{r runtime}
+library(bionemor)
+
+workspace <- normalizePath(
+  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/evo2-work"),
+  mustWork = FALSE
+)
+compute <- bionemo_compute(
+  backend = "local",
+  engine = "container",
+  workspace = workspace
+)
+
+plan <- bionemo_install_plan(compute)
+plan
+
+compute <- bionemo_install(compute)
+bionemo_doctor(compute, target = "all", verbose = FALSE)
+```
+
+`bionemo_install()` performs GPU-backed capability and command probes. A
+site-managed recipe environment can use `engine = "external"`.
+
+## Prepare a model
+
+`evo2_models()` lists the registry and compatibility metadata without preparing
+weights:
+
+```{r models}
+models <- evo2_models(compute, compatible = TRUE)
+models[models$name %in% c("1b-base", "7b"), c(
+  "name", "parameters", "context_length", "compatible", "download_size"
+)]
+```
+
+`evo2_model()` prepares the recommended dense MBridge checkpoint on its first
+call and reuses a complete matching checkpoint later:
+
+```{r model}
+model <- evo2_model("7b", compute)
+model
+```
+
+The model now retains its compute descriptor. Inference and fine-tuning calls
+therefore do not need a repeated `compute` argument. The separation still
+matters at the lower level: `evo2()` can describe a model or custom checkpoint
+offline, while `bionemo_compute()` describes the runtime, workspace, backend,
+recipe revision, and GPU allocation. `evo2_model()` couples them for the usual
+workflow.
+
+## Run inference
+
+Generation and scoring return data frames. Pooled embeddings return a numeric
+matrix:
+
+```{r inference}
+sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+)
+
+generated <- evo2_generate(
+  model,
+  sequences,
+  num_tokens = 8L,
+  seed = 17L
+)
+generated[c(
+  "input_id", "prompt", "completion", "generated_tokens", "finish_reason"
+)]
+
+scores <- evo2_score(
+  model,
+  sequences,
+  reduction = "mean",
+  strand = "both"
+)
+scores[c("id", "score", "forward_score", "reverse_score")]
+
+embeddings <- evo2_embed(
+  model,
+  sequences,
+  pool = "mean",
+  strand = "both"
+)
+dim(embeddings)
+round(embeddings[, 1:4, drop = FALSE], 4)
+```
+
+Scores are reduced token log probabilities; higher values indicate greater
+model likelihood. With `strand = "both"`, forward and reverse values are
+reduced independently and averaged. Embedding row names preserve the input IDs.
+
+## Fine-tune with LoRA
+
+Raw R sequence vectors are prepared automatically. This small run exists to
+exercise the API; two optimizer steps on repeated synthetic sequences do not
+produce a useful biological model.
+
+```{r fine-tune}
+sequence_127 <- function(pattern) {
+  substr(strrep(pattern, ceiling(127 / nchar(pattern))), 1L, 127L)
+}
+
+data <- evo2_dataset(
+  train = c(
+    train_1 = sequence_127("ACGT"),
+    train_2 = sequence_127("TGCA"),
+    train_3 = sequence_127("GATTACA"),
+    train_4 = sequence_127("CCGTA")
+  ),
+  validation = c(validation_1 = sequence_127("AGCT")),
+  test = c(test_1 = sequence_127("TGCAT"))
+)
+run_id <- Sys.getenv(
+  "BIONEMOR_DOCS_RUN_ID",
+  format(Sys.time(), "docs-%Y%m%d-%H%M%S")
+)
+
+run <- evo2_finetune(
+  model,
+  data,
+  steps = 2L,
+  method = evo2_lora(
+    rank = 4L,
+    alpha = 8,
+    dropout = 0,
+    targets = c("hyena", "attention", "mlp")
+  ),
+  control = evo2_fit_control(
+    sequence_length = 128L,
+    global_batch_size = 1L,
+    micro_batch_size = 1L,
+    learning_rate = 1e-4,
+    minimum_learning_rate = 0,
+    warmup_steps = 0L,
+    decay_steps = 2L,
+    constant_steps = 0L,
+    eval_interval = 1L,
+    eval_iters = 1L,
+    log_interval = 1L,
+    precision = "bf16",
+    keep_checkpoints = 1L,
+    workers = 1L,
+    seed = 17L,
+    dataset_seed = 17L
+  ),
+  path = file.path("artifacts", run_id, "readme-lora"),
+  name = paste0(run_id, "-readme-lora"),
+  async = TRUE,
+  timeout = 3600
+)
+
+fitted <- job_wait(run, timeout = 3600)
+job_status(run, refresh = TRUE)
+fitted
+
+manifest <- checkpoint_manifest(fitted)
+data.frame(
+  kind = manifest$kind,
+  format = manifest$format,
+  base_checkpoint = basename(manifest$base_checkpoint_path),
+  recipe_revision = substr(manifest$recipe_revision, 1L, 12L)
+)
+```
+
+`targets` selects module groups in every matching model layer. `"hyena"`
+expands to `dense_projection` and `dense`; `"attention"` expands to
+`linear_qkv` and `linear_proj`; and `"mlp"` expands to `linear_fc1` and
+`linear_fc2`. The effective LoRA scale is `alpha / rank`.
+
+The fitted result is another compute-bound `Evo2Model`:
+
+```{r fitted-inference}
+probe <- c(probe = sequence_127("ACGTGCAA"))
+
+evo2_score(
+  fitted,
+  probe,
+  reduction = "mean",
+  strand = "forward"
+)[c("id", "score")]
+
+evo2_generate(
+  fitted,
+  probe,
+  num_tokens = 8L,
+  seed = 17L
+)[c("input_id", "prompt", "completion", "finish_reason")]
+```
+
+The LoRA checkpoint records its dense base checkpoint. Keep both paths
+available for later inference.
+
+## Vignettes and durable runs
+
+The package includes three articles:
+
+- [Evo 2 workflows from R](vignettes/bionemor.Rmd)
+- [Fine-tune Evo 2 and retain the checkpoint](vignettes/evo2-finetune.Rmd)
+- [Run BioNeMo Recipes jobs with Slurm](vignettes/slurm.Rmd)
+
+The first two contain output captured in the target GPU environment. The Slurm
+article remains a reference because scheduler behavior must be validated on the
+target cluster.
+
+Every operation stores its request, command plan, state, logs, outputs, and
+provenance under the compute workspace. Reopen a run after the launching R
+session exits:
+
+```r
+same_run <- bionemo_job(job_path(run))
+job_status(same_run)
+result <- job_wait(same_run)
+```
+
+Generated sequence is model output, not a validated biological design. The
+package reports mechanical sequence checks; downstream biological validation
+remains the user's responsibility.

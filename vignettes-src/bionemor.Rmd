@@ -1,0 +1,162 @@
+---
+title: "Evo 2 workflows from R"
+output: rmarkdown::html_vignette
+vignette: |
+  %\VignetteIndexEntry{Evo 2 workflows from R}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  message = FALSE,
+  warning = FALSE
+)
+options(width = 92)
+docs_gpu <- Sys.getenv("BIONEMOR_DOCS_GPU")
+docs_date <- Sys.getenv("BIONEMOR_DOCS_RENDER_DATE")
+docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
+stopifnot(nzchar(docs_gpu), nzchar(docs_date), nzchar(docs_revision))
+```
+
+`bionemor` prepares Evo 2 models and runs inference with NVIDIA BioNeMo
+Recipes. Inputs are R vectors, data frames, or FASTA files. Results are R data
+frames, matrices, artifacts, or durable job objects.
+
+The output in this article was captured on `r docs_date` with an `r docs_gpu`
+using package revision `r substr(docs_revision, 1L, 12L)`. The executable source
+is `vignettes-src/bionemor.Rmd`; the package vignette is pre-rendered so it can
+be read without a GPU.
+
+## Set up the runtime once
+
+The local container path requires Git, `tar`, Docker, and an NVIDIA GPU exposed
+through Docker. Authenticate Docker to `nvcr.io`, then inspect and run the
+installation plan:
+
+```{r runtime}
+library(bionemor)
+
+workspace <- normalizePath(
+  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/evo2-work"),
+  mustWork = FALSE
+)
+compute <- bionemo_compute(
+  backend = "local",
+  engine = "container",
+  workspace = workspace
+)
+
+bionemo_install_plan(compute)
+compute <- bionemo_install(compute)
+bionemo_doctor(compute, target = "inference", verbose = FALSE)
+```
+
+Use `engine = "external"` for a compatible recipe environment managed outside
+the package.
+
+## Prepare or reuse the model
+
+`evo2_models()` lists the package registry without preparing weights.
+`evo2_model()` prepares the recommended dense MBridge checkpoint and binds the
+compute descriptor to the returned model:
+
+```{r model}
+models <- evo2_models(compute, compatible = TRUE)
+models[models$name %in% c("1b-base", "7b"), c(
+  "name", "parameters", "context_length", "compatible"
+)]
+
+model <- evo2_model("7b", compute)
+model
+```
+
+Use `evo2()` and `evo2_checkpoint()` for custom sources, explicit conversion
+controls, or asynchronous preparation. In the main workflow, inference calls
+use the compute descriptor already attached by `evo2_model()`.
+
+## Score sequences
+
+```{r score}
+sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+)
+
+scores <- evo2_score(
+  model,
+  sequences,
+  reduction = "mean",
+  strand = "both"
+)
+scores[c("id", "score", "forward_score", "reverse_score")]
+```
+
+The values are reduced token log probabilities. Higher values indicate greater
+model likelihood. With `strand = "both"`, each strand is reduced independently
+and `score` is their arithmetic mean.
+
+## Generate continuations
+
+```{r generate}
+generated <- evo2_generate(
+  model,
+  sequences,
+  num_tokens = 8L,
+  seed = 17L
+)
+generated[c(
+  "input_id", "prompt", "completion", "generated_tokens", "finish_reason"
+)]
+```
+
+Generation supports one sample per prompt. Set at most one of `top_k` and
+`top_p` to a positive value. The full result also contains token counts,
+optional probability list columns, mechanical sequence summaries, and
+`validation_warnings`.
+
+## Extract pooled embeddings
+
+```{r embed}
+embeddings <- evo2_embed(
+  model,
+  sequences,
+  pool = "mean",
+  strand = "both"
+)
+
+dim(embeddings)
+round(embeddings[, 1:4, drop = FALSE], 4)
+```
+
+Pooling excludes padding. With `strand = "both"`, independently pooled forward
+and reverse vectors are averaged. Use `pool = "none"` to write position-level
+embeddings to a Parquet artifact.
+
+## Reopen a durable job
+
+Every operation records its request, command plan, logs, portable outputs, and
+provenance under `.bionemor/runs` in the compute workspace. For a longer batch,
+return a job immediately and save its path:
+
+```{r async, eval=FALSE}
+run <- evo2_generate(
+  model,
+  sequences,
+  num_tokens = 8L,
+  seed = 17L,
+  name = "batch-generation",
+  async = TRUE
+)
+
+path <- job_path(run)
+same_run <- bionemo_job(path)
+job_status(same_run)
+job_logs(same_run, tail = 50L)
+result <- job_wait(same_run, timeout = 600)
+```
+
+A `job_wait()` timeout only stops waiting. Call `job_cancel()` to cancel the
+underlying process, container, or Slurm allocation.
