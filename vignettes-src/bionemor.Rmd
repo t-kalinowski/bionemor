@@ -19,12 +19,10 @@ options(width = 92)
 docs_gpu <- Sys.getenv("BIONEMOR_DOCS_GPU")
 docs_date <- Sys.getenv("BIONEMOR_DOCS_RENDER_DATE")
 docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
-docs_run_id <- Sys.getenv("BIONEMOR_DOCS_RUN_ID")
 stopifnot(
   nzchar(docs_gpu),
   nzchar(docs_date),
-  nzchar(docs_revision),
-  nzchar(docs_run_id)
+  nzchar(docs_revision)
 )
 ```
 
@@ -163,7 +161,6 @@ run <- evo2_generate(
   sequences,
   num_tokens = 8L,
   seed = 17L,
-  name = paste0(docs_run_id, "-batch-generation"),
   async = TRUE
 )
 

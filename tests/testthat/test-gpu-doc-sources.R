@@ -55,9 +55,9 @@ test_that("GPU documentation has an explicit manual render workflow", {
     collapse = "\n"
   )
   expect_match(workflow, "%H%M%S", fixed = TRUE)
-  expect_match(
+  expect_no_match(
     paste(source_text[[2L]], collapse = "\n"),
-    "BIONEMOR_DOCS_RUN_ID",
+    "docs_run_id",
     fixed = TRUE
   )
   expect_match(
@@ -66,6 +66,11 @@ test_that("GPU documentation has an explicit manual render workflow", {
     fixed = TRUE
   )
   slurm_source <- paste(source_text[[4L]], collapse = "\n")
+  expect_match(
+    slurm_source,
+    "candidate_sequences <- c(",
+    fixed = TRUE
+  )
   expect_match(
     slurm_source,
     'checkpoint = "/shared/models/evo2-7b-mbridge",\n  compute = compute',

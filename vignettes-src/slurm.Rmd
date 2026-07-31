@@ -82,6 +82,11 @@ allocation environment must provide `apptainer`.
 ## Submit and reopen a job
 
 ```{r slurm-job, eval=FALSE}
+candidate_sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+)
+
 model <- evo2(
   "7b",
   checkpoint = "/shared/models/evo2-7b-mbridge",
