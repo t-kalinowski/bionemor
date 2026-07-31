@@ -102,7 +102,7 @@ data <- evo2_dataset(
 prepared <- evo2_prepare(
   data,
   model,
-  path = file.path("datasets", run_id, "tiny-evo2-128"),
+  path = file.path("datasets", paste0(run_id, "-tiny-evo2-128")),
   control = evo2_preprocess_control(
     append_eod = TRUE,
     sample_length = 128L,

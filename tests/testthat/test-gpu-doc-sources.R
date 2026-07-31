@@ -45,4 +45,9 @@ test_that("GPU documentation has an explicit manual render workflow", {
     "BIONEMOR_DOCS_RUN_ID",
     fixed = TRUE
   )
+  expect_match(
+    paste(source_text[[3L]], collapse = "\n"),
+    'paste0(run_id, "-tiny-evo2-128")',
+    fixed = TRUE
+  )
 })
