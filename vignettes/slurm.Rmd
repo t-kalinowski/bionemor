@@ -7,36 +7,35 @@ vignette: |
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
-```
+
 
 The Slurm backend submits one-node jobs with `sbatch`, reads allocation state
 with `sacct`, and cancels with `scancel`. The R process, compute nodes, and
 container must see the same workspace paths.
 
-Slurm support is experimental. Validate the full workflow against the target
-cluster's scheduler, shared filesystem, container runtime, and GPU allocation
-before relying on it for long runs.
+This reference was pre-rendered on 2026-07-31 from package revision
+df19000ec8ed. Its commands were not executed on Brev:
+scheduler, shared-filesystem, container-runtime, and allocation behavior must be
+validated on the target cluster.
 
-`bionemo_install()` verifies the runtime from a synchronous Slurm allocation.
-It writes a strict probe script below the shared workspace, submits it with
-`sbatch --parsable`, waits for its terminal `sacct` record, and reads the
-capability JSON from the shared filesystem. It does not run GPU or Apptainer
-probes on the login host.
+Slurm support is experimental. `bionemo_install()` verifies the runtime from a
+synchronous Slurm allocation. It does not run GPU or Apptainer probes on the
+login host.
 
-The compute-node environment must provide `bash`, `awk`, `mkfifo`, and the
-same `Rscript` path used by the submitting R process. It must also provide
+The compute-node environment must provide `bash`, `awk`, `mkfifo`, and the same
+`Rscript` path used by the submitting R process. It must also provide
 `sha256sum` when a local SIF is used. That R installation must have `jsonlite`
-available. Generated job scripts use these host tools to verify the SIF,
-redact streamed logs, and finalize terminal manifests.
+available.
 
 ## Administrator-managed external runtime
 
 Use `engine = "external"` when the pinned BioNeMo Recipes commands and package
 helper are already available on compute nodes:
 
-```{r slurm-external, eval = FALSE}
+
+``` r
+library(bionemor)
+
 compute <- bionemo_compute(
   backend = "slurm",
   engine = "external",
@@ -53,11 +52,11 @@ bionemo_doctor(compute, target = "training", verbose = FALSE)
 
 ## Apptainer
 
-Use `engine = "container"` with an existing Apptainer image that was built
-from the verified upstream Evo 2 recipe Dockerfile with its base image bound to
-the release-lock digest:
+Use `engine = "container"` with an existing Apptainer image built from the
+verified Evo 2 recipe:
 
-```{r slurm-apptainer, eval = FALSE}
+
+``` r
 compute <- bionemo_compute(
   backend = "slurm",
   engine = "container",
@@ -71,22 +70,30 @@ compute <- bionemo_install(compute)
 ```
 
 For a local SIF path, `bionemo_install()` computes and records its SHA-256
-digest before submitting verification probes. The image must therefore be a
-readable file on the shared filesystem. A digest-qualified image URI records
-the supplied digest.
+digest before submitting verification probes. The image must be readable on the
+shared filesystem. A digest-qualified image URI records the supplied digest.
 
-Version 1 does not build a SIF on a compute node or select cluster modules.
-The allocation environment must provide `apptainer`.
+Version 1 does not build a SIF on a compute node or select cluster modules. The
+allocation environment must provide `apptainer`.
 
 ## Submit and reopen a job
 
-```{r slurm-job, eval = FALSE}
-model <- evo2("7b", checkpoint = "/shared/models/evo2-7b-mbridge")
+
+``` r
+candidate_sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+)
+
+model <- evo2(
+  "7b",
+  checkpoint = "/shared/models/evo2-7b-mbridge",
+  compute = compute
+)
 
 job <- evo2_score(
   model,
   candidate_sequences,
-  compute = compute,
   async = TRUE
 )
 

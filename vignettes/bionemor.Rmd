@@ -1,191 +1,243 @@
 ---
-title: "Evo 2 workflows with BioNeMo Recipes"
+title: "Evo 2 workflows from R"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Evo 2 workflows with BioNeMo Recipes}
+  %\VignetteIndexEntry{Evo 2 workflows from R}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
-```
 
-`bionemor` prepares Evo 2 models, runs inference, and fine-tunes with NVIDIA
-BioNeMo Recipes without leaving R. Inputs are R vectors, data frames, or FASTA
-files. Results are R data frames, matrices, artifacts, or durable job objects.
-You do not need to write Python or interact with Python objects.
 
-Install the development package with:
+`bionemor` prepares Evo 2 models and runs inference with NVIDIA BioNeMo
+Recipes. Inputs are R vectors, data frames, or FASTA files. Results are R data
+frames, matrices, artifacts, or durable job objects.
 
-```{r package-install, eval = FALSE}
-pak::pak("t-kalinowski/bionemor")
-```
+The output in this article was captured on 2026-07-31 with an NVIDIA L40S
+using package revision df19000ec8ed. The executable source
+is `vignettes-src/bionemor.Rmd`; the package vignette is pre-rendered so it can
+be read without a GPU.
 
 ## Set up the runtime once
 
-The default local setup builds the verified upstream Evo 2 recipe container at
-the package's locked revision.
+The local container path requires Git, `tar`, Docker, and an NVIDIA GPU exposed
+through Docker. Authenticate Docker to `nvcr.io`, then inspect and run the
+installation plan:
 
-The local container path requires Git, `tar`, and an NVIDIA GPU exposed through
-Docker.
-Authenticate Docker to `nvcr.io` with an NGC API key before installing:
 
-```{bash ngc-login, eval = FALSE}
-echo "$NGC_API_KEY" | docker login nvcr.io \
-  --username '$oauthtoken' --password-stdin
-```
-
-`bionemo_install()` pulls the locked NGC PyTorch base image and runs GPU-backed
-capability and command probes. It is not a CPU-only setup step.
-
-```{r install, eval = FALSE}
+``` r
 library(bionemor)
 
+workspace <- normalizePath(
+  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/evo2-work"),
+  mustWork = FALSE
+)
 compute <- bionemo_compute(
   backend = "local",
   engine = "container",
-  workspace = normalizePath("~/evo2-work", mustWork = FALSE)
+  workspace = workspace
 )
 
-plan <- bionemo_install_plan(compute)
-plan
-as.data.frame(plan)
-
+bionemo_install_plan(compute)
+#> <BioNeMo install plan>
+#> Target: install
+#> Steps:  17
+#> Status: planned
+#> 1. source-init: create a content-addressed BioNeMo Recipes checkout
+#> 2. source-fetch: fetch the exact locked recipe revision
+#> 3. source-checkout: check out the fetched recipe revision
+#> 4. dockerfile-verify: verify the official locked recipe Dockerfile
+#> 5. base-image-pull: pull the official NGC PyTorch base image
+#> 6. base-image-verify: verify the locked base-image digest
+#> 7. image-build: build the official recipe with the package helper appended
+#> 8. image-inspect: resolve the built image ID
+#> 9. runtime-capabilities: verify the helper protocol and current recipe commands
+#> 10. probe-infer_evo2: verify infer_evo2
+#> 11. probe-predict_evo2: verify predict_evo2
+#> 12. probe-preprocess_evo2: verify preprocess_evo2
+#> 13. probe-train_evo2: verify train_evo2
+#> 14. probe-evo2_convert_savanna_to_mbridge: verify evo2_convert_savanna_to_mbridge
+#> 15. probe-evo2_convert_nemo2_to_mbridge: verify evo2_convert_nemo2_to_mbridge
+#> 16. probe-evo2_export_mbridge_to_vortex: verify evo2_export_mbridge_to_vortex
+#> 17. probe-evo2_remove_optimizer: verify evo2_remove_optimizer
 compute <- bionemo_install(compute)
-bionemo_doctor(compute, target = "all")
+doctor <- bionemo_doctor(compute, target = "inference", verbose = FALSE)
+stopifnot(doctor@ok)
+doctor
+#> <BioNeMo doctor>
+#> Target: inference
+#> Status: pass
+#>                       check status
+#>                     backend   pass
+#>                  host tools   pass
+#>                   workspace   pass
+#>             helper protocol   pass
+#>                      recipe   pass
+#>              runtime Python   pass
+#>             runtime PyTorch   pass
+#>                runtime CUDA   pass
+#>  runtime Transformer Engine   pass
+#>     runtime Megatron Bridge   pass
+#>             runtime BioNeMo   pass
+#>                         GPU   pass
+#>                       image   pass
+#>                  base image   pass
+#>   container GPU passthrough   pass
+#>                  infer_evo2   pass
+#>                predict_evo2   pass
+#>                                                                                                    detail
+#>                                                                                      docker are available
+#>                                                                           bash, awk, mkfifo are available
+#>                                                                   /home/ubuntu/bionemor-recipes-workspace
+#>                                                                                                protocol 1
+#>                                                                                    recipe 2.4 at e8e7f597
+#>                                                                                                    3.12.3
+#>                                                                               2.13.0a0+8145d630e8.nv26.06
+#>                                                                                                      13.3
+#>                                                                                           2.16.0+4220403e
+#>                                                                                                     0.4.1
+#>                                                                                          import available
+#>                                                        NVIDIA L40S compute 8.9, 44.4 GiB driver 610.43.02
+#>        bionemor/evo2:e8e7f597363c sha256:83328bd1c26aa314548c10b3cee0af567d7c7ebbf3e9d9f4b5bc32cafc345789
+#>  nvcr.io/nvidia/pytorch:26.06-py3 sha256:abd110b23600e877173dafc3078385b7c13ddacd7e0c6a6acb0a864586d59622
+#>                                                                                  CUDA devices are visible
+#>                                                                                                 available
+#>                                                                                                 available
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed outside
 the package.
 
-## Prepare a model
+## Prepare or reuse the model
 
-`evo2_models()` lists the package's pinned model registry and compatibility
-metadata without preparing weights:
+`evo2_models()` lists the package registry without preparing weights.
+`evo2_model()` prepares the recommended dense MBridge checkpoint and binds the
+compute descriptor to the returned model:
 
-```{r model-registry, eval = FALSE}
-evo2_models()
+
+``` r
+models <- evo2_models(compute, compatible = TRUE)
+models[models$name %in% c("1b-base", "7b"), c(
+  "name", "parameters", "context_length", "compatible"
+)]
+#>   name parameters context_length compatible
+#> 2   7b      7e+09        1048576       TRUE
+
+checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
+stopifnot(dir.exists(checkpoint))
+model <- evo2(
+  "7b",
+  checkpoint = checkpoint,
+  compute = compute
+)
+model
+#> <Evo 2 model>
+#> Size:       7B
+#> Context:    1,048,576 nt
+#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7
+#> Recipe:     BioNeMo Evo 2 2.4 @ e8e7f597
+#> Ready:      yes
+#> Compute:    local/container
 ```
 
-`evo2_model()` prepares the recommended dense MBridge checkpoint and returns a
-ready model. A later call reuses a matching complete checkpoint:
+The capture reuses the prepared checkpoint named by
+`BIONEMOR_DOCS_CHECKPOINT`. In a new workspace, replace the `evo2()` call with
+`model <- evo2_model("7b", compute)` to prepare the recommended source. Both
+paths return a compute-bound model, so inference calls do not repeat `compute`.
 
-```{r checkpoint, eval = FALSE}
-model <- evo2_model("7b", compute)
-```
+## Score sequences
 
-Preparation is synchronous and can take substantial time and storage. Use
-`evo2()` and `evo2_checkpoint()` when you need a custom source, explicit
-conversion controls, or an asynchronous job. In short, `evo2_models()` lists
-models, `evo2()` describes one offline, and `evo2_model()` returns one with a
-checkpoint attached.
 
-## Run inference
-
-`evo2_generate()` writes all prompts to one JSONL file and loads the model once
-for the operation:
-
-```{r inference, eval = FALSE}
-generated <- evo2_generate(
-  model,
-  c(promoter_a = "ACGTACGT", promoter_b = "GCTAGCTA"),
-  compute = compute,
-  num_tokens = 64L,
-  seed = 1L
+``` r
+sequences <- c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
 )
 
 scores <- evo2_score(
   model,
-  c(reference = "ACGTACGT", variant = "ACGTTCGT"),
-  compute = compute,
+  sequences,
   reduction = "mean",
   strand = "both"
 )
-
-embeddings <- evo2_embed(
-  model,
-  c(reference = "ACGTACGT", variant = "ACGTTCGT"),
-  compute = compute,
-  pool = "mean"
-)
+scores[c("id", "score", "forward_score", "reverse_score")]
+#>          id     score forward_score reverse_score
+#> 1 reference -1.408769     -1.408769     -1.408769
+#> 2   variant -1.411028     -1.422442     -1.399613
 ```
 
-Generation and scores return ordinary R data frames. Generation includes
-optional per-token probabilities and mechanical sequence checks. Scores retain
-the forward and reverse reduced log probabilities when both strands are
-requested. Pooled embeddings return a numeric matrix whose row names preserve
-the input IDs.
+The values are reduced token log probabilities. Higher values indicate greater
+model likelihood. With `strand = "both"`, each strand is reduced independently
+and `score` is their arithmetic mean.
 
-## Fine-tune with LoRA
+## Generate continuations
 
-```{r fine-tuning, eval = FALSE}
-data <- evo2_dataset(
-  train = "data/train.fa",
-  validation = "data/validation.fa",
-  test = "data/test.fa"
+
+``` r
+generated <- evo2_generate(
+  model,
+  sequences,
+  num_tokens = 8L,
+  seed = 17L
+)
+generated[c(
+  "input_id", "prompt", "completion", "generated_tokens", "finish_reason"
+)]
+#>    input_id       prompt completion generated_tokens finish_reason
+#> 1 reference ACGTACGTACGT   ATACGTAT                8        length
+#> 2   variant ACGTACGTTCGT   ATACGTTT                8        length
+```
+
+Generation supports one sample per prompt. Set at most one of `top_k` and
+`top_p` to a positive value. The full result also contains token counts,
+optional probability list columns, mechanical sequence summaries, and
+`validation_warnings`.
+
+## Extract pooled embeddings
+
+
+``` r
+embeddings <- evo2_embed(
+  model,
+  sequences,
+  pool = "mean",
+  strand = "both"
 )
 
-prepared <- evo2_prepare(
-  data,
-  model,
-  compute,
-  path = "datasets/splice"
-)
+dim(embeddings)
+#> [1]    2 4096
+round(embeddings[, 1:4, drop = FALSE], 4)
+#>                 dim_1        dim_2       dim_3       dim_4
+#> reference 41006313472 -25541912576 25635586048 14001286144
+#> variant   41308303360 -25804754944 26007482368 14023655424
+```
 
-run <- evo2_finetune(
+Pooling excludes padding. With `strand = "both"`, independently pooled forward
+and reverse vectors are averaged. Use `pool = "none"` to write position-level
+embeddings to a Parquet artifact.
+
+## Reopen a durable job
+
+Every operation records its request, command plan, logs, portable outputs, and
+provenance under `.bionemor/runs` in the compute workspace. For a longer batch,
+return a job immediately and save its path:
+
+
+``` r
+run <- evo2_generate(
   model,
-  prepared,
-  compute = compute,
-  steps = 500L,
-  method = evo2_lora(rank = 16L, alpha = 32),
-  path = "runs/splice-lora",
+  sequences,
+  num_tokens = 8L,
+  seed = 17L,
   async = TRUE
 )
 
-job_status(run)
-job_logs(run, tail = 50L)
-fitted <- job_wait(run)
-```
-
-For complete examples, see
-[Fine-tune Evo 2 and retain the checkpoint](evo2-finetune.html) and
-[Run Evo 2 inference from R](evo2-inference.html).
-
-The LoRA checkpoint manifest records its dense base checkpoint. Inference
-fails before launch when that base is unavailable.
-
-The documented original 1B fine-tuning path uses BF16. The pinned
-`train_evo2` command has no Vortex-style training mode, so MBridge checkpoints
-configured for Vortex-style FP8 and the original 20B and 40B sources are
-rejected before launch. FP8 delayed scaling is not offered. Full fine-tuning
-cannot start from a LoRA checkpoint.
-
-## Runtime and checkpoint details
-
-BioNeMo Recipes runs in an external process. R writes JSONL, FASTA, YAML,
-Parquet, and run manifests, launches the pinned recipe, and converts portable
-outputs back to R objects. Python remains inside that recipe runtime rather
-than becoming a user-facing API.
-
-MBridge is the native checkpoint format. Registration requires distributed
-checkpoint metadata and at least one non-empty weight shard. Recommended
-tokenizers resolve inside the selected recipe runtime.
-
-NIM is not used. The package does not connect to NIM endpoints, pull NIM
-images, or apply the NIM hardware matrix. Slurm support is experimental.
-
-## Durable runs
-
-Each operation stores its request, structured command plan, state, logs,
-inputs, portable outputs, and provenance in one run directory:
-
-```{r reopen, eval = FALSE}
 path <- job_path(run)
 same_run <- bionemo_job(path)
 job_status(same_run)
-result <- job_wait(same_run)
+job_logs(same_run, tail = 50L)
+result <- job_wait(same_run, timeout = 600)
 ```
 
-A timeout passed to `job_wait()` only stops waiting. Call `job_cancel()` to
-cancel the external process, container, or Slurm allocation.
+A `job_wait()` timeout only stops waiting. Call `job_cancel()` to cancel the
+underlying process, container, or Slurm allocation.
