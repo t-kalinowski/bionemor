@@ -21,4 +21,14 @@ test_that("GPU documentation has an explicit manual render workflow", {
   expect_match(renderer, "BIONEMOR_DOCS_RENDER", fixed = TRUE)
   expect_match(renderer, "knitr::knit", fixed = TRUE)
   expect_match(renderer, "vignettes-src", fixed = TRUE)
+  expect_match(renderer, "rendered document contains an error", fixed = TRUE)
+  expect_match(renderer, "finally", fixed = TRUE)
+
+  executable_sources <- sources[grepl("\\.Rmd$", sources)]
+  source_text <- lapply(executable_sources, readLines, warn = FALSE)
+  expect_true(all(vapply(
+    source_text,
+    function(lines) any(grepl("error = FALSE", lines, fixed = TRUE)),
+    logical(1)
+  )))
 })

@@ -68,43 +68,52 @@ stopifnot(
 
 staging <- tempfile("bionemor-docs-", tmpdir = root)
 dir.create(staging)
-on.exit(unlink(staging, recursive = TRUE), add = TRUE)
 
 staged <- character(length(targets))
-for (index in seq_along(targets)) {
-  input <- names(targets)[[index]]
-  output <- file.path(staging, targets[[index]])
-  dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)
-  knitr::knit(
-    input = input,
-    output = output,
-    quiet = FALSE,
-    envir = new.env(parent = globalenv())
-  )
-  text <- readLines(output, warn = FALSE)
-  stopifnot(
-    "rendered document still contains executable chunks" = !any(
-      grepl("^```\\{", text)
-    ),
-    "rendered document contains obsolete runtime prose" = !any(
-      grepl("NIM", text, fixed = TRUE)
-    )
-  )
-  if (!identical(input, "vignettes-src/slurm.Rmd")) {
-    stopifnot(
-      "GPU-rendered document does not contain captured output" = any(
-        startsWith(text, "#>")
+tryCatch(
+  {
+    for (index in seq_along(targets)) {
+      input <- names(targets)[[index]]
+      output <- file.path(staging, targets[[index]])
+      dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)
+      knitr::knit(
+        input = input,
+        output = output,
+        quiet = FALSE,
+        envir = new.env(parent = globalenv())
       )
-    )
+      text <- readLines(output, warn = FALSE)
+      stopifnot(
+        "rendered document still contains executable chunks" = !any(
+          grepl("^```\\{", text)
+        ),
+        "rendered document contains an error" = !any(
+          startsWith(text, "#> Error")
+        ),
+        "rendered document contains obsolete runtime prose" = !any(
+          grepl("NIM", text, fixed = TRUE)
+        )
+      )
+      if (!identical(input, "vignettes-src/slurm.Rmd")) {
+        stopifnot(
+          "GPU-rendered document does not contain captured output" = any(
+            startsWith(text, "#>")
+          )
+        )
+      }
+      staged[[index]] <- output
+    }
+
+    for (index in seq_along(targets)) {
+      destination <- targets[[index]]
+      dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+      copied <- file.copy(staged[[index]], destination, overwrite = TRUE)
+      stopifnot("could not publish rendered documentation" = copied)
+    }
+
+    message("Rendered README.md and three static package vignettes")
+  },
+  finally = {
+    unlink(staging, recursive = TRUE)
   }
-  staged[[index]] <- output
-}
-
-for (index in seq_along(targets)) {
-  destination <- targets[[index]]
-  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
-  copied <- file.copy(staged[[index]], destination, overwrite = TRUE)
-  stopifnot("could not publish rendered documentation" = copied)
-}
-
-message("Rendered README.md and three static package vignettes")
+)

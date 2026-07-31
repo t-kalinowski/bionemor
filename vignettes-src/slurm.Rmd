@@ -8,7 +8,7 @@ vignette: |
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", error = FALSE)
 docs_date <- Sys.getenv("BIONEMOR_DOCS_RENDER_DATE")
 docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
 stopifnot(nzchar(docs_date), nzchar(docs_revision))
