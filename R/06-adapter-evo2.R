@@ -858,15 +858,19 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
       is.list(plan)
   )
   descriptor <- job@expected_result
-  candidates <- c(
-    descriptor$checkpoint %||% character(),
-    descriptor$path %||% character(),
-    descriptor$checkpoint_root %||% character()
-  )
-  candidates <- candidates[
-    vapply(candidates, is_scalar_string, logical(1))
-  ]
-  path <- if (length(candidates)) candidates[[1L]] else NULL
+  output_checkpoint <- descriptor$type %in% c("checkpoint", "fine-tune")
+  path <- if (identical(descriptor$type, "checkpoint")) {
+    descriptor$path
+  } else if (identical(descriptor$type, "fine-tune")) {
+    descriptor$checkpoint_root
+  } else if (identical(descriptor$type, "prepare")) {
+    NULL
+  } else {
+    descriptor$checkpoint
+  }
+  if (!is.null(path) && !is_scalar_string(path)) {
+    stop("checkpoint result path must be one non-empty string")
+  }
   path_exists <- !is.null(path) && file.exists(path)
   if (path_exists) {
     path <- normalizePath(path, mustWork = TRUE)
@@ -890,7 +894,14 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
     list()
   }
   checkpoint_digest <- metadata$checkpoint_digest %||%
-    if (path_exists) checkpoint_payload_digest(path) else NULL
+    if (!output_checkpoint && path_exists) {
+      checkpoint_payload_digest(
+        path,
+        metadata$format %||% descriptor$format
+      )
+    } else {
+      NULL
+    }
   base_path <- metadata$base_checkpoint_path %||%
     descriptor$base_checkpoint %||%
     NULL

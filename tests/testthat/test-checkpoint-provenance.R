@@ -85,6 +85,130 @@ test_that("copying a BioNeMo checkpoint writes destination metadata", {
   ))
 })
 
+test_that("detached checkpoint finalization digests completed output", {
+  workspace <- tempfile("bionemor-checkpoint-output-digest-")
+  bin <- tempfile("bionemor-bin-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+  source <- make_mbridge_checkpoint(workspace, "source")
+
+  job <- evo2_checkpoint(
+    evo2("7b"),
+    source = source,
+    format = "mbridge",
+    path = "checkpoints/copied",
+    compute = compute,
+    async = TRUE
+  )
+  run_manifest_path <- file.path(job_path(job), "manifest.json")
+  deadline <- Sys.time() + 10
+  while (!file.exists(run_manifest_path) && Sys.time() < deadline) {
+    Sys.sleep(0.01)
+  }
+  expect_true(file.exists(run_manifest_path))
+  detached <- jsonlite::read_json(
+    run_manifest_path,
+    simplifyVector = FALSE
+  )
+  state <- job_status(job)
+  deadline <- Sys.time() + 10
+  while (!state %in% c("succeeded", "failed", "cancelled") &&
+    Sys.time() < deadline) {
+    Sys.sleep(0.01)
+    state <- job_status(job)
+  }
+  expect_identical(state, "succeeded")
+  observed <- jsonlite::read_json(
+    run_manifest_path,
+    simplifyVector = FALSE
+  )
+
+  checkpoint <- job_wait(job, poll = 0.01, timeout = 10)
+  stored <- checkpoint_manifest(checkpoint)$checkpoint_digest
+  completed <- jsonlite::read_json(
+    run_manifest_path,
+    simplifyVector = FALSE
+  )
+
+  expect_match(detached$checkpoint$digest$value, "^[0-9a-f]{32}$")
+  expect_identical(observed$checkpoint$digest, detached$checkpoint$digest)
+  expect_identical(detached$checkpoint$digest$value, stored)
+  expect_identical(completed$checkpoint$digest$value, stored)
+})
+
+test_that("detached Vortex finalization preserves file and config identity", {
+  workspace <- tempfile("bionemor-vortex-output-digest-")
+  bin <- tempfile("bionemor-bin-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+  model <- evo2(
+    "7b",
+    checkpoint = make_mbridge_checkpoint(workspace, "source")
+  )
+
+  job <- evo2_export(
+    model,
+    path = "exports/model.pt",
+    compute = compute,
+    async = TRUE
+  )
+  run_manifest_path <- file.path(job_path(job), "manifest.json")
+  deadline <- Sys.time() + 10
+  while (!file.exists(run_manifest_path) && Sys.time() < deadline) {
+    Sys.sleep(0.01)
+  }
+  expect_true(file.exists(run_manifest_path))
+  detached <- jsonlite::read_json(
+    run_manifest_path,
+    simplifyVector = FALSE
+  )
+  state <- job_status(job)
+  deadline <- Sys.time() + 10
+  while (!state %in% c("succeeded", "failed", "cancelled") &&
+    Sys.time() < deadline) {
+    Sys.sleep(0.01)
+    state <- job_status(job)
+  }
+  expect_identical(state, "succeeded")
+  observed <- jsonlite::read_json(
+    run_manifest_path,
+    simplifyVector = FALSE
+  )
+
+  checkpoint <- job_wait(job, poll = 0.01, timeout = 10)
+  stored <- checkpoint_manifest(checkpoint)$checkpoint_digest
+  completed <- jsonlite::read_json(
+    run_manifest_path,
+    simplifyVector = FALSE
+  )
+
+  expect_identical(checkpoint_manifest(checkpoint)$format, "vortex")
+  expect_match(detached$checkpoint$digest$value, "^[0-9a-f]{32}$")
+  expect_identical(observed$checkpoint$digest, detached$checkpoint$digest)
+  expect_identical(detached$checkpoint$digest$value, stored)
+  expect_identical(completed$checkpoint$digest$value, stored)
+  expect_false(identical(
+    stored,
+    unname(tools::md5sum(checkpoint_path(checkpoint)))
+  ))
+})
+
 test_that("checkpoint reuse matches precision and tokenizer identity", {
   workspace <- tempfile("bionemor-checkpoint-identity-")
   bin <- tempfile("bionemor-bin-")

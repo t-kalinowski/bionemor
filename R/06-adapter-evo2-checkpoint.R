@@ -1,9 +1,26 @@
 checkpoint_manifest_file <- "bionemor-checkpoint.json"
 checkpoint_completion_file <- ".bionemor-complete"
 
-checkpoint_payload_digest <- function(path) {
+checkpoint_payload_digest <- function(path, format = NULL) {
   # Completed checkpoint payloads are immutable. Exclude their mutable metadata
   # so recording the digest in the manifest does not change the digest itself.
+  if (identical(format, "vortex")) {
+    config <- file.path(dirname(path), "config.json")
+    stopifnot(
+      "Vortex checkpoint does not exist" = file.exists(path),
+      "Vortex config.json does not exist" = file.exists(config)
+    )
+    files <- c(path, config)
+    records <- paste(
+      basename(files),
+      as.character(tools::md5sum(files)),
+      sep = ":"
+    )
+    temporary <- tempfile("bionemor-vortex-digest-")
+    on.exit(unlink(temporary), add = TRUE)
+    writeLines(sort(records, method = "radix"), temporary, useBytes = TRUE)
+    return(unname(tools::md5sum(temporary)))
+  }
   exclude <- if (dir.exists(path)) {
     c(checkpoint_manifest_file, checkpoint_completion_file)
   } else {
@@ -74,8 +91,13 @@ checkpoint_from_manifest <- function(
   manifest_path = checkpoint_manifest_path(path, manifest$format)
 ) {
   if (!is_scalar_string(manifest$checkpoint_digest)) {
-    manifest$checkpoint_digest <- checkpoint_payload_digest(path)
-    atomic_write_json(manifest, manifest_path)
+    manifest$checkpoint_digest <- checkpoint_payload_digest(
+      path,
+      manifest$format
+    )
+    if (file.access(dirname(manifest_path), 2L) == 0L) {
+      atomic_write_json(manifest, manifest_path)
+    }
   }
   BioNeMoCheckpoint(
     path = normalizePath(path, mustWork = TRUE),

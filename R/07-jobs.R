@@ -624,23 +624,36 @@ inventory <- function(directory) {
   })
 }
 
-path_digest <- function(path) {
-  if (!dir.exists(path)) {
+path_digest <- function(path, format = NULL) {
+  if (!dir.exists(path) && !identical(format, "vortex")) {
     return(unname(tools::md5sum(path)))
   }
-  files <- list.files(
-    path,
-    recursive = TRUE,
-    full.names = TRUE,
-    all.files = TRUE,
-    no.. = TRUE
-  )
-  files <- files[!dir.exists(files)]
-  relative <- substring(files, nchar(path) + 2L)
+  if (identical(format, "vortex")) {
+    config <- file.path(dirname(path), "config.json")
+    stopifnot(file.exists(path), file.exists(config))
+    files <- c(path, config)
+    relative <- basename(files)
+  } else {
+    files <- list.files(
+      path,
+      recursive = TRUE,
+      full.names = TRUE,
+      all.files = TRUE,
+      no.. = TRUE
+    )
+    files <- files[!dir.exists(files)]
+    relative <- substring(files, nchar(path) + 2L)
+    keep <- !relative %in% c(
+      "bionemor-checkpoint.json",
+      ".bionemor-complete"
+    )
+    files <- files[keep]
+    relative <- relative[keep]
+  }
   records <- paste(relative, as.character(tools::md5sum(files)), sep = ":")
   temporary <- tempfile("checkpoint-digest-")
   on.exit(unlink(temporary), add = TRUE)
-  writeLines(sort(records), temporary, useBytes = TRUE)
+  writeLines(sort(records, method = "radix"), temporary, useBytes = TRUE)
   unname(tools::md5sum(temporary))
 }
 
@@ -689,21 +702,41 @@ if (identical(manifest$state, "succeeded") && is.list(cleanup)) {
   }
 }
 checkpoint_path <- manifest$checkpoint$path
+checkpoint_digest <- manifest$checkpoint$digest
+checkpoint_digest_resolved <- is.list(checkpoint_digest) &&
+  identical(checkpoint_digest$algorithm, "md5") &&
+  is.character(checkpoint_digest$value) &&
+  length(checkpoint_digest$value) == 1L &&
+  grepl("^[0-9a-f]{32}$", checkpoint_digest$value)
 if (
   is.character(checkpoint_path) &&
     length(checkpoint_path) == 1L &&
-    file.exists(checkpoint_path)
+    file.exists(checkpoint_path) &&
+    !checkpoint_digest_resolved
 ) {
   manifest$checkpoint$digest <- list(
     algorithm = "md5",
-    value = path_digest(checkpoint_path)
+    value = path_digest(checkpoint_path, manifest$checkpoint$format)
   )
 }
 base_path <- manifest$checkpoint$base_checkpoint$path
+base_digest <- manifest$checkpoint$base_checkpoint$digest
+base_digest_resolved <- (
+  is.character(base_digest) &&
+    length(base_digest) == 1L &&
+    grepl("^[0-9a-f]{32}$", base_digest)
+) || (
+  is.list(base_digest) &&
+    identical(base_digest$algorithm, "md5") &&
+    is.character(base_digest$value) &&
+    length(base_digest$value) == 1L &&
+    grepl("^[0-9a-f]{32}$", base_digest$value)
+)
 if (
   is.character(base_path) &&
     length(base_path) == 1L &&
-    file.exists(base_path)
+    file.exists(base_path) &&
+    !base_digest_resolved
 ) {
   manifest$checkpoint$base_checkpoint$digest <- path_digest(base_path)
 }
@@ -2501,6 +2534,18 @@ run_manifest_value <- function(job, result = NULL) {
   } else {
     list()
   }
+  checkpoint <- context$checkpoint
+  if (
+    is.list(checkpoint) &&
+      is.null(checkpoint$digest) &&
+      identical(
+        checkpoint$path,
+        previous_manifest$checkpoint$path
+      ) &&
+      !is.null(previous_manifest$checkpoint$digest)
+  ) {
+    checkpoint$digest <- previous_manifest$checkpoint$digest
+  }
   manifest <- list(
     schema_version = 1L,
     id = job@id,
@@ -2520,7 +2565,7 @@ run_manifest_value <- function(job, result = NULL) {
       digest = job@compute@image_digest
     ),
     model = context$model,
-    checkpoint = context$checkpoint,
+    checkpoint = checkpoint,
     tokenizer = context$tokenizer,
     precision = context$precision,
     runtime = list(

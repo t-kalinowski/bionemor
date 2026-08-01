@@ -1194,6 +1194,23 @@ runtime_command_key <- function(recipe, command) {
 verify_runtime_commands <- function(compute, report, target = "all") {
   commands <- install_probe_commands(compute@recipe, target)
   advertised <- report$commands %||% list()
+  imports <- report$runtime$imports %||% list()
+  missing_imports <- names(imports)[
+    !vapply(imports, isTRUE, logical(1))
+  ]
+  if (length(missing_imports)) {
+    bionemor_abort(
+      "BN_RUNTIME_MISSING",
+      paste(
+        "recipe runtime failed required import:",
+        paste(missing_imports, collapse = ", ")
+      ),
+      operation = "install",
+      recipe_revision = compute@recipe@revision,
+      imports = missing_imports,
+      hint = "Install the package-pinned recipe runtime."
+    )
+  }
   keys <- vapply(
     commands,
     function(command) runtime_command_key(compute@recipe, command),

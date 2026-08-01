@@ -95,7 +95,7 @@ fake_recipes_runtime <- function(bin) {
       "output <- value('--output-path')",
       "dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)",
       "writeLines('vortex checkpoint', output)",
-      "jsonlite::write_json(list(model_size = 'evo2_7b'), file.path(dirname(output), 'config.json'), auto_unbox = TRUE)"
+      "jsonlite::write_json(list(model_size = value('--model-size')), file.path(dirname(output), 'config.json'), auto_unbox = TRUE)"
     )
   )
 
@@ -386,7 +386,7 @@ fake_esm2_runtime <- function(
       "value <- function(flag) args[[match(flag, args) + 1L]]",
       "if (identical(args[[1L]], 'describe')) {",
       paste0(
-        "  report <- list(protocol_version = 1L, helper_version = '0.2.0', helper_sha256 = paste(rep('e', 64L), collapse = ''), recipe_version = 'transformers-5.14.1', recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e', driver = 'esm2-transformers', execution_schema_version = 1L, semantic_operations = list('embed'), commands = list(embed = TRUE), features = list(pooled_embeddings_jsonl = TRUE), runtime = list(python = '3.12.0', pytorch = '2.8.0', cuda = '12.9', cuda_available = TRUE, gpu_count = 1L, driver = '575.51', transformers = '5.14.1', transformer_engine = '2.16.0', gpus = list(list(index = 0L, name = 'L40S', total_memory_bytes = 51539607552, compute_capability_major = ",
+        "  report <- list(protocol_version = 1L, helper_version = '0.2.0', helper_sha256 = paste(rep('e', 64L), collapse = ''), recipe_version = 'transformers-5.14.1', recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e', driver = 'esm2-transformers', execution_schema_version = 1L, semantic_operations = list('embed'), commands = list(embed = TRUE), features = list(pooled_embeddings_jsonl = TRUE), runtime = list(python = '3.12.0', pytorch = '2.8.0', cuda = '12.9', cuda_available = TRUE, gpu_count = 1L, driver = '575.51', transformers = '5.14.1', transformer_engine = '2.16.0', imports = list(torch = TRUE, transformers = TRUE, transformer_engine = TRUE), gpus = list(list(index = 0L, name = 'L40S', total_memory_bytes = 51539607552, compute_capability_major = ",
         as.integer(compute_capability_major),
         "L, compute_capability_minor = ",
         as.integer(compute_capability_minor),

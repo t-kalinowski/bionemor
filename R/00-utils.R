@@ -319,7 +319,7 @@ path_digest <- function(path, exclude = character()) {
     )
     temporary <- tempfile("bionemor-directory-digest-")
     on.exit(unlink(temporary), add = TRUE)
-    writeLines(sort(records), temporary, useBytes = TRUE)
+    writeLines(sort(records, method = "radix"), temporary, useBytes = TRUE)
     return(unname(tools::md5sum(temporary)))
   }
   unname(tools::md5sum(path))

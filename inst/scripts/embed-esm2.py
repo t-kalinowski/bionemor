@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import importlib.metadata
-import importlib.util
 import json
 import math
 import os
@@ -60,6 +60,14 @@ def compatible_transformers_version(version: str | None) -> bool:
     return version == TRANSFORMERS_VERSION
 
 
+def import_available(module: str) -> bool:
+    try:
+        importlib.import_module(module)
+    except Exception:
+        return False
+    return True
+
+
 def gpu_runtime() -> dict[str, Any]:
     import torch
 
@@ -110,9 +118,21 @@ def gpu_runtime() -> dict[str, Any]:
 def description() -> dict[str, Any]:
     version = package_version("transformers")
     runtime = gpu_runtime()
+    imports = {
+        "torch": True,
+        "transformers": import_available("transformers"),
+        "transformer_engine": all(
+            import_available(module)
+            for module in (
+                "transformer_engine.common.recipe",
+                "transformer_engine.pytorch",
+                "transformer_engine.pytorch.attention.rope",
+            )
+        ),
+    }
+    runtime["imports"] = imports
     available = (
-        importlib.util.find_spec("transformers") is not None
-        and importlib.util.find_spec("transformer_engine") is not None
+        all(imports.values())
         and compatible_transformers_version(version)
         and runtime["cuda_available"]
     )

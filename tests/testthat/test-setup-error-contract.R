@@ -112,3 +112,57 @@ test_that("missing advertised commands expose BN_RUNTIME_MISSING", {
   expect_identical(error$recipe_revision, compute@recipe@revision)
   expect_identical(error$commands, "infer_evo2")
 })
+
+test_that("failed advertised runtime imports expose BN_RUNTIME_MISSING", {
+  workspace <- tempfile("bionemor-install-import-missing-")
+  bin <- tempfile("bionemor-install-import-missing-bin-")
+  dir.create(workspace)
+  dir.create(bin)
+  report <- list(
+    protocol_version = 1L,
+    driver = "evo2-megatron",
+    execution_schema_version = 1L,
+    semantic_operations = list("generate"),
+    recipe_version = "2.4",
+    recipe_revision = evo2_recipe()@revision,
+    commands = as.list(stats::setNames(
+      rep(TRUE, 8L),
+      c(
+        "infer_evo2",
+        "predict_evo2",
+        "train_evo2",
+        "preprocess_evo2",
+        "savanna_to_mbridge",
+        "nemo2_to_mbridge",
+        "mbridge_to_vortex",
+        "remove_optimizer"
+      )
+    )),
+    runtime = list(imports = list(
+      torch = TRUE,
+      bionemo = TRUE,
+      megatron_bridge = FALSE,
+      transformer_engine = TRUE
+    ))
+  )
+  write_executable(
+    file.path(bin, "bionemor-evo2-helper"),
+    paste("printf '%s'", shQuote(jsonlite::toJSON(report, auto_unbox = TRUE)))
+  )
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+
+  error <- expect_error(
+    bionemo_install(compute),
+    class = "BN_RUNTIME_MISSING"
+  )
+
+  expect_identical(error$operation, "install")
+  expect_identical(error$imports, "megatron_bridge")
+})

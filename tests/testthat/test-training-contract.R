@@ -379,9 +379,62 @@ test_that("Vortex export resolves the checkpoint Transformer Engine layout", {
     compute = compute
   )
 
-  plan <- checkpoint_manifest(exported)$provenance$plan
+  manifest <- checkpoint_manifest(exported)
+  plan <- manifest$provenance$plan
   tokens <- unlist(plan$steps, use.names = FALSE)
   expect_true("--no-te" %in% tokens)
+  expect_match(manifest$checkpoint_digest, "^[0-9a-f]{32}$")
+  expect_false(identical(
+    manifest$checkpoint_digest,
+    unname(tools::md5sum(checkpoint_path(exported)))
+  ))
+})
+
+test_that("Vortex checkpoint identity includes config.json", {
+  workspace <- tempfile("bionemor-vortex-identity-")
+  bin <- tempfile("bionemor-bin-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+  small <- evo2(
+    "1b",
+    checkpoint = make_mbridge_checkpoint(
+      workspace,
+      "small-source",
+      model_size = "evo2_1b_base"
+    )
+  )
+  large <- evo2(
+    "7b",
+    checkpoint = make_mbridge_checkpoint(workspace, "large-source")
+  )
+
+  small_export <- evo2_export(
+    small,
+    path = "exports/small/model.pt",
+    compute = compute
+  )
+  large_export <- evo2_export(
+    large,
+    path = "exports/large/model.pt",
+    compute = compute
+  )
+
+  expect_identical(
+    unname(tools::md5sum(checkpoint_path(small_export))),
+    unname(tools::md5sum(checkpoint_path(large_export)))
+  )
+  expect_false(identical(
+    checkpoint_manifest(small_export)$checkpoint_digest,
+    checkpoint_manifest(large_export)$checkpoint_digest
+  ))
 })
 
 test_that("Vortex export directory owns one checkpoint and config", {

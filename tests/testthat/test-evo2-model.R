@@ -228,14 +228,21 @@ test_that("registered checkpoints reuse their payload digest", {
   expect_match(registered$checkpoint_digest, "^[0-9a-f]{32}$")
   writeLines("complete", file.path(path, ".bionemor-complete"))
 
-  generated <- evo2_generate(
+  job <- evo2_generate(
     model,
     "ACGT",
     num_tokens = 4L,
-    seed = 17L
+    seed = 17L,
+    async = TRUE
   )
+  manifest_path <- file.path(job_path(job), "manifest.json")
+  deadline <- Sys.time() + 10
+  while (!file.exists(manifest_path) && Sys.time() < deadline) {
+    Sys.sleep(0.01)
+  }
+  expect_true(file.exists(manifest_path))
   run_manifest <- jsonlite::read_json(
-    file.path(attr(generated, "provenance")$run_path, "manifest.json"),
+    manifest_path,
     simplifyVector = FALSE
   )
 
@@ -244,4 +251,30 @@ test_that("registered checkpoints reuse their payload digest", {
     run_manifest$checkpoint$digest$value,
     registered$checkpoint_digest
   )
+})
+
+test_that("legacy checkpoints can be read from read-only storage", {
+  skip_on_os("windows")
+  workspace <- tempfile("bionemor-read-only-checkpoint-")
+  dir.create(workspace)
+  path <- make_mbridge_checkpoint(workspace, "shared")
+  model <- evo2("7b", checkpoint = path)
+  manifest_path <- model@checkpoint@manifest
+  manifest <- checkpoint_manifest(model@checkpoint)
+  manifest$checkpoint_digest <- NULL
+  jsonlite::write_json(
+    manifest,
+    manifest_path,
+    auto_unbox = TRUE,
+    null = "null",
+    pretty = TRUE
+  )
+  Sys.chmod(manifest_path, "0444")
+  Sys.chmod(path, "0555")
+  on.exit({
+    Sys.chmod(path, "0755")
+    Sys.chmod(manifest_path, "0644")
+  }, add = TRUE)
+
+  expect_no_error(evo2("7b", checkpoint = path))
 })
