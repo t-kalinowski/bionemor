@@ -46,7 +46,7 @@ rejected before export.
 }
 \examples{
 \dontrun{
-compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 model <- evo2_model("7b", compute)
 vortex <- evo2_export(
   model,

@@ -98,7 +98,11 @@ test_that("capabilities and doctor describe the external recipe runtime", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   capabilities <- bionemo_capabilities(compute, refresh = TRUE)
@@ -152,6 +156,7 @@ test_that("Slurm doctor requires the scheduler command set", {
     BIONEMOR_SLURM_LOG = log
   ))
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace
@@ -186,6 +191,7 @@ test_that("Slurm installation probes the runtime inside allocations", {
     BIONEMOR_SLURM_LOG = log
   ))
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace
@@ -227,6 +233,7 @@ test_that("Slurm installation records a local SIF SHA-256 digest", {
     BIONEMOR_APPTAINER_LOG = apptainer_log
   ))
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "container",
     image = image,
@@ -283,6 +290,7 @@ test_that("Slurm probes reject a SIF changed after digest resolution", {
     BIONEMOR_MUTATE_SIF = image
   ))
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "container",
     image = image,
@@ -308,6 +316,7 @@ test_that("container probes use GPUs and mount the workspace", {
     BIONEMOR_CONTAINER_LOG = log
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     workspace = workspace,
     image = paste0("example/evo2@sha256:", strrep("a", 64L))
   )
@@ -358,6 +367,7 @@ test_that("container probes use GPUs and mount the workspace", {
 
   fake_container_runtime(bin, "podman")
   podman_compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     workspace = workspace,
     image = paste0("example/evo2@sha256:", strrep("b", 64L)),
     config = list(container_engine = "podman")
@@ -391,6 +401,7 @@ test_that("installation verifies an existing recipe image", {
     BIONEMOR_FAKE_LOG = recipe_log
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     workspace = workspace,
     image = "example/evo2:verified",
     config = list(container_engine = "podman")
@@ -437,7 +448,11 @@ test_that("sequence contracts map strands, layers, and portable artifacts", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   expect_equal(
@@ -520,6 +535,7 @@ test_that("sequence contracts map strands, layers, and portable artifacts", {
       model,
       "ACGT",
       bionemo_compute(
+        recipe = evo2_recipe(),
         engine = "external",
         workspace = workspace,
         gpus = 2L
@@ -555,7 +571,11 @@ test_that("semantic inference controls map to exact supported recipe flags", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   generation_control <- evo2_inference_control(
@@ -699,7 +719,11 @@ test_that("local jobs preserve wait and cancellation boundaries", {
     NGC_CLI_API_KEY = paste0(secret, "-cli"),
     HF_TOKEN = paste0(secret, "-hf")
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   generated <- evo2_generate(
@@ -775,6 +799,7 @@ test_that("default local cancellation terminates a TERM-resistant process tree",
     BIONEMOR_FAKE_PID_FILE = pid_file
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -839,14 +864,18 @@ test_that("reopened jobs preserve custom recipe provenance", {
     base_image = "example.com/custom/pytorch:26.06"
   )
   capabilities <- bionemo_capabilities(
-    bionemo_compute(engine = "external", workspace = workspace),
+    bionemo_compute(
+      recipe = evo2_recipe(),
+      engine = "external",
+      workspace = workspace
+    ),
     refresh = TRUE
   )
   capabilities$recipe_revision <- revision
   compute <- bionemo_compute(
+    recipe = recipe,
     engine = "external",
     workspace = workspace,
-    recipe = recipe,
     config = list(capabilities = capabilities)
   )
   source <- make_mbridge_checkpoint(workspace, name = "custom-source")
@@ -897,6 +926,7 @@ test_that("Slurm failure manifests retain the scheduler exit status", {
     BIONEMOR_FAKE_EXIT = "42:0"
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -939,6 +969,7 @@ test_that("Slurm accounting lag preserves the submitted state", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -984,6 +1015,7 @@ test_that("Slurm jobs use one quoted script and scheduler cancellation", {
     BIONEMOR_CANCEL_ARGS = cancel_args
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1044,6 +1076,7 @@ test_that("Slurm submission cannot overwrite a job that already finished", {
     BIONEMOR_SLURM_LOG = slurm_log
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1084,6 +1117,7 @@ test_that("a stale Slurm query cannot overwrite a terminal state", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1147,6 +1181,7 @@ test_that("Slurm infrastructure terminal states map to failed jobs", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1213,6 +1248,7 @@ test_that("failed scheduler cancellation removes its request marker", {
     BIONEMOR_FAKE_STATE = "RUNNING"
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1249,6 +1285,7 @@ test_that("Slurm submission persists the submitted state", {
     BIONEMOR_FAKE_STATE = "PENDING"
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1297,6 +1334,7 @@ test_that("failed Slurm submission becomes a durable failed job", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1357,6 +1395,7 @@ test_that("invalid sbatch output becomes a durable failed job", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1416,6 +1455,7 @@ test_that("Slurm running progress survives reopen and stale accounting", {
     BIONEMOR_FAKE_STATE_FILE = scheduler_state
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1465,6 +1505,7 @@ test_that("a terminal scheduler state clears a stale Slurm finalizer", {
     BIONEMOR_FAKE_EXIT = "9:0"
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1521,6 +1562,7 @@ test_that("accepted Slurm cancellation retains its request marker", {
     BIONEMOR_CANCEL_ACCEPTED = accepted
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1565,6 +1607,7 @@ test_that("local CUDA OOM exposes the GPU memory error context", {
   )
   memory <- 80 * 1024^3
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -1637,6 +1680,7 @@ test_that("Slurm OUT_OF_MEMORY exposes and persists GPU memory context", {
   )
   memory <- 80 * 1024^3
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1701,6 +1745,7 @@ test_that("unattributed generation exit statuses remain upstream failures", {
     BIONEMOR_FAKE_STATE = "FAILED"
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -1747,7 +1792,11 @@ test_that("generation validation errors ignore stale upstream OOM text", {
     BIONEMOR_FAKE_STALE_OOM = "true",
     BIONEMOR_FAKE_GENERATED_TOKENS = "5"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   error <- expect_error(

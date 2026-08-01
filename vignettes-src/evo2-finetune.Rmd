@@ -53,6 +53,7 @@ run_id <- Sys.getenv(
 )
 
 compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   backend = "local",
   engine = "container",
   workspace = workspace

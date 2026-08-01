@@ -34,7 +34,7 @@ cancel it explicitly with \code{\link[=job_cancel]{job_cancel()}}.
 }
 \examples{
 \dontrun{
-compute <- bionemo_compute(workspace = "/shared/workspace")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "/shared/workspace")
 model <- evo2(
   "7b",
   checkpoint = "/shared/workspace/checkpoints/evo2-7b"

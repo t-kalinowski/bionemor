@@ -379,7 +379,7 @@ preprocess_record <- function(
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' compute <- bionemo_install(compute)
 #' model <- evo2_model("1b", compute)
 #' data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
@@ -930,7 +930,7 @@ fit_control_args <- function(control, model_record) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' compute <- bionemo_install(compute)
 #' model <- evo2_model("1b", compute)
 #' data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))

@@ -17,7 +17,11 @@ test_that("evo2_model prepares and reuses the canonical checkpoint", {
     },
     .package = "bionemor"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   model <- evo2_model("7b-1m", compute)
   registry <- evo2_models()
@@ -65,7 +69,11 @@ test_that("evo2_model accepts an explicit checkpoint destination", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   model <- evo2_model(
     compute = compute,
@@ -89,7 +97,11 @@ test_that("evo2_model reuses a relocated complete checkpoint", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   prepared <- evo2_model(compute = compute)
   original <- checkpoint_path(prepared)
   moved <- file.path(workspace, "uploaded", basename(original))
@@ -121,7 +133,11 @@ test_that("evo2_model rejects mismatched and incomplete destinations", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   shared <- "checkpoints/shared"
 
   evo2_model("7b", compute, path = shared)
@@ -155,7 +171,11 @@ test_that("evo2_model binds compute for inference", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2_model("7b", compute)
   sequences <- c(first = "ACGTACGT", second = "TGCATGCA")
 

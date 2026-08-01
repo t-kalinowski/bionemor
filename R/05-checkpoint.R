@@ -939,7 +939,7 @@ assert_vortex_export_layout <- function(path, allow_existing = FALSE) {
 #' @examples
 #' model <- evo2("7b")
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' checkpoint <- evo2_checkpoint(
 #'   model,
 #'   source = "recommended",
@@ -1233,7 +1233,7 @@ evo2_checkpoint <- function(
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' model <- evo2_model("7b", compute)
 #'
 #' # The prepared model remembers where it runs.
@@ -1305,7 +1305,7 @@ evo2_model <- function(size = "7b", compute, path = NULL) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' model <- evo2_model("7b", compute)
 #' vortex <- evo2_export(
 #'   model,

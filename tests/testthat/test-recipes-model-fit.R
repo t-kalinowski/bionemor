@@ -26,6 +26,7 @@ test_that("model compatibility follows advertised GPU and precision policy", {
   }
   compute <- function(major, requested = 2L, advertised = requested) {
     bionemo_compute(
+      recipe = evo2_recipe(),
       engine = "external",
       workspace = tempfile("bionemor-models-"),
       gpus = requested,
@@ -36,6 +37,7 @@ test_that("model compatibility follows advertised GPU and precision policy", {
   }
 
   unknown <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = tempfile("bionemor-models-")
   )
@@ -76,6 +78,7 @@ test_that("inference rejects models without a verified execution policy", {
   )
   model <- evo2("40b-base", checkpoint = checkpoint)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -108,6 +111,7 @@ test_that("inference validates requested precision against the actual GPUs", {
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   compute <- function(major) {
     bionemo_compute(
+      recipe = evo2_recipe(),
       engine = "external",
       workspace = workspace,
       config = list(
@@ -158,6 +162,7 @@ test_that("fine-tuning rejects models without a verified execution policy", {
   )
   model <- evo2("40b-base", checkpoint = checkpoint)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -291,7 +296,11 @@ test_that("preparation materializes compressed FASTA as plain FASTA", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   prepared <- evo2_prepare(
@@ -338,6 +347,7 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     BIONEMOR_CONTAINER_LOG = container_log
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     workspace = workspace,
     image = paste0("example/evo2@sha256:", strrep("c", 64L))
   )
@@ -542,7 +552,11 @@ test_that("dense MBridge checkpoints export explicitly to Vortex", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   exported <- evo2_export(
@@ -584,7 +598,11 @@ test_that("pooled embeddings return an ordered numeric matrix", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   embeddings <- evo2_embed(

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "recipe_revision": "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e",
+  "models": [
+    {
+      "name": "8m",
+      "aliases": ["esm2_t6_8m_ur50d"],
+      "model_size": "esm2_t6_8M_UR50D",
+      "parameters": 8000000,
+      "context_length": 1024,
+      "embedding_size": 320,
+      "source": "nvidia/esm2_t6_8M_UR50D",
+      "source_revision": "3674a6acb6c217bbeff709d182a11b196125dfc3",
+      "source_format": "huggingface"
+    },
+    {
+      "name": "35m",
+      "aliases": ["esm2_t12_35m_ur50d"],
+      "model_size": "esm2_t12_35M_UR50D",
+      "parameters": 35000000,
+      "context_length": 1024,
+      "embedding_size": 480,
+      "source": "nvidia/esm2_t12_35M_UR50D",
+      "source_revision": "ca13c2d411d8aad9ea8dfa1f24a80a36a8946b5e",
+      "source_format": "huggingface"
+    },
+    {
+      "name": "150m",
+      "aliases": ["esm2_t30_150m_ur50d"],
+      "model_size": "esm2_t30_150M_UR50D",
+      "parameters": 150000000,
+      "context_length": 1024,
+      "embedding_size": 640,
+      "source": "nvidia/esm2_t30_150M_UR50D",
+      "source_revision": "a2e82bef92128da1852464b0864651b1a11337d0",
+      "source_format": "huggingface"
+    },
+    {
+      "name": "650m",
+      "aliases": ["esm2_t33_650m_ur50d"],
+      "model_size": "esm2_t33_650M_UR50D",
+      "parameters": 650000000,
+      "context_length": 1024,
+      "embedding_size": 1280,
+      "source": "nvidia/esm2_t33_650M_UR50D",
+      "source_revision": "118f470e7e96ba8741227ab898e54758850e9563",
+      "source_format": "huggingface"
+    },
+    {
+      "name": "3b",
+      "aliases": ["esm2_t36_3b_ur50d"],
+      "model_size": "esm2_t36_3B_UR50D",
+      "parameters": 3000000000,
+      "context_length": 1024,
+      "embedding_size": 2560,
+      "source": "nvidia/esm2_t36_3B_UR50D",
+      "source_revision": "0850cbdf0494675c6db7a5d0d7390ceed3b3504c",
+      "source_format": "huggingface"
+    },
+    {
+      "name": "15b",
+      "aliases": ["esm2_t48_15b_ur50d"],
+      "model_size": "esm2_t48_15B_UR50D",
+      "parameters": 15000000000,
+      "context_length": 1024,
+      "embedding_size": 5120,
+      "source": "nvidia/esm2_t48_15B_UR50D",
+      "source_revision": "5c74319d3e978737870f326e464f142eb2f7c666",
+      "source_format": "huggingface"
+    }
+  ]
+}

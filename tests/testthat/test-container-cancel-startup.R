@@ -32,6 +32,7 @@ test_that("container cancellation stops the process group during startup", {
     BIONEMOR_PROCESS_GROUP_CANCEL_LOG = kill_log
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     workspace = workspace,
     image = paste0("example/evo2@sha256:", strrep("a", 64L)),
     config = list(

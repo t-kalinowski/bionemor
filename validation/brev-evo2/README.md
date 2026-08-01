@@ -47,8 +47,8 @@ If an existing image fails its helper-label check after the package helper
 changes, rebuild it once with `bionemo_install(compute, rebuild = TRUE)` before
 rendering again.
 
-The README and `bionemor` article run dense generation, scoring, and pooled
-embeddings. The fine-tuning article prepares fixed 127-base synthetic inputs,
-runs two BF16 rank-4 LoRA optimizer steps, and checks fitted scoring and
-generation. The Slurm article is rendered as reference material but is not
-executed on Brev.
+The README and `bionemor` article run Evo 2 generation, scoring, and embeddings,
+then run ESM-2 protein embeddings through its separate pinned runtime. The
+fine-tuning article prepares fixed 127-base synthetic inputs, runs two BF16
+rank-4 LoRA optimizer steps, and checks fitted scoring and generation. The
+Slurm article is rendered as reference material but is not executed on Brev.

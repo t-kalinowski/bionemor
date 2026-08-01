@@ -1,18 +1,5 @@
 evo2_model_registry_records <- function() {
-  path <- system.file(
-    "recipes",
-    "evo2-models.json",
-    package = "bionemor",
-    mustWork = TRUE
-  )
-  registry <- jsonlite::read_json(path, simplifyVector = FALSE)
-  if (!identical(registry$schema_version, 1L)) {
-    stop("unsupported Evo 2 model registry schema")
-  }
-  if (!is.list(registry$models) || length(registry$models) <= 0L) {
-    stop("Evo 2 model registry is empty")
-  }
-  registry$models
+  read_model_registry_records("evo2", "Evo 2", evo2_recipe_lock())
 }
 
 evo2_model_registry <- function() {
@@ -40,28 +27,7 @@ evo2_model_registry <- function() {
 }
 
 evo2_model_record <- function(size) {
-  if (!is_scalar_string(size)) {
-    stop("size must be one non-empty string")
-  }
-  size <- tolower(size)
-  records <- evo2_model_registry_records()
-  matches <- vapply(
-    records,
-    function(record) size %in% c(record$name, record$aliases),
-    logical(1)
-  )
-  if (sum(matches) != 1L) {
-    choices <- pluck_chr(records, "name")
-    bionemor_abort(
-      "BN_MODEL_UNKNOWN",
-      paste0(
-        "supported sizes are ",
-        paste0("'", choices, "'", collapse = ", ")
-      ),
-      model = size
-    )
-  }
-  records[[which(matches)]]
+  select_model_registry_record(evo2_model_registry_records(), size)
 }
 
 evo2_gpu_advertisement <- function(compute) {

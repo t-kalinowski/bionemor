@@ -11,6 +11,7 @@ test_that("domain failures expose stable BioNeMo condition codes", {
 
 test_that("checkpoint source failures expose their stable condition code", {
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = tempfile("bionemor-condition-")
   )
@@ -62,7 +63,11 @@ test_that("inference context failures expose BN_CONTEXT_LIMIT before launch", {
     model_size = "evo2_7b_base"
   )
   model <- evo2("7b-base", checkpoint = checkpoint)
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   generation_error <- expect_error(
     evo2_generate(
@@ -120,7 +125,11 @@ test_that("invalid public sequence input exposes BN_INVALID_SEQUENCE", {
     BIONEMOR_FAKE_LOG = log
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   error <- expect_error(
     evo2_score(model, c(sequence = "AC?T"), compute),
@@ -142,7 +151,11 @@ test_that("malformed generation output exposes BN_OUTPUT_SCHEMA metadata", {
     BIONEMOR_FAKE_LOG = log
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   job <- evo2_generate(
     model,
     c(prompt = "ACGT"),

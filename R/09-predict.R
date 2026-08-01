@@ -280,7 +280,7 @@ generation_prompt_rows <- function(input) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' compute <- bionemo_install(compute)
 #' model <- evo2_model("7b", compute)
 #'
@@ -801,7 +801,7 @@ materialize_generation_job <- function(job, descriptor) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' compute <- bionemo_install(compute)
 #' model <- evo2_model("7b", compute)
 #'
@@ -1010,7 +1010,7 @@ materialize_score_job <- function(job, descriptor) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' compute <- bionemo_install(compute)
 #' model <- evo2_model("7b", compute)
 #'
@@ -1169,7 +1169,7 @@ materialize_profile_job <- function(job, descriptor) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "~/evo2-work")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 #' compute <- bionemo_install(compute)
 #' model <- evo2_model("7b", compute)
 #'

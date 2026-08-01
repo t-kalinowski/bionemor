@@ -13,7 +13,9 @@ test_that("installed metadata and exports describe the Recipes runtime", {
       "evo2_model",
       "evo2_generate",
       "evo2_score",
-      "evo2_finetune"
+      "evo2_finetune",
+      "esm2_model",
+      "esm2_embed"
     ) %in%
       getNamespaceExports("bionemor")
   ))
@@ -32,17 +34,22 @@ test_that("runtime assets are pinned to BioNeMo Recipes", {
   )
   expect_match(lock$revision, "^[0-9a-f]{40}$")
   expect_equal(lock$subdirectory, "recipes/evo2_megatron")
-  expect_equal(
+  expect_setequal(
     basename(list.dirs(
       file.path(root, "docker"),
       recursive = FALSE
     )),
-    "evo2-recipes"
+    c("evo2-recipes", "esm2-vllm")
   )
   expect_true(file.exists(file.path(
     root,
     "scripts",
     "materialize-evo2.py"
+  )))
+  expect_true(file.exists(file.path(
+    root,
+    "scripts",
+    "embed-esm2.py"
   )))
   expect_false(any(grepl(
     "brev-evo2",
@@ -171,7 +178,11 @@ test_that("public documentation states the current runtime and API contracts", {
     fixed = TRUE
   )
   expect_match(compute, "bound\\s+to\\s+a\\s+model")
-  expect_match(compute, "compute <- bionemo_compute(", fixed = TRUE)
+  expect_match(
+    compute,
+    "recipe = evo2_recipe()",
+    fixed = TRUE
+  )
 
   checkpoint <- read_text(
     file.path("man", "evo2_checkpoint.Rd"),

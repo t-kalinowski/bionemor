@@ -8,7 +8,11 @@ test_that("recommended tokenizers resolve in the selected runtime", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   prepared <- evo2_prepare(
@@ -45,7 +49,11 @@ test_that("fine-tuning rejects sequence lengths beyond the model context", {
     model_size = "evo2_7b_base"
   )
   model <- evo2("7b-base", checkpoint = checkpoint)
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   error <- expect_error(
     evo2_finetune(
@@ -79,6 +87,7 @@ test_that("Slurm tokenizer paths must be inside the shared workspace", {
   dir.create(workspace)
   dir.create(tokenizer)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace
@@ -121,7 +130,11 @@ test_that("named fine-tuning automatically prepares raw data in a distinct run",
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2(
     "1b",
     checkpoint = make_mbridge_checkpoint(
@@ -178,6 +191,7 @@ test_that("documented 1B BF16 fine-tuning is independent of inference policy", {
   )
   model <- evo2("1b", checkpoint = checkpoint)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -231,6 +245,7 @@ test_that("full fine-tuning cannot use a LoRA checkpoint as its base", {
   )
   model <- evo2("7b", checkpoint = lora)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -288,6 +303,7 @@ test_that("Vortex-style MBridge training fails before recipe execution", {
   )
   model <- evo2("1b", checkpoint = checkpoint)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -317,7 +333,11 @@ test_that("Vortex-sensitive NeMo2 conversion requires an explicit upstream path"
   workspace <- tempfile("bionemor-vortex-nemo2-")
   source <- file.path(workspace, "nemo2")
   dir.create(source, recursive = TRUE)
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   expect_error(
     evo2_checkpoint(
@@ -347,7 +367,11 @@ test_that("Vortex export resolves the checkpoint Transformer Engine layout", {
     transformer_engine = FALSE
   )
   model <- evo2("7b", checkpoint = checkpoint)
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   exported <- evo2_export(
     model,
@@ -371,7 +395,11 @@ test_that("Vortex export directory owns one checkpoint and config", {
     BIONEMOR_FAKE_LOG = log
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   evo2_export(
     model,
@@ -400,7 +428,11 @@ test_that("Vortex export reuse requires the requested checkpoint identity", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   first <- evo2(
     "7b",
     checkpoint = make_mbridge_checkpoint(workspace, "checkpoint-first")

@@ -22,8 +22,8 @@ A named list parsed from the helper capability report, with \code{image},
 \code{bionemo_capabilities()} runs the package helper in the environment described
 by \code{compute} and parses its JSON report. The probe verifies that the helper's
 protocol, recipe version, and recipe revision match the compute descriptor.
-It also reports whether the recipe commands used for inference, training,
-and checkpoint conversion are available.
+It also reports whether the selected recipe's commands for its implemented
+inference, training, or checkpoint-conversion operations are available.
 }
 \details{
 This is a live GPU-backed probe when no cached report is used. A local
@@ -34,8 +34,8 @@ probe does not prepare a model or inspect model weights.
 \section{Report contents}{
 
 
-The returned named list contains helper, protocol, recipe, tokenizer,
-command, feature, and runtime information. \code{runtime} includes reported
+The returned named list contains helper, protocol, recipe, command, feature,
+and runtime information, plus adapter-specific entries. \code{runtime} includes
 software versions, CUDA availability, the GPU count, driver information, and
 per-GPU properties. bionemor adds \code{image}, \code{image_digest}, and the UTC
 \code{probed_at} time so the report records where it came from.
@@ -49,7 +49,7 @@ this function does not modify the supplied compute descriptor.
 
 \examples{
 \dontrun{
-compute <- bionemo_compute(
+compute <- bionemo_compute(recipe = evo2_recipe(),
   engine = "external",
   workspace = "/shared/projects/evo2"
 )

@@ -34,7 +34,7 @@ rejected without being overwritten.
 }
 \examples{
 \dontrun{
-compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 model <- evo2_model("7b", compute)
 
 # The prepared model remembers where it runs.

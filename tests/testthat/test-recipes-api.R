@@ -20,26 +20,35 @@ test_that("the recipe lock drives compute descriptors", {
   )
   expect_true(recipe@verified)
 
-  compute <- bionemo_compute(workspace = workspace)
+  compute <- bionemo_compute(recipe = evo2_recipe(), workspace = workspace)
   expect_true(dir.exists(workspace))
   expect_equal(compute@engine, "container")
   expect_identical(compute@recipe, recipe)
   expect_error(compute@profile)
 
   expect_equal(
-    bionemo_compute(engine = "external", workspace = tempfile())@engine,
+    bionemo_compute(
+      recipe = evo2_recipe(),
+      engine = "external",
+      workspace = tempfile()
+    )@engine,
     "external"
   )
   without_container_runtime <- withr::with_envvar(
     c(PATH = ""),
     bionemo_compute(
+      recipe = evo2_recipe(),
       workspace = tempfile(),
       config = list(container_engine = "missing-container-runtime")
     )
   )
   expect_equal(without_container_runtime@engine, "container")
   expect_error(
-    bionemo_compute(engine = "embedded", workspace = tempfile()),
+    bionemo_compute(
+      recipe = evo2_recipe(),
+      engine = "embedded",
+      workspace = tempfile()
+    ),
     "external"
   )
 })
@@ -55,6 +64,7 @@ test_that("a Savanna checkpoint is converted once and registered as MBridge", {
     BIONEMOR_FAKE_LOG = log
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace
   )
@@ -116,10 +126,15 @@ test_that("checkpoint destinations are prepared before submission", {
     BIONEMOR_FAKE_LOG = log
   )
   capabilities <- bionemo_capabilities(
-    bionemo_compute(engine = "external", workspace = workspace),
+    bionemo_compute(
+      recipe = evo2_recipe(),
+      engine = "external",
+      workspace = workspace
+    ),
     refresh = TRUE
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     backend = "slurm",
     engine = "external",
     workspace = workspace,
@@ -166,7 +181,11 @@ test_that("custom remote pickle-based checkpoints require explicit trust", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   expect_error(
     evo2_checkpoint(
@@ -217,7 +236,11 @@ test_that("model revision selects the recommended checkpoint revision", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", revision = revision)
 
   expect_error(
@@ -348,6 +371,7 @@ test_that("inference uses the checkpoint iteration selected by its manifest", {
   model <- evo2("7b", checkpoint = root)
   registered <- checkpoint_manifest(model)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(
@@ -411,7 +435,11 @@ test_that("external LoRA checkpoints require an explicit base iteration", {
     base_checkpoint = base
   )
   model <- evo2("7b", checkpoint = lora)
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   expect_error(
     evo2_generate(model, "ACGT", compute, num_tokens = 4L),
@@ -467,7 +495,11 @@ test_that("generation batches prompts and returns portable R results", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   generated <- evo2_generate(
@@ -570,11 +602,11 @@ test_that("inference rejects checkpoints prepared by another recipe", {
   checkpoint <- make_mbridge_checkpoint(workspace)
   model <- evo2("7b", checkpoint = checkpoint)
   compute <- bionemo_compute(
-    engine = "external",
-    workspace = workspace,
     recipe = evo2_recipe(
       revision = "0123456789abcdef0123456789abcdef01234567"
-    )
+    ),
+    engine = "external",
+    workspace = workspace
   )
 
   expect_error(
@@ -595,7 +627,11 @@ test_that("explicit missing or empty sequence IDs are rejected", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   expect_error(
@@ -628,7 +664,11 @@ test_that("generation validates declared length and reports low complexity", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   withr::local_envvar(
@@ -709,7 +749,11 @@ test_that("scoring returns ordered portable results and predict delegates", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   sequences <- c(first = "ACGT", second = "TGCA")
 
@@ -802,7 +846,11 @@ test_that("asynchronous jobs can be reopened from their run directory", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -854,7 +902,11 @@ test_that("inference requests retain original FASTA provenance", {
     path = normalizePath(source, mustWork = TRUE),
     digest = unname(tools::md5sum(source))
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   jobs <- list(

@@ -46,7 +46,7 @@ tokenizer and recipe revisions, preprocessing controls, and output digests.
 }
 \examples{
 \dontrun{
-compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 compute <- bionemo_install(compute)
 model <- evo2_model("1b", compute)
 data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))

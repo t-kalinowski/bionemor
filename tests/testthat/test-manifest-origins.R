@@ -8,7 +8,11 @@ test_that("run manifests retain exact request and resolved values", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   default_job <- evo2_generate(
@@ -91,7 +95,11 @@ test_that("checkpoint manifests retain requested and resolved precision", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   checkpoint <- evo2_checkpoint(
     evo2("7b"),
     source = make_mbridge_checkpoint(workspace, "source"),

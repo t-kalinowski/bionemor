@@ -9,7 +9,11 @@ test_that("custom pickle checkpoint manifests record explicit trust", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   checkpoint <- evo2_checkpoint(
     evo2("7b"),
@@ -52,7 +56,11 @@ test_that("copying a BioNeMo checkpoint writes destination metadata", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   source <- evo2_checkpoint(
     evo2("7b"),
     source = make_mbridge_checkpoint(workspace, "source"),
@@ -85,7 +93,11 @@ test_that("checkpoint reuse matches precision and tokenizer identity", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   source <- make_mbridge_checkpoint(workspace, "source")
   tokenizer_a <- file.path(workspace, "tokenizer-a")
   tokenizer_b <- file.path(workspace, "tokenizer-b")

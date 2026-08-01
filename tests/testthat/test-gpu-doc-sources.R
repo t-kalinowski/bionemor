@@ -34,8 +34,22 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("no CPU fallback", onboarding, fixed = TRUE)))
   expect_true(all(grepl("BioNeMo Recipes", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("ESM-2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Brev", onboarding, fixed = TRUE)))
-  expect_true(all(grepl('evo2_model("7b", compute)', onboarding, fixed = TRUE)))
+  expect_true(all(grepl("bionemo_workflows()", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("recipe = evo2_recipe()", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("recipe = esm2_recipe()", onboarding, fixed = TRUE)))
+  expect_true(all(grepl(
+    'evo2_model("7b", evo2_compute)',
+    onboarding,
+    fixed = TRUE
+  )))
+  expect_true(all(grepl(
+    'esm2_model("8m", esm2_compute)',
+    onboarding,
+    fixed = TRUE
+  )))
+  expect_true(all(grepl("esm2_embed(", onboarding, fixed = TRUE)))
 
   fine_tune <- sources[[3L]]
   expect_match(fine_tune, "evo2_finetune(", fixed = TRUE)
@@ -45,5 +59,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
 
   slurm <- sources[[4L]]
   expect_match(slurm, "not executed", ignore.case = TRUE)
+  expect_match(slurm, "Evo 2 example", fixed = TRUE)
+  expect_match(slurm, "recipe = evo2_recipe()", fixed = TRUE)
   expect_match(slurm, "async = TRUE", fixed = TRUE)
 })

@@ -5,10 +5,10 @@
 \title{Describe where BioNeMo operations run}
 \usage{
 bionemo_compute(
+  recipe,
   backend = c("local", "slurm"),
   engine = c("container", "external"),
   workspace = getwd(),
-  recipe = evo2_recipe(),
   image = NULL,
   gpus = 1L,
   queue = NULL,
@@ -18,6 +18,8 @@ bionemo_compute(
 )
 }
 \arguments{
+\item{recipe}{Recipe descriptor such as \code{\link[=evo2_recipe]{evo2_recipe()}} or \code{\link[=esm2_recipe]{esm2_recipe()}}.}
+
 \item{backend}{Where commands are launched: \code{"local"} or \code{"slurm"}.}
 
 \item{engine}{How the recipe runtime is supplied: \code{"container"} or
@@ -26,8 +28,6 @@ bionemo_compute(
 \item{workspace}{Writable workspace used by R and the runtime. It must not be
 the filesystem root. Slurm requires the same absolute path on the
 submitting host and compute nodes.}
-
-\item{recipe}{Recipe descriptor from \code{\link[=evo2_recipe]{evo2_recipe()}}.}
 
 \item{image}{Container image. For local/container execution, \code{NULL} or the
 verified recipe's base-image tag or digest-qualified reference selects the
@@ -58,14 +58,15 @@ probe a GPU, or submit a Slurm job.
 \section{Models and compute}{
 
 
-A model and compute have separate roles. \code{\link[=evo2]{evo2()}} describes the model size,
-checkpoint, and model-level settings. \code{bionemo_compute()} describes the
-execution environment. They are coupled when an operation such as
-\code{\link[=evo2_generate]{evo2_generate()}}, \code{\link[=evo2_score]{evo2_score()}}, \code{\link[=evo2_embed]{evo2_embed()}}, or \code{\link[=fit]{fit()}} runs: the
-operation uses the supplied compute descriptor, or the descriptor already
-bound to a model returned by \code{\link[=evo2_model]{evo2_model()}}. Keeping them separate lets one
-runtime be installed and diagnosed before weights are prepared, and lets the
-same model descriptor run in more than one compatible environment.
+A model and compute have separate roles. A family constructor such as
+\code{\link[=evo2]{evo2()}} or \code{\link[=esm2]{esm2()}} describes model identity,
+checkpoint or source, and model-level settings. \code{bionemo_compute()} describes
+the execution environment and its recipe. An operation uses the supplied
+compute descriptor or one bound to a model by \code{\link[=evo2_model]{evo2_model()}} or
+\code{\link[=esm2_model]{esm2_model()}}.
+Keeping them separate lets a runtime be installed and diagnosed before a
+model is prepared and lets an offline model descriptor run in more than one
+compatible environment.
 }
 
 \section{Backends and engines}{
@@ -84,8 +85,8 @@ with \code{sacct}, and cancels it with \code{scancel}.
 default; set \code{config = list(container_engine = "podman")} to use another
 Docker-compatible command. Slurm execution uses Apptainer and requires an
 existing SIF path or digest-qualified image URI.
-\item \code{"external"} runs the recipe commands and \code{bionemor-evo2-helper} directly
-in an environment managed outside bionemor. Those commands must be on the
+\item \code{"external"} runs the recipe commands and package helper directly in an
+environment managed outside bionemor. Those commands must be on the
 execution environment's \code{PATH}. \code{image} must be \code{NULL}.
 }
 
@@ -135,6 +136,7 @@ descriptor; users normally should not populate that entry themselves.
 # Descriptor construction is offline and does not require a GPU.
 workspace <- file.path(tempdir(), "bionemor-compute-example")
 compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   engine = "external",
   workspace = workspace
 )
@@ -143,6 +145,7 @@ compute
 \dontrun{
 # A site-managed runtime on a Slurm cluster.
 slurm_compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   backend = "slurm",
   engine = "external",
   workspace = "/shared/projects/evo2",
@@ -155,5 +158,6 @@ slurm_compute <- bionemo_compute(
 
 }
 \seealso{
-\code{\link[=evo2]{evo2()}}, \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}
+\code{\link[=evo2]{evo2()}}, \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=esm2]{esm2()}}, \code{\link[=esm2_model]{esm2_model()}},
+\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}
 }

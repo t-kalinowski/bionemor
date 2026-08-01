@@ -25,6 +25,7 @@ if (
 }
 
 compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   backend = "local",
   engine = "container",
   image = image,

@@ -13,15 +13,27 @@ recipe_install_spec <- function(recipe) {
         "helper_filename",
         "semantic_operations",
         "docker_appendage",
-        "uv_fallback",
         "image_repository",
         "image_version",
         "probes",
         "command_keys"
       ) %in%
         names(spec)
-    )
+    ),
+    "adapter uv fallback must be NULL or one string" = is.null(
+      spec$uv_fallback
+    ) ||
+      is_scalar_string(spec$uv_fallback),
+    "adapter build arguments must be a named character vector" = is.character(
+      spec$build_args %||% character()
+    ) &&
+      !anyNA(spec$build_args %||% character()) &&
+      (length(spec$build_args %||% character()) == 0L ||
+        !is.null(names(spec$build_args)) &&
+          all(grepl("^[A-Z][A-Z0-9_]*$", names(spec$build_args))) &&
+          !anyDuplicated(names(spec$build_args)))
   )
+  spec$build_args <- spec$build_args %||% character()
   spec
 }
 
@@ -110,6 +122,14 @@ install_probe_commands <- function(recipe, target = "all") {
   commands <- probes[[target]]
   if (is.null(commands)) {
     stop("unsupported installation probe target", call. = FALSE)
+  }
+  if (!length(commands)) {
+    stop(
+      "recipe adapter does not support the '",
+      target,
+      "' operation group",
+      call. = FALSE
+    )
   }
   commands
 }
@@ -446,21 +466,23 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
     lines[[from]],
     fixed = TRUE
   )
-  uv <- which(instructions == spec$uv_fallback)
-  if (length(uv) != 1L) {
-    bionemor_abort(
-      "BN_RECIPE_MISMATCH",
-      "locked recipe Dockerfile does not contain the expected uv fallback",
-      operation = "install",
-      recipe_revision = recipe@revision,
-      hint = "Remove the cached recipe source and run bionemo_install() again."
+  if (!is.null(spec$uv_fallback)) {
+    uv <- which(instructions == spec$uv_fallback)
+    if (length(uv) != 1L) {
+      bionemor_abort(
+        "BN_RECIPE_MISMATCH",
+        "locked recipe Dockerfile does not contain the expected uv fallback",
+        operation = "install",
+        recipe_revision = recipe@revision,
+        hint = "Remove the cached recipe source and run bionemo_install() again."
+      )
+    }
+    lines[[uv]] <- paste0(
+      "COPY --from=",
+      recipe_uv_image_reference(lock),
+      " /uv /uvx /bin/"
     )
   }
-  lines[[uv]] <- paste0(
-    "COPY --from=",
-    recipe_uv_image_reference(lock),
-    " /uv /uvx /bin/"
-  )
   appendage <- do.call(package_asset, as.list(spec$docker_appendage))
   atomic_write_lines(
     c(
@@ -637,14 +659,15 @@ verify_base_image_digest <- function(engine, recipe) {
   invisible(recipe)
 }
 
-#' Install or verify a BioNeMo Evo 2 recipe runtime
+#' Install or verify a BioNeMo recipe runtime
 #'
 #' `bionemo_install()` makes the runtime described by `compute` ready for
 #' bionemor operations. For the verified local/container configuration, it can
 #' build the package-pinned recipe image. For an explicit local image, an
 #' external environment, or either Slurm engine, it verifies the existing
-#' runtime instead. Installation is independent of model weights: prepare or
-#' attach a checkpoint separately with [evo2_model()] or [evo2_checkpoint()].
+#' runtime instead. Installation is independent of model weights: prepare,
+#' select, or attach model weights separately with the family-specific model
+#' functions.
 #'
 #' @section Setup lifecycle:
 #'
@@ -674,7 +697,7 @@ verify_base_image_digest <- function(engine, recipe) {
 #' provenance labels are verified.
 #'
 #' Every path performs a GPU-backed helper capability probe and checks the
-#' `--help` entry point for all inference, training, and conversion commands.
+#' `--help` entry point for every command implemented by the selected recipe.
 #' The helper's protocol, recipe version, and recipe revision must match the
 #' compute descriptor. Local containers are probed by the configured
 #' Docker-compatible engine. Local external runtimes are probed directly.
@@ -705,7 +728,7 @@ verify_base_image_digest <- function(engine, recipe) {
 #' @examples
 #' \dontrun{
 #' # Build and verify the package-pinned local container runtime.
-#' compute <- bionemo_compute(
+#' compute <- bionemo_compute(recipe = evo2_recipe(),
 #'   backend = "local",
 #'   engine = "container",
 #'   workspace = "~/evo2-work"
@@ -718,7 +741,8 @@ verify_base_image_digest <- function(engine, recipe) {
 #' bionemo_doctor(compute, target = "inference", verbose = FALSE)
 #' }
 #'
-#' @seealso [bionemo_capabilities()], [bionemo_doctor()], [evo2_model()]
+#' @seealso [bionemo_capabilities()], [bionemo_doctor()], [evo2_model()],
+#'   [esm2_model()]
 #' @export
 bionemo_install <- function(
   compute,
@@ -774,6 +798,19 @@ bionemo_install <- function(
     }
     verify_base_image_digest(engine, compute@recipe)
     helper_revision <- package_helper_revision(compute@recipe)
+    install_spec <- recipe_install_spec(compute@recipe)
+    adapter_build_args <- unlist(
+      lapply(
+        names(install_spec$build_args),
+        function(name) {
+          c(
+            "--build-arg",
+            paste0(name, "=", install_spec$build_args[[name]])
+          )
+        }
+      ),
+      use.names = FALSE
+    )
     run_install_command(
       engine,
       c(
@@ -793,9 +830,10 @@ bionemo_install <- function(
           "BIONEMOR_BASE_IMAGE_DIGEST=",
           compute@recipe@base_image_digest %||% ""
         ),
+        adapter_build_args,
         paths$context
       ),
-      error = "failed to build the pinned Evo 2 recipe image",
+      error = "failed to build the pinned BioNeMo recipe image",
       code = "BN_IMAGE_BUILD",
       recipe_revision = compute@recipe@revision,
       hint = "Inspect the container build output and pinned recipe inputs."
@@ -1087,7 +1125,7 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
       log_paths = result$log_paths %||% NULL,
       command = spec$helper,
       upstream_exit_status = as.integer(result$status),
-      hint = "Install or activate the package-pinned Evo 2 recipe runtime."
+      hint = "Install or activate the package-pinned recipe runtime."
     )
   }
   report <- tryCatch(
@@ -1152,7 +1190,7 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
       recipe_revision = compute@recipe@revision,
       expected_recipe_version = compute@recipe@recipe_version,
       actual_recipe_version = report$recipe_version %||% NULL,
-      hint = "Install the package-pinned Evo 2 recipe runtime."
+      hint = "Install the package-pinned recipe runtime."
     )
   }
   if (!identical(report$recipe_revision, compute@recipe@revision)) {
@@ -1162,7 +1200,7 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
       operation = "runtime-capabilities",
       recipe_revision = compute@recipe@revision,
       actual_recipe_revision = report$recipe_revision %||% NULL,
-      hint = "Install the package-pinned Evo 2 recipe runtime."
+      hint = "Install the package-pinned recipe runtime."
     )
   }
   report$image <- compute@image
@@ -1209,7 +1247,7 @@ verify_runtime_commands <- function(compute, report, target = "all") {
       operation = "install",
       recipe_revision = compute@recipe@revision,
       commands = commands[!available],
-      hint = "Install the package-pinned Evo 2 recipe runtime."
+      hint = "Install the package-pinned recipe runtime."
     )
   }
   for (command in commands) {
@@ -1234,7 +1272,7 @@ verify_runtime_commands <- function(compute, report, target = "all") {
         log_paths = probe$log_paths %||% NULL,
         command = command,
         upstream_exit_status = as.integer(probe$status),
-        hint = "Install the package-pinned Evo 2 recipe runtime."
+        hint = "Install the package-pinned recipe runtime."
       )
     }
   }
@@ -1300,10 +1338,10 @@ doctor_host_tools <- function(compute) {
     {
       if (compute@backend == "slurm") {
         host_compute <- bionemo_compute(
+          recipe = compute@recipe,
           backend = "slurm",
           engine = "external",
           workspace = compute@workspace,
-          recipe = compute@recipe,
           gpus = compute@gpus,
           queue = compute@queue,
           account = compute@account,
@@ -1398,47 +1436,100 @@ doctor_runtime_rows <- function(report, compute) {
   rows <- list(
     version_row("runtime Python", runtime$python),
     version_row("runtime PyTorch", runtime$pytorch),
-    version_row("runtime CUDA", runtime$cuda),
-    version_row(
-      "runtime Transformer Engine",
-      runtime$transformer_engine
-    ),
-    version_row(
-      "runtime Megatron Bridge",
-      runtime$megatron_bridge
-    ),
-    doctor_row(
+    version_row("runtime CUDA", runtime$cuda)
+  )
+  optional_versions <- c(
+    "runtime Transformer Engine" = "transformer_engine",
+    "runtime Megatron Bridge" = "megatron_bridge",
+    "runtime vLLM" = "vllm"
+  )
+  for (check in names(optional_versions)) {
+    value <- runtime[[optional_versions[[check]]]]
+    if (!is.null(value)) {
+      rows[[length(rows) + 1L]] <- version_row(check, value)
+    }
+  }
+  supported_architectures <- runtime$supported_compute_capabilities
+  if (!is.null(supported_architectures) && length(supported_architectures)) {
+    actual_architectures <- if (
+      is.data.frame(gpus) &&
+        all(
+          c(
+            "compute_capability_major",
+            "compute_capability_minor"
+          ) %in%
+            names(gpus)
+        )
+    ) {
+      paste(
+        gpus$compute_capability_major,
+        gpus$compute_capability_minor,
+        sep = "."
+      )
+    } else {
+      character()
+    }
+    architecture_ok <- is.character(supported_architectures) &&
+      length(actual_architectures) >= compute@gpus &&
+      all(
+        utils::head(actual_architectures, compute@gpus) %in%
+          supported_architectures
+      )
+    rows[[length(rows) + 1L]] <- doctor_row(
+      "runtime GPU architecture",
+      if (architecture_ok) "pass" else "fail",
+      paste0(
+        if (length(actual_architectures)) {
+          paste(actual_architectures, collapse = ", ")
+        } else {
+          "not reported"
+        },
+        "; supported: ",
+        paste(supported_architectures, collapse = ", ")
+      )
+    )
+  }
+  if (!is.null(imports$bionemo)) {
+    rows[[length(rows) + 1L]] <- doctor_row(
       "runtime BioNeMo",
       if (isTRUE(imports$bionemo)) "pass" else "fail",
       if (isTRUE(imports$bionemo)) "import available" else "import unavailable"
-    ),
-    doctor_row(
-      "GPU",
-      if (gpu_ok) "pass" else "fail",
-      gpu_detail
-    ),
-    doctor_row(
-      "image",
-      if (
-        compute@engine == "external" ||
-          is_scalar_string(report$image_digest)
-      ) {
-        "pass"
-      } else {
-        "fail"
-      },
-      if (compute@engine == "external") {
-        "externally managed runtime"
-      } else {
-        paste(report$image %||% "unknown", report$image_digest %||% "no digest")
-      }
-    ),
-    doctor_row(
-      "base image",
-      if (is_scalar_string(compute@recipe@base_image)) "pass" else "fail",
-      paste(
-        compute@recipe@base_image %||% "unknown",
-        compute@recipe@base_image_digest %||% "digest unavailable"
+    )
+  }
+  rows <- c(
+    rows,
+    list(
+      doctor_row(
+        "GPU",
+        if (gpu_ok) "pass" else "fail",
+        gpu_detail
+      ),
+      doctor_row(
+        "image",
+        if (
+          compute@engine == "external" ||
+            is_scalar_string(report$image_digest)
+        ) {
+          "pass"
+        } else {
+          "fail"
+        },
+        if (compute@engine == "external") {
+          "externally managed runtime"
+        } else {
+          paste(
+            report$image %||% "unknown",
+            report$image_digest %||% "no digest"
+          )
+        }
+      ),
+      doctor_row(
+        "base image",
+        if (is_scalar_string(compute@recipe@base_image)) "pass" else "fail",
+        paste(
+          compute@recipe@base_image %||% "unknown",
+          compute@recipe@base_image_digest %||% "digest unavailable"
+        )
       )
     )
   )
@@ -1524,22 +1615,17 @@ doctor_capabilities <- function(compute, target, model = NULL) {
 #'
 #' @section Targets:
 #'
-#' `target` selects which upstream recipe commands must be advertised:
-#'
-#' - `"inference"` checks `infer_evo2` and `predict_evo2`, which support
-#'   generation, scoring, and embeddings.
-#' - `"training"` checks `preprocess_evo2` and `train_evo2`.
-#' - `"conversion"` checks Savanna-to-MBridge and NeMo2-to-MBridge conversion,
-#'   MBridge-to-Vortex export, and optimizer-state removal.
-#' - `"all"` checks every command above.
+#' `target` selects a command group declared by the selected recipe adapter.
+#' `"inference"`, `"training"`, and `"conversion"` check the commands needed
+#' for that operation group; `"all"` checks every command implemented by the
+#' adapter. An adapter reports an error when a requested group is unsupported.
 #'
 #' Every target also checks the backend commands, required host tools, writable
 #' workspace, helper protocol, recipe identity, runtime software versions, GPU
 #' visibility and count, and image metadata and digest availability. When
 #' `model` is supplied, the doctor also checks registry compatibility,
-#' checkpoint presence, and the checkpoint's reported model size. These are
-#' readiness checks; the doctor does not run generation, training, or conversion
-#' on user data.
+#' model source or checkpoint readiness. These checks do not run a workflow on
+#' user data.
 #'
 #' With a Slurm backend, host and runtime checks submit short synchronous jobs
 #' so that tools, GPUs, and the runtime are inspected on compute nodes. This can
@@ -1576,7 +1662,7 @@ doctor_capabilities <- function(compute, target, model = NULL) {
 #'
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(
+#' compute <- bionemo_compute(recipe = evo2_recipe(),
 #'   engine = "external",
 #'   workspace = "/shared/projects/evo2"
 #' )
@@ -1597,7 +1683,7 @@ doctor_capabilities <- function(compute, target, model = NULL) {
 #' bionemo_doctor(compute, model, target = "inference")
 #' }
 #'
-#' @seealso [bionemo_install()], [bionemo_capabilities()], [evo2_models()]
+#' @seealso [bionemo_install()], [bionemo_capabilities()], [bionemo_workflows()]
 #' @export
 bionemo_doctor <- function(
   compute,

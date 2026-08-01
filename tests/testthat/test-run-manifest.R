@@ -12,12 +12,14 @@ test_that("terminal jobs persist complete redacted run provenance", {
     NGC_API_KEY = secret
   )
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(site_note = secret)
   )
   capabilities <- bionemo_capabilities(compute, refresh = TRUE)
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = workspace,
     config = list(site_note = secret, capabilities = capabilities)
@@ -118,7 +120,11 @@ test_that("observing a failed job writes its terminal manifest", {
     BIONEMOR_FAKE_LOG = log,
     BIONEMOR_FAKE_DELAY = "not-a-number"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(

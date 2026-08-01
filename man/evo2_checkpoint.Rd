@@ -75,7 +75,7 @@ MBridge checkpoint.
 \examples{
 model <- evo2("7b")
 \dontrun{
-compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 checkpoint <- evo2_checkpoint(
   model,
   source = "recommended",

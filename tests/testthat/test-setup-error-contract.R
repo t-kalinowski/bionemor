@@ -13,7 +13,11 @@ test_that("runtime capability failures expose BN_RUNTIME_MISSING", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   error <- expect_error(
     bionemo_capabilities(compute, refresh = TRUE),
@@ -50,7 +54,11 @@ test_that("runtime recipe mismatches expose BN_RECIPE_MISMATCH", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   error <- expect_error(
     bionemo_capabilities(compute, refresh = TRUE),
@@ -80,7 +88,11 @@ test_that("failed installation command probes expose BN_RUNTIME_MISSING", {
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   error <- expect_error(
     bionemo_install(compute),

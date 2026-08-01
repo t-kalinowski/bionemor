@@ -18,6 +18,10 @@ Use the Slurm backend when a shared GPU cluster schedules work with `sbatch`.
 `bionemor` reads allocation state with `sacct` and cancels jobs with `scancel`.
 It currently submits one-node jobs.
 
+The runnable sections below use Evo 2 scoring as one model-family example.
+Other supported families use the same Slurm and durable-job interface, but each
+family requires its own recipe and compatible runtime or container image.
+
 These examples were pre-rendered on `r docs_date` from package revision
 `r substr(docs_revision, 1L, 12L)`, but were not executed on a Slurm cluster.
 Treat them as configuration templates until scheduler, shared
@@ -41,15 +45,17 @@ Slurm support is experimental. `bionemo_install()` verifies the BioNeMo runtime
 inside a synchronous Slurm allocation; it does not require GPU or Apptainer
 probes to pass on the login host.
 
-## Use an administrator-managed runtime
+## Evo 2 example: use an administrator-managed runtime
 
 Use `engine = "external"` when the pinned BioNeMo Recipes commands and package
-helper are already available on compute nodes:
+helper are already available on compute nodes. This example selects the Evo 2
+recipe explicitly:
 
 ```{r slurm-external, eval=FALSE}
 library(bionemor)
 
 compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   backend = "slurm",
   engine = "external",
   workspace = "/shared/projects/evo2",
@@ -63,13 +69,14 @@ compute <- bionemo_install(compute)
 bionemo_doctor(compute, target = "training", verbose = FALSE)
 ```
 
-## Use an existing Apptainer image
+## Evo 2 example: use an existing Apptainer image
 
 Use `engine = "container"` with an existing Apptainer image built from the
 verified Evo 2 recipe:
 
 ```{r slurm-apptainer, eval=FALSE}
 compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   backend = "slurm",
   engine = "container",
   image = "/shared/images/bionemor-evo2-e8e7f597.sif",
@@ -88,7 +95,10 @@ shared filesystem. A digest-qualified image URI records the supplied digest.
 `bionemor` does not build a SIF on a compute node or select cluster modules.
 Prepare the image and required modules before running these examples.
 
-## Submit and reopen a job
+For ESM-2, use `recipe = esm2_recipe()` and an image containing the pinned
+ESM-2 runtime. An Evo 2 image does not supply the ESM-2 commands.
+
+## Evo 2 example: submit and reopen a job
 
 ```{r slurm-job, eval=FALSE}
 candidate_sequences <- c(

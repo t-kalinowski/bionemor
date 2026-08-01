@@ -8,30 +8,33 @@
 \description{
 NVIDIA BioNeMo Recipes provides runnable training and inference workflows for
 biological foundation models. \code{bionemor} controls those workflows from R and
-returns R data frames, matrices, and objects. The current package adapter
-supports the Evo 2 DNA model family.
+returns R data frames, matrices, and durable job objects. The package supports
+Evo 2 DNA workflows and ESM-2 protein embeddings.
 }
 \details{
-Installing the R package and inspecting its model registry do not require a
+Installing the R package and inspecting its model registries do not require a
 GPU. Preparing weights, inference, preprocessing, and fine-tuning require a
-CUDA-capable NVIDIA GPU; there is no CPU fallback. The package-managed local
-runtime also requires Linux, Docker, and NVIDIA Container Toolkit. A remote
+supported CUDA-capable NVIDIA GPU; there is no CPU fallback. The
+package-managed local runtime also requires Linux, Docker, and NVIDIA
+Container Toolkit. A remote
 Linux GPU from a provider such as Brev can be used when no local GPU is
 available.
 }
 \section{Start here}{
 
 \itemize{
-\item \code{\link[=bionemo_compute]{bionemo_compute()}} describes the GPU runtime and workspace.
+\item \code{\link[=bionemo_workflows]{bionemo_workflows()}} lists installed model-family workflows.
+\item \code{\link[=bionemo_compute]{bionemo_compute()}} describes the selected recipe, GPU runtime, and
+workspace.
 \item \code{\link[=bionemo_install]{bionemo_install()}} prepares or checks that runtime.
-\item \code{\link[=evo2_models]{evo2_models()}} lists the packaged Evo 2 model registry.
-\item \code{\link[=evo2_model]{evo2_model()}} prepares the recommended checkpoint and binds it to compute.
 }
 }
 
-\section{Use a model}{
+\section{Evo 2 DNA workflows}{
 
 \itemize{
+\item \code{\link[=evo2_models]{evo2_models()}} lists the packaged model registry, and \code{\link[=evo2_model]{evo2_model()}}
+prepares a checkpoint and binds it to compute.
 \item \code{\link[=evo2_generate]{evo2_generate()}} extends DNA prompts.
 \item \code{\link[=evo2_score]{evo2_score()}} scores complete sequences.
 \item \code{\link[=evo2_profile]{evo2_profile()}} writes per-position log probabilities.
@@ -39,6 +42,15 @@ available.
 \item \code{\link[=evo2_dataset]{evo2_dataset()}}, \code{\link[=evo2_prepare]{evo2_prepare()}}, and \code{\link[=evo2_finetune]{evo2_finetune()}} prepare data and
 fine-tune a model.
 \item \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} and \code{\link[=evo2_export]{evo2_export()}} convert and export checkpoints.
+}
+}
+
+\section{ESM-2 protein embeddings}{
+
+\itemize{
+\item \code{\link[=esm2_models]{esm2_models()}} lists pinned NVIDIA ESM-2 checkpoints.
+\item \code{\link[=esm2_model]{esm2_model()}} binds a checkpoint to an ESM-2 recipe runtime.
+\item \code{\link[=esm2_embed]{esm2_embed()}} returns last-token, L2-normalized protein embeddings.
 }
 
 Operations write durable requests, logs, state, and portable results below

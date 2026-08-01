@@ -267,10 +267,10 @@ compute_from_record <- function(value) {
     verified = value$recipe$verified
   )
   compute <- bionemo_compute(
+    recipe = recipe,
     backend = value$backend,
     engine = value$engine,
     workspace = value$workspace,
-    recipe = recipe,
     image = value$image,
     gpus = as.integer(value$gpus),
     queue = value$queue,
@@ -2980,7 +2980,7 @@ job_result <- function(x) {
 #' @return The operation's typed result.
 #' @examples
 #' \dontrun{
-#' compute <- bionemo_compute(workspace = "/shared/workspace")
+#' compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "/shared/workspace")
 #' model <- evo2(
 #'   "7b",
 #'   checkpoint = "/shared/workspace/checkpoints/evo2-7b"

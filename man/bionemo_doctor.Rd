@@ -42,23 +42,17 @@ build containers, or prepare checkpoints.
 \section{Targets}{
 
 
-\code{target} selects which upstream recipe commands must be advertised:
-\itemize{
-\item \code{"inference"} checks \code{infer_evo2} and \code{predict_evo2}, which support
-generation, scoring, and embeddings.
-\item \code{"training"} checks \code{preprocess_evo2} and \code{train_evo2}.
-\item \code{"conversion"} checks Savanna-to-MBridge and NeMo2-to-MBridge conversion,
-MBridge-to-Vortex export, and optimizer-state removal.
-\item \code{"all"} checks every command above.
-}
+\code{target} selects a command group declared by the selected recipe adapter.
+\code{"inference"}, \code{"training"}, and \code{"conversion"} check the commands needed
+for that operation group; \code{"all"} checks every command implemented by the
+adapter. An adapter reports an error when a requested group is unsupported.
 
 Every target also checks the backend commands, required host tools, writable
 workspace, helper protocol, recipe identity, runtime software versions, GPU
 visibility and count, and image metadata and digest availability. When
 \code{model} is supplied, the doctor also checks registry compatibility,
-checkpoint presence, and the checkpoint's reported model size. These are
-readiness checks; the doctor does not run generation, training, or conversion
-on user data.
+model source or checkpoint readiness. These checks do not run a workflow on
+user data.
 
 With a Slurm backend, host and runtime checks submit short synchronous jobs
 so that tools, GPUs, and the runtime are inspected on compute nodes. This can
@@ -85,7 +79,7 @@ complete credential-redacted probe output recorded for failed checks.
 
 \examples{
 \dontrun{
-compute <- bionemo_compute(
+compute <- bionemo_compute(recipe = evo2_recipe(),
   engine = "external",
   workspace = "/shared/projects/evo2"
 )
@@ -108,5 +102,5 @@ bionemo_doctor(compute, model, target = "inference")
 
 }
 \seealso{
-\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=evo2_models]{evo2_models()}}
+\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=bionemo_workflows]{bionemo_workflows()}}
 }

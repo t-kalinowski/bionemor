@@ -2,7 +2,7 @@
 % Please edit documentation in R/10-setup.R
 \name{bionemo_install}
 \alias{bionemo_install}
-\title{Install or verify a BioNeMo Evo 2 recipe runtime}
+\title{Install or verify a BioNeMo recipe runtime}
 \usage{
 bionemo_install(compute, rebuild = FALSE, pull = TRUE, keep_source = FALSE)
 }
@@ -32,8 +32,9 @@ validated capability report in \code{config$capabilities}.
 bionemor operations. For the verified local/container configuration, it can
 build the package-pinned recipe image. For an explicit local image, an
 external environment, or either Slurm engine, it verifies the existing
-runtime instead. Installation is independent of model weights: prepare or
-attach a checkpoint separately with \code{\link[=evo2_model]{evo2_model()}} or \code{\link[=evo2_checkpoint]{evo2_checkpoint()}}.
+runtime instead. Installation is independent of model weights: prepare,
+select, or attach model weights separately with the family-specific model
+functions.
 }
 \section{Setup lifecycle}{
 
@@ -67,7 +68,7 @@ Existing explicit images are not rebuilt; their immutable ID and required
 provenance labels are verified.
 
 Every path performs a GPU-backed helper capability probe and checks the
-\code{--help} entry point for all inference, training, and conversion commands.
+\code{--help} entry point for every command implemented by the selected recipe.
 The helper's protocol, recipe version, and recipe revision must match the
 compute descriptor. Local containers are probed by the configured
 Docker-compatible engine. Local external runtimes are probed directly.
@@ -83,7 +84,7 @@ each allocation.
 \examples{
 \dontrun{
 # Build and verify the package-pinned local container runtime.
-compute <- bionemo_compute(
+compute <- bionemo_compute(recipe = evo2_recipe(),
   backend = "local",
   engine = "container",
   workspace = "~/evo2-work"
@@ -98,5 +99,6 @@ bionemo_doctor(compute, target = "inference", verbose = FALSE)
 
 }
 \seealso{
-\code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}, \code{\link[=evo2_model]{evo2_model()}}
+\code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}, \code{\link[=evo2_model]{evo2_model()}},
+\code{\link[=esm2_model]{esm2_model()}}
 }

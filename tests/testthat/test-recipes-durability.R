@@ -8,7 +8,11 @@ test_that("detached local jobs finalize state, events, and provenance", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -73,7 +77,11 @@ test_that("credential-bearing public workflows redact raw persisted logs", {
     BIONEMOR_FAKE_ECHO_CREDENTIAL = "true",
     NGC_CLI_API_KEY = secret
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
 
   checkpoint <- evo2_checkpoint(
     evo2("7b"),
@@ -115,7 +123,11 @@ test_that("operation timeout is enforced without an active R waiter", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   data <- evo2_dataset(
     train = c(first = "ACGT", second = "TGCA"),
@@ -190,7 +202,11 @@ test_that("operation timeout escalates when the recipe ignores TERM", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   data <- evo2_dataset(
     train = c(first = "ACGT", second = "TGCA"),
@@ -263,7 +279,11 @@ test_that("detached prediction jobs remove tensors after recording provenance", 
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   jobs <- list(
@@ -357,7 +377,11 @@ test_that("prediction tensor cleanup failures fail the detached job", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_score(
@@ -430,7 +454,11 @@ test_that("terminal state waits for log redactors to exit", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -466,7 +494,11 @@ test_that("terminal status survives process inspection errors", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- evo2_generate(
     model,
@@ -537,7 +569,11 @@ test_that("force cancellation recovers a hung terminal log drain", {
     BIONEMOR_FAKE_LOG = log,
     BIONEMOR_REDACTOR_CHILDREN = redactor_children
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -630,7 +666,11 @@ test_that("force cancellation stops a hung foreground manifest finalizer", {
     BIONEMOR_FAKE_LOG = log,
     BIONEMOR_FAKE_DELAY = "1"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -678,7 +718,11 @@ test_that("reopened cancellation never signals a mismatched process identity", {
     BIONEMOR_FAKE_LOG = log,
     BIONEMOR_FAKE_DELAY = "60"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -754,7 +798,11 @@ test_that("reopened status reconciles a killed local process tree", {
     BIONEMOR_FAKE_LOG = log,
     BIONEMOR_FAKE_DELAY = "60"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -820,7 +868,11 @@ test_that("reopened status cleans children after runner-only death", {
     BIONEMOR_FAKE_LOG = log,
     BIONEMOR_FAKE_DELAY = "60"
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -916,7 +968,11 @@ test_that("reopened status never signals a leaderless process group", {
     BIONEMOR_FAKE_DELAY = "60",
     BIONEMOR_FAKE_PID_FILE = child_path
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(
@@ -1016,7 +1072,11 @@ test_that("force cancellation before plan startup finalizes the run", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
   )
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   job <- evo2_generate(

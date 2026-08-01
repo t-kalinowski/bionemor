@@ -90,7 +90,7 @@ and any smaller \code{max_sequence_length} in \code{\link[=evo2_inference_contro
 }
 \examples{
 \dontrun{
-compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 compute <- bionemo_install(compute)
 model <- evo2_model("7b", compute)
 

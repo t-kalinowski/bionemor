@@ -72,7 +72,7 @@ With \code{pool = "none"}, the result is a Parquet artifact with columns \code{i
 }
 \examples{
 \dontrun{
-compute <- bionemo_compute(workspace = "~/evo2-work")
+compute <- bionemo_compute(recipe = evo2_recipe(), workspace = "~/evo2-work")
 compute <- bionemo_install(compute)
 model <- evo2_model("7b", compute)
 

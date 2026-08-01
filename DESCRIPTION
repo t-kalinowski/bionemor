@@ -1,19 +1,19 @@
 Package: bionemor
-Title: Use BioNeMo Recipes Evo 2 from R
+Title: Run NVIDIA BioNeMo Recipes Workflows from R
 Version: 0.0.0.9000
 Authors@R:
     person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
-Description: Run generation, sequence scoring, positional profiles,
-    embeddings, checkpoint conversion and export, data preparation, and
-    fine-tuning for Evo 2 through NVIDIA BioNeMo Recipes. Model operations
-    require a CUDA-capable NVIDIA GPU; there is no CPU fallback. Commands run
-    in external local or container processes and return portable R results.
-    Slurm support is experimental.
+Description: Run versioned biological foundation-model workflows through
+    NVIDIA BioNeMo Recipes. The package manages GPU runtimes, model sources,
+    durable jobs, and portable R results. It provides R interfaces for
+    Evo 2 DNA workflows and ESM-2 protein embeddings. Model operations require
+    a supported CUDA-capable NVIDIA GPU; there is no CPU fallback. Slurm
+    support is experimental.
 License: MIT + file LICENSE
 URL: https://github.com/t-kalinowski/bionemor
 BugReports: https://github.com/t-kalinowski/bionemor/issues
 OS_type: unix
-SystemRequirements: Linux, CUDA-capable NVIDIA GPU, Docker with NVIDIA
+SystemRequirements: Linux, supported CUDA-capable NVIDIA GPU, Docker with NVIDIA
     Container Toolkit (for the package-managed container runtime)
 Depends:
     R (>= 4.2)
@@ -41,13 +41,20 @@ Collate:
     '00-utils.R'
     '01-classes.R'
     '02-model.R'
+    '02-recipe.R'
     '02-workflow.R'
+    '02-sequence.R'
     '06-adapter-evo2-classes.R'
     '06-adapter-evo2-model.R'
+    '06-adapter-evo2-recipe.R'
+    '06-adapter-esm2-classes.R'
+    '06-adapter-esm2-model.R'
+    '06-adapter-esm2-recipe.R'
     '03-compute.R'
     '04-control.R'
     '05-checkpoint.R'
     '06-adapter-evo2.R'
+    '06-adapter-esm2.R'
     '07-jobs.R'
     '08-fit.R'
     '09-predict.R'

@@ -15,7 +15,8 @@ bionemo_run(
 )
 }
 \arguments{
-\item{workflow}{A workflow returned by \code{\link[=bionemo_workflow]{bionemo_workflow()}}.}
+\item{workflow}{A family-qualified workflow ID or a descriptor returned by
+\code{\link[=bionemo_workflow]{bionemo_workflow()}}.}
 
 \item{model}{Model descriptor accepted by the workflow adapter.}
 
@@ -35,6 +36,6 @@ The workflow's portable R result, or a \code{BioNeMoJob} when
 }
 \description{
 \code{bionemo_run()} is the low-level automation interface for installed workflow
-adapters. Family-specific functions such as \code{\link[=evo2_score]{evo2_score()}} provide the
-ordinary R interface and use the same workflow contract.
+adapters. Family-specific functions such as \code{\link[=evo2_score]{evo2_score()}} and \code{\link[=esm2_embed]{esm2_embed()}}
+provide the ordinary R interface and use the same workflow contract.
 }

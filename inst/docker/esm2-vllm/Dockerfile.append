@@ -1,0 +1,21 @@
+# Package-owned additions to the locked BioNeMo Recipes ESM-2 vLLM image.
+ARG BIONEMOR_RECIPE_REVISION
+ARG BIONEMOR_HELPER_REVISION
+ARG BIONEMOR_BASE_IMAGE
+ARG BIONEMOR_BASE_IMAGE_DIGEST
+ARG TORCH_CUDA_ARCH_LIST
+
+ENV BIONEMOR_RECIPE_REVISION="${BIONEMOR_RECIPE_REVISION}"
+ENV BIONEMOR_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST}"
+
+RUN install -m 0755 \
+    /workspace/bionemo/bionemor-helper/embed-esm2.py \
+    /usr/local/bin/bionemor-esm2-helper
+
+LABEL org.opencontainers.image.source="https://github.com/NVIDIA-BioNeMo/bionemo-recipes" \
+      org.opencontainers.image.revision="${BIONEMOR_RECIPE_REVISION}" \
+      org.opencontainers.image.version="esm2-vllm-0.15.1" \
+      io.bionemor.helper.revision="${BIONEMOR_HELPER_REVISION}" \
+      io.bionemor.base.image="${BIONEMOR_BASE_IMAGE}" \
+      io.bionemor.base.digest="${BIONEMOR_BASE_IMAGE_DIGEST}" \
+      io.bionemor.bridge.protocol="1"

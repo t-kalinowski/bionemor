@@ -16,9 +16,18 @@ adapter_registry <- function() {
       run = bionemor_adapter_evo2_megatron_run,
       materialize = bionemor_adapter_evo2_megatron_materialize,
       manifest_context = bionemor_adapter_evo2_megatron_manifest_context,
-      provenance = bionemor_adapter_evo2_megatron_provenance,
+      provenance = recipe_runtime_provenance,
       install_spec = bionemor_adapter_evo2_megatron_install_spec,
       doctor_model = bionemor_adapter_evo2_megatron_doctor_model
+    ),
+    `esm2-vllm` = list(
+      adapter_version = 1L,
+      run = bionemor_adapter_esm2_vllm_run,
+      materialize = bionemor_adapter_esm2_vllm_materialize,
+      manifest_context = bionemor_adapter_esm2_vllm_manifest_context,
+      provenance = recipe_runtime_provenance,
+      install_spec = bionemor_adapter_esm2_vllm_install_spec,
+      doctor_model = bionemor_adapter_esm2_vllm_doctor_model
     )
   )
 }
@@ -190,6 +199,21 @@ adapter_function <- function(adapter, action) {
   implementation
 }
 
+workflow_call <- function(fun, arguments, parameters) {
+  overlap <- intersect(names(arguments), names(parameters))
+  if (length(overlap)) {
+    stop(
+      paste0(
+        "workflow parameters must not replace dispatch argument",
+        if (length(overlap) > 1L) "s" else "",
+        ": ",
+        paste(overlap, collapse = ", ")
+      )
+    )
+  }
+  do.call(fun, c(arguments, parameters))
+}
+
 #' Discover installed BioNeMo workflows
 #'
 #' `bionemo_workflows()` lists the versioned workflows implemented by this
@@ -237,10 +261,11 @@ bionemo_workflow <- function(id) {
 #' Run a versioned BioNeMo workflow
 #'
 #' `bionemo_run()` is the low-level automation interface for installed workflow
-#' adapters. Family-specific functions such as [evo2_score()] provide the
-#' ordinary R interface and use the same workflow contract.
+#' adapters. Family-specific functions such as [evo2_score()] and [esm2_embed()]
+#' provide the ordinary R interface and use the same workflow contract.
 #'
-#' @param workflow A workflow returned by [bionemo_workflow()].
+#' @param workflow A family-qualified workflow ID or a descriptor returned by
+#'   [bionemo_workflow()].
 #' @param model Model descriptor accepted by the workflow adapter.
 #' @param input Workflow input.
 #' @param compute Optional compute target. A compute-bound model can supply it.
@@ -260,6 +285,9 @@ bionemo_run <- function(
   async = FALSE,
   name = NULL
 ) {
+  if (is_scalar_string(workflow)) {
+    workflow <- bionemo_workflow(workflow)
+  }
   stopifnot(
     "workflow must be a BioNeMo workflow" = S7_inherits(
       workflow,

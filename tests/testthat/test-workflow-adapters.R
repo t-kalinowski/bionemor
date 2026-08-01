@@ -20,11 +20,12 @@ test_that("BioNeMo workflows are discovered independently of models and compute"
       "evo2/generate",
       "evo2/score",
       "evo2/embed",
-      "evo2/fine-tune"
+      "evo2/fine-tune",
+      "esm2/embed"
     ) %in%
       workflows$id
   ))
-  expect_equal(unique(workflows$family), "evo2")
+  expect_setequal(unique(workflows$family), c("evo2", "esm2"))
 
   workflow <- bionemo_workflow("evo2/score")
   expect_s3_class(workflow, "bionemor::BioNeMoWorkflow")
@@ -48,7 +49,7 @@ test_that("BioNeMo workflows are discovered independently of models and compute"
 
   expect_equal(
     bionemo_workflows("evo2")$id,
-    workflows$id
+    workflows$id[workflows$family == "evo2"]
   )
   expect_error(bionemo_workflow("missing/score"), "unsupported")
   expect_error(bionemo_workflows("missing"), "unsupported")
@@ -60,9 +61,9 @@ test_that("recipes identify the adapter that installs and runs them", {
 
   workspace <- tempfile("bionemor-adapter-recipe-")
   compute <- bionemo_compute(
+    recipe = recipe,
     engine = "external",
-    workspace = workspace,
-    recipe = recipe
+    workspace = workspace
   )
   expect_equal(compute@recipe@adapter, "evo2-megatron")
 })
@@ -78,7 +79,11 @@ test_that("generic workflow dispatch uses the Evo 2 adapter contract", {
     BIONEMOR_FAKE_LOG = log
   )
 
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   scores <- bionemo_run(
     bionemo_workflow("evo2/score"),
@@ -124,6 +129,7 @@ test_that("generic workflow dispatch uses the Evo 2 adapter contract", {
 test_that("workflow dispatch rejects incompatible models before execution", {
   workflow <- bionemo_workflow("evo2/score")
   compute <- bionemo_compute(
+    recipe = evo2_recipe(),
     engine = "external",
     workspace = tempfile("bionemor-workflow-")
   )
@@ -142,7 +148,11 @@ test_that("workflow dispatch rejects incompatible models before execution", {
 test_that("every installed Evo 2 workflow reaches its public operation", {
   workspace <- tempfile("bionemor-workflow-routes-")
   dir.create(workspace)
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   cases <- list(
     generate = list("ACGT", list(num_tokens = 0L), "num_tokens must"),
@@ -190,7 +200,11 @@ test_that("generic asynchronous score workflows reopen and materialize", {
     BIONEMOR_FAKE_LOG = log
   )
 
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   input <- c(reference = "ACGT", variant = "TGCA")
   workflow <- bionemo_workflow("evo2/score")
@@ -233,7 +247,11 @@ test_that("family wrappers and generic workflows share one public contract", {
     BIONEMOR_FAKE_LOG = log
   )
 
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   input <- c(reference = "ACGT", variant = "TGCA")
   parameters <- list(
@@ -287,7 +305,11 @@ test_that("reopening rejects a changed persisted workflow identity", {
     BIONEMOR_FAKE_LOG = log
   )
 
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- bionemo_run(
     bionemo_workflow("evo2/score"),
@@ -336,7 +358,11 @@ test_that("reopening rejects inconsistent persisted adapter contracts", {
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
   )
 
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   job <- evo2_score(
     model,
@@ -392,7 +418,11 @@ test_that("direct Evo 2 scoring persists its exact workflow identity", {
     BIONEMOR_FAKE_LOG = log
   )
 
-  compute <- bionemo_compute(engine = "external", workspace = workspace)
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
   scores <- evo2_score(
     model,

@@ -111,6 +111,7 @@ test_that("Brev acceptance uses the locked image build and requires inference", 
   )))
 
   expect_match(smoke, "bionemo_install(", fixed = TRUE)
+  expect_match(smoke, "recipe = evo2_recipe()", fixed = TRUE)
   expect_match(smoke, "pull = FALSE", fixed = TRUE)
   expect_match(smoke, "evo2_generate(", fixed = TRUE)
   expect_match(smoke, "evo2_score(", fixed = TRUE)
@@ -126,6 +127,7 @@ test_that("Brev acceptance uses the locked image build and requires inference", 
     'evo2("7b", checkpoint = checkpoint_path)',
     fixed = TRUE
   )
+  expect_match(acceptance, "recipe = evo2_recipe()", fixed = TRUE)
   expect_match(acceptance, "evo2_score(", fixed = TRUE)
   expect_match(acceptance, "evo2_generate(", fixed = TRUE)
   expect_match(acceptance, "evo2_embed(", fixed = TRUE)
