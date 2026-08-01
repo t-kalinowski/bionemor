@@ -221,7 +221,7 @@ registered model.
 During installation, the package-managed ESM-2 image compiles vLLM's CUDA/C++
 extensions from source for the current NVIDIA GPU architecture. On an 8-vCPU
 machine, this first build can take tens of minutes; later calls reuse the image.
-Rebuild it before using a GPU with a different compute capability.
+A GPU with a different compute capability gets its own cached image.
 
 ```{r esm2-embed}
 esm2_compute <- bionemo_compute(

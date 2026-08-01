@@ -18,14 +18,24 @@ recipe_uv_image_reference <- function(lock) {
   paste0(lock$uv_image, "@", lock$uv_image_digest)
 }
 
-default_recipe_image <- function(recipe) {
+default_recipe_image <- function(recipe, suffix = NULL) {
   if (!S7_inherits(recipe, BioNeMoRecipe)) {
     stop("recipe must be a BioNeMo recipe")
+  }
+  if (
+    !is.null(suffix) &&
+      (!is_scalar_string(suffix) || !grepl("^[a-z0-9]+$", suffix))
+  ) {
+    stop("image suffix must contain lowercase letters and numbers")
+  }
+  tag <- substr(recipe@revision, 1L, 12L)
+  if (!is.null(suffix)) {
+    tag <- paste(tag, suffix, sep = "-")
   }
   paste0(
     recipe_install_spec(recipe)$image_repository,
     ":",
-    substr(recipe@revision, 1L, 12L)
+    tag
   )
 }
 

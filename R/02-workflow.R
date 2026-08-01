@@ -28,6 +28,7 @@ adapter_registry <- function() {
       provenance = recipe_runtime_provenance,
       install_spec = bionemor_adapter_esm2_vllm_install_spec,
       install_build_args = bionemor_adapter_esm2_vllm_install_build_args,
+      install_image_suffix = bionemor_adapter_esm2_vllm_install_image_suffix,
       doctor_model = bionemor_adapter_esm2_vllm_doctor_model
     )
   )

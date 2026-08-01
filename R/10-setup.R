@@ -101,8 +101,10 @@ install_paths <- function(compute) {
 }
 
 recipe_image_requires_build <- function(compute) {
+  default <- default_recipe_image(compute@recipe)
   compute@recipe@verified &&
-    (identical(compute@image, default_recipe_image(compute@recipe)) ||
+    (identical(compute@image, default) ||
+      startsWith(compute@image, paste0(default, "-")) ||
       identical(compute@image, compute@recipe@base_image))
 }
 
@@ -793,6 +795,37 @@ bionemo_install <- function(
   }
   paths <- install_paths(compute)
   build <- recipe_image_requires_build(compute)
+  build_args <- character()
+  if (build) {
+    install_spec <- recipe_install_spec(compute@recipe)
+    build_args <- install_spec$build_args
+    adapter <- adapter_record(compute@recipe@adapter)
+    build_hook <- adapter$install_build_args
+    if (!is.null(build_hook)) {
+      stopifnot(
+        "adapter install build hook must be a function" = is.function(
+          build_hook
+        )
+      )
+      build_args <- build_hook(compute, build_args)
+    }
+    suffix_hook <- adapter$install_image_suffix
+    if (!is.null(suffix_hook)) {
+      stopifnot(
+        "adapter image suffix hook must be a function" = is.function(
+          suffix_hook
+        )
+      )
+      resolved_image <- default_recipe_image(
+        compute@recipe,
+        suffix_hook(compute, build_args)
+      )
+      if (!identical(compute@image, resolved_image)) {
+        compute@image_digest <- NULL
+      }
+      compute@image <- resolved_image
+    }
+  }
 
   if (build && (rebuild || !container_image_exists(compute))) {
     lock <- recipe_install_lock(compute@recipe)
@@ -810,17 +843,6 @@ bionemo_install <- function(
     }
     verify_base_image_digest(engine, compute@recipe)
     helper_revision <- package_helper_revision(compute@recipe)
-    install_spec <- recipe_install_spec(compute@recipe)
-    build_args <- install_spec$build_args
-    build_hook <- adapter_record(compute@recipe@adapter)$install_build_args
-    if (!is.null(build_hook)) {
-      stopifnot(
-        "adapter install build hook must be a function" = is.function(
-          build_hook
-        )
-      )
-      build_args <- build_hook(compute, build_args)
-    }
     adapter_build_args <- unlist(
       lapply(
         names(build_args),
@@ -840,7 +862,7 @@ bionemo_install <- function(
         "--file",
         file.path(paths$context, "Dockerfile"),
         "--tag",
-        default_recipe_image(compute@recipe),
+        compute@image,
         "--build-arg",
         paste0("BIONEMOR_RECIPE_REVISION=", compute@recipe@revision),
         "--build-arg",
@@ -860,7 +882,6 @@ bionemo_install <- function(
       recipe_revision = compute@recipe@revision,
       hint = "Inspect the container build output and pinned recipe inputs."
     )
-    compute@image <- default_recipe_image(compute@recipe)
     if (!keep_source) {
       unlink(paths$context, recursive = TRUE, force = TRUE)
     }

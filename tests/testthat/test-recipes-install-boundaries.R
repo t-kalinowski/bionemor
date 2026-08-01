@@ -272,7 +272,13 @@ locked_recipe_install <- function(
       BIONEMOR_LABELS_FILE = labels_file,
       BIONEMOR_IMAGE_ID = image_id
     ),
-    bionemo_install(bionemo_compute(recipe = recipe, workspace = workspace))
+    {
+      installed <- bionemo_install(bionemo_compute(
+        recipe = recipe,
+        workspace = workspace
+      ))
+      bionemo_install(installed)
+    }
   )
 
   list(
@@ -354,6 +360,13 @@ test_that("ESM installation uses its locked Dockerfile and build arguments", {
   invocation <- readLines(result$install_log, warn = FALSE)
   build <- invocation[startsWith(invocation, "build ")]
   expect_length(build, 1L)
+  expected_image <- paste0(
+    "bionemor/esm2:",
+    substr(recipe@revision, 1L, 12L),
+    "-sm89"
+  )
+  expect_identical(result$installed@image, expected_image)
+  expect_match(build, paste("--tag", expected_image), fixed = TRUE)
   expect_match(build, "--build-arg INSTALL_VLLM=true", fixed = TRUE)
   expect_match(
     build,

@@ -329,6 +329,29 @@ bionemor_adapter_esm2_vllm_install_build_args <- function(
   c(build_args, TORCH_CUDA_ARCH_LIST = selected[[1L]])
 }
 
+bionemor_adapter_esm2_vllm_install_image_suffix <- function(
+  compute,
+  build_args
+) {
+  stopifnot(
+    "compute must use the ESM-2 vLLM adapter" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ) &&
+      identical(compute@recipe@adapter, "esm2-vllm"),
+    "build arguments must contain one CUDA architecture" =
+      is_scalar_string(build_args[["TORCH_CUDA_ARCH_LIST"]]) &&
+      grepl(
+        "^[0-9]+[.][0-9]+$",
+        build_args[["TORCH_CUDA_ARCH_LIST"]]
+      )
+  )
+  paste0(
+    "sm",
+    gsub(".", "", build_args[["TORCH_CUDA_ARCH_LIST"]], fixed = TRUE)
+  )
+}
+
 bionemor_adapter_esm2_vllm_doctor_model <- function(compute, model, report) {
   stopifnot(
     "model must be an ESM-2 model" = S7_inherits(model, Esm2Model),
