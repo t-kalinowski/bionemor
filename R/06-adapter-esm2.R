@@ -275,6 +275,7 @@ bionemor_adapter_esm2_vllm_install_spec <- function(recipe) {
     helper_filename = "embed-esm2.py",
     semantic_operations = "embed",
     docker_appendage = c("docker", "esm2-vllm", "Dockerfile.append"),
+    uv_after_from = TRUE,
     image_repository = "bionemor/esm2",
     image_version = "esm2-vllm-0.15.1",
     build_args = c(

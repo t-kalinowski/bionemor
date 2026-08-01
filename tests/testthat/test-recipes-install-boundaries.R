@@ -346,7 +346,10 @@ test_that("ESM installation uses its locked Dockerfile and build arguments", {
 
   expect_equal(result$installed@image_digest, result$image_id)
   dockerfile <- readLines(result$captured_dockerfile, warn = FALSE)
-  expect_false(any(grepl("/uv /uvx /bin/", dockerfile, fixed = TRUE)))
+  expect_true(
+    "COPY --from=ghcr.io/astral-sh/uv:0.12.0@sha256:606e70c71c852d03f611b1e56a195d08648507018a7057fab82c4974c4eae105 /uv /uvx /bin/" %in%
+      dockerfile
+  )
 
   invocation <- readLines(result$install_log, warn = FALSE)
   build <- invocation[startsWith(invocation, "build ")]

@@ -24,6 +24,13 @@ recipe_install_spec <- function(recipe) {
       spec$uv_fallback
     ) ||
       is_scalar_string(spec$uv_fallback),
+    "adapter uv insertion flag must be TRUE or FALSE" = is_scalar_logical(
+      spec$uv_after_from %||% FALSE
+    ),
+    "adapter uv strategies must be exclusive" = !isTRUE(
+      spec$uv_after_from
+    ) ||
+      is.null(spec$uv_fallback),
     "adapter build arguments must be a named character vector" = is.character(
       spec$build_args %||% character()
     ) &&
@@ -34,6 +41,7 @@ recipe_install_spec <- function(recipe) {
           !anyDuplicated(names(spec$build_args)))
   )
   spec$build_args <- spec$build_args %||% character()
+  spec$uv_after_from <- spec$uv_after_from %||% FALSE
   spec
 }
 
@@ -466,6 +474,14 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
     lines[[from]],
     fixed = TRUE
   )
+  uv_copy <- paste0(
+    "COPY --from=",
+    recipe_uv_image_reference(lock),
+    " /uv /uvx /bin/"
+  )
+  if (spec$uv_after_from) {
+    lines <- append(lines, uv_copy, after = from)
+  }
   if (!is.null(spec$uv_fallback)) {
     uv <- which(instructions == spec$uv_fallback)
     if (length(uv) != 1L) {
@@ -477,11 +493,7 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
         hint = "Remove the cached recipe source and run bionemo_install() again."
       )
     }
-    lines[[uv]] <- paste0(
-      "COPY --from=",
-      recipe_uv_image_reference(lock),
-      " /uv /uvx /bin/"
-    )
+    lines[[uv]] <- uv_copy
   }
   appendage <- do.call(package_asset, as.list(spec$docker_appendage))
   atomic_write_lines(
