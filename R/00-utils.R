@@ -291,9 +291,12 @@ safe_name <- function(name, prefix) {
   name
 }
 
-path_digest <- function(path) {
+path_digest <- function(path, exclude = character()) {
   if (!is_scalar_string(path) || !file.exists(path)) {
     stop("path must exist")
+  }
+  if (!is.character(exclude) || anyNA(exclude)) {
+    stop("exclude must be a character vector without missing values")
   }
   path <- normalize_path(path)
   if (dir.exists(path)) {
@@ -306,6 +309,9 @@ path_digest <- function(path) {
     )
     files <- files[!dir.exists(files)]
     relative <- substring(files, nchar(path) + 2L)
+    keep <- !relative %in% exclude
+    files <- files[keep]
+    relative <- relative[keep]
     records <- paste(
       relative,
       as.character(tools::md5sum(files)),

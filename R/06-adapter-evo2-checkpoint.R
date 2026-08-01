@@ -1,6 +1,17 @@
 checkpoint_manifest_file <- "bionemor-checkpoint.json"
 checkpoint_completion_file <- ".bionemor-complete"
 
+checkpoint_payload_digest <- function(path) {
+  # Completed checkpoint payloads are immutable. Exclude their mutable metadata
+  # so recording the digest in the manifest does not change the digest itself.
+  exclude <- if (dir.exists(path)) {
+    c(checkpoint_manifest_file, checkpoint_completion_file)
+  } else {
+    character()
+  }
+  path_digest(path, exclude = exclude)
+}
+
 checkpoint_manifest_path <- function(path, format = NULL) {
   file_checkpoint <- identical(format, "vortex") ||
     (file.exists(path) && !dir.exists(path))
@@ -62,6 +73,10 @@ checkpoint_from_manifest <- function(
   manifest,
   manifest_path = checkpoint_manifest_path(path, manifest$format)
 ) {
+  if (!is_scalar_string(manifest$checkpoint_digest)) {
+    manifest$checkpoint_digest <- checkpoint_payload_digest(path)
+    atomic_write_json(manifest, manifest_path)
+  }
   BioNeMoCheckpoint(
     path = normalizePath(path, mustWork = TRUE),
     format = manifest$format,

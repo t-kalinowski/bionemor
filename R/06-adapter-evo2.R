@@ -890,7 +890,7 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
     list()
   }
   checkpoint_digest <- metadata$checkpoint_digest %||%
-    if (path_exists) path_digest(path) else NULL
+    if (path_exists) checkpoint_payload_digest(path) else NULL
   base_path <- metadata$base_checkpoint_path %||%
     descriptor$base_checkpoint %||%
     NULL

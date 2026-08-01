@@ -205,3 +205,43 @@ test_that("evo2_model binds compute for inference", {
   )
   expect_equal(evo2_score(rebound, sequences)$id, names(sequences))
 })
+
+test_that("registered checkpoints reuse their payload digest", {
+  workspace <- tempfile("bionemor-checkpoint-digest-")
+  bin <- tempfile("bionemor-bin-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  suppressWarnings(fake_bionemo_runtime(bin))
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+  path <- make_mbridge_checkpoint(workspace, "registered")
+
+  model <- evo2("7b", checkpoint = path, compute = compute)
+  registered <- checkpoint_manifest(model@checkpoint)
+
+  expect_match(registered$checkpoint_digest, "^[0-9a-f]{32}$")
+  writeLines("complete", file.path(path, ".bionemor-complete"))
+
+  generated <- evo2_generate(
+    model,
+    "ACGT",
+    num_tokens = 4L,
+    seed = 17L
+  )
+  run_manifest <- jsonlite::read_json(
+    file.path(attr(generated, "provenance")$run_path, "manifest.json"),
+    simplifyVector = FALSE
+  )
+
+  expect_identical(run_manifest$checkpoint$digest$algorithm, "md5")
+  expect_identical(
+    run_manifest$checkpoint$digest$value,
+    registered$checkpoint_digest
+  )
+})
