@@ -18,10 +18,10 @@ An S7 \code{Esm2Model} bound to \code{compute}.
 }
 \description{
 \code{esm2_model()} returns a model ready for embedding on \code{compute}. With
-\code{path = NULL}, vLLM obtains the package-pinned Hugging Face checkpoint on
-first use. Set \code{path} to a runtime-visible, Hugging Face/vLLM-compatible
-checkpoint directory whose architecture matches \code{size} to avoid that
-download.
+\code{path = NULL}, Transformers obtains the package-pinned Hugging Face
+checkpoint on first use. Set \code{path} to a runtime-visible, Transformers-
+compatible checkpoint directory whose architecture matches \code{size} to avoid
+that download.
 }
 \examples{
 \dontrun{

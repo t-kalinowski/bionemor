@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "name": "esm2_vllm",
+  "name": "esm2_transformers",
   "repository": "https://github.com/NVIDIA-BioNeMo/bionemo-recipes",
   "revision": "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e",
-  "recipe_version": "vllm-0.15.1",
+  "recipe_version": "transformers-5.14.1",
   "subdirectory": "recipes/vllm_inference/esm2",
   "dockerfile_blob": "989ba6b853bcd31eeced5544e8e479361ef428c6",
   "base_image": "nvcr.io/nvidia/pytorch:26.06-py3",

@@ -48,7 +48,7 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
   workflow <- bionemo_workflow("esm2/embed")
   expect_s3_class(recipe, "bionemor::BioNeMoRecipe")
   expect_equal(recipe@adapter, workflow@adapter)
-  expect_equal(recipe@recipe_version, "vllm-0.15.1")
+  expect_equal(recipe@recipe_version, "transformers-5.14.1")
   expect_equal(
     recipe@revision,
     "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
@@ -129,57 +129,6 @@ test_that("ESM-2 rejects multi-GPU inference before submission", {
   )
 })
 
-test_that("ESM-2 runtime capabilities reject an unsupported GPU build", {
-  workspace <- tempfile("bionemor-esm2-architecture-")
-  bin <- tempfile("bionemor-esm2-bin-")
-  dir.create(workspace)
-  fake_esm2_runtime(
-    bin,
-    compute_capability_major = 7L,
-    compute_capability_minor = 5L
-  )
-  withr::local_envvar(
-    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
-  )
-  compute <- bionemo_compute(
-    recipe = esm2_recipe(),
-    engine = "external",
-    workspace = workspace
-  )
-
-  doctor <- bionemo_doctor(compute, target = "inference", verbose = FALSE)
-  checks <- as.data.frame(doctor)
-  architecture <- checks[checks$check == "runtime GPU architecture", ]
-  expect_false(doctor@ok)
-  expect_identical(architecture$status, "fail")
-  expect_match(architecture$detail, "7.5", fixed = TRUE)
-  expect_error(
-    bionemo_install(compute),
-    "recipe runtime does not advertise required command",
-    fixed = TRUE
-  )
-})
-
-test_that("an external ESM-2 build may omit a managed architecture list", {
-  workspace <- tempfile("bionemor-esm2-external-architecture-")
-  bin <- tempfile("bionemor-esm2-bin-")
-  dir.create(workspace)
-  fake_esm2_runtime(bin, supported_compute_capabilities = character())
-  withr::local_envvar(
-    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
-  )
-  compute <- bionemo_compute(
-    recipe = esm2_recipe(),
-    engine = "external",
-    workspace = workspace
-  )
-
-  doctor <- bionemo_doctor(compute, target = "inference", verbose = FALSE)
-  checks <- as.data.frame(doctor)
-  expect_true(doctor@ok)
-  expect_false("runtime GPU architecture" %in% checks$check)
-})
-
 test_that("bionemo_run accepts a family-qualified workflow ID", {
   workspace <- tempfile("bionemor-workflow-id-")
   bin <- tempfile("bionemor-bin-")
@@ -254,19 +203,13 @@ test_that("ESM-2 embeddings use the public durable workflow", {
   doctor <- bionemo_doctor(compute, target = "inference", verbose = FALSE)
   checks <- as.data.frame(doctor)
   expect_true(doctor@ok)
-  expect_true("runtime vLLM" %in% checks$check)
+  expect_true("runtime Transformers" %in% checks$check)
   expect_identical(
-    checks$detail[checks$check == "runtime vLLM"],
-    "0.15.1+cu133"
+    checks$detail[checks$check == "runtime Transformers"],
+    "5.14.1"
   )
-  expect_false(any(
-    c(
-      "runtime Transformer Engine",
-      "runtime Megatron Bridge",
-      "runtime BioNeMo"
-    ) %in%
-      checks$check
-  ))
+  expect_true("runtime Transformer Engine" %in% checks$check)
+  expect_false("runtime vLLM" %in% checks$check)
   large_doctor <- bionemo_doctor(
     compute,
     esm2("15b"),
@@ -310,15 +253,16 @@ test_that("ESM-2 embeddings use the public durable workflow", {
       "--model",
       "nvidia/esm2_t6_8M_UR50D",
       "--revision",
-      "3674a6acb6c217bbeff709d182a11b196125dfc3",
-      "--disable-prefix-caching"
+      "3674a6acb6c217bbeff709d182a11b196125dfc3"
     ) %in%
       arguments
   ))
-  expect_identical(
-    arguments[[match("--max-num-seqs", arguments) + 1L]],
-    "1"
-  )
+  expect_false(any(c(
+    "--max-num-seqs",
+    "--disable-prefix-caching",
+    "--tensor-parallel-size",
+    "--max-num-batched-tokens"
+  ) %in% arguments))
   input_path <- arguments[[match("--input", arguments) + 1L]]
   expect_equal(
     readLines(input_path, warn = FALSE),

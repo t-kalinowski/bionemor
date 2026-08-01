@@ -340,13 +340,13 @@ test_that("installation builds from locked source and immutable image inputs", {
   )))
 })
 
-test_that("ESM installation uses its locked Dockerfile and build arguments", {
+test_that("ESM installation uses its locked native Transformers runtime", {
   recipe <- esm2_recipe()
   result <- locked_recipe_install(
     recipe = recipe,
     helper_filename = "embed-esm2.py",
     dockerfile_blob = "989ba6b853bcd31eeced5544e8e479361ef428c6",
-    image_version = "esm2-vllm-0.15.1",
+    image_version = "esm2-transformers-5.14.1",
     archive_dockerfile = c(
       paste("FROM", recipe@base_image),
       "WORKDIR /workspace/bionemo",
@@ -358,37 +358,28 @@ test_that("ESM installation uses its locked Dockerfile and build arguments", {
 
   expect_equal(result$installed@image_digest, result$image_id)
   dockerfile <- readLines(result$captured_dockerfile, warn = FALSE)
-  expect_true(
+  expect_false(
     "COPY --from=ghcr.io/astral-sh/uv:0.12.0@sha256:606e70c71c852d03f611b1e56a195d08648507018a7057fab82c4974c4eae105 /uv /uvx /bin/" %in%
       dockerfile
   )
   expect_true(any(grepl(
-    "BIONEMOR_VLLM_REVISION=1892993bc18e243e2c05841314c5e9c06a80c70d",
+    'transformers\\[torch\\]==5.14.1',
     dockerfile,
-    fixed = TRUE
+    fixed = FALSE
   )))
-  expect_true(any(grepl(
-    "git -C /workspace/vllm rev-parse HEAD",
-    dockerfile,
-    fixed = TRUE
-  )))
+  expect_false(any(grepl("/workspace/vllm", dockerfile, fixed = TRUE)))
 
   invocation <- readLines(result$install_log, warn = FALSE)
   build <- invocation[startsWith(invocation, "build ")]
   expect_length(build, 1L)
   expected_image <- paste0(
-    "bionemor/esm2:",
-    substr(recipe@revision, 1L, 12L),
-    "-sm89"
+    "bionemor/esm2-transformers:",
+    substr(recipe@revision, 1L, 12L)
   )
   expect_identical(result$installed@image, expected_image)
   expect_match(build, paste("--tag", expected_image), fixed = TRUE)
-  expect_match(build, "--build-arg INSTALL_VLLM=true", fixed = TRUE)
-  expect_match(
-    build,
-    "--build-arg TORCH_CUDA_ARCH_LIST=8.9",
-    fixed = TRUE
-  )
+  expect_no_match(build, "INSTALL_VLLM", fixed = TRUE)
+  expect_no_match(build, "TORCH_CUDA_ARCH_LIST", fixed = TRUE)
 })
 
 test_that("an explicit ESM image remains verification-only", {
@@ -402,7 +393,7 @@ test_that("an explicit ESM image remains verification-only", {
     recipe = recipe,
     helper_filename = "embed-esm2.py",
     dockerfile_blob = "989ba6b853bcd31eeced5544e8e479361ef428c6",
-    image_version = "esm2-vllm-0.15.1",
+    image_version = "esm2-transformers-5.14.1",
     archive_dockerfile = c(
       paste("FROM", recipe@base_image),
       "WORKDIR /workspace/bionemo",

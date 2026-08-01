@@ -204,16 +204,12 @@ function. Embedding row names preserve the input IDs.
 ## ESM-2: embed proteins
 
 ESM-2 uses its own recipe and compute descriptor. `esm2_model()` binds a pinned
-ESM-2 checkpoint to that compute target. On first use, vLLM downloads the
-selected weights from Hugging Face and caches them below the workspace.
-During installation, the package-managed image compiles vLLM's CUDA/C++
-extensions from source for the current NVIDIA GPU architecture. On an 8-vCPU
-machine, this first build can take tens of minutes; later calls reuse the image.
-A GPU with a different compute capability gets its own cached image.
-ESM-2 inference currently requires `gpus = 1` because the pinned NVIDIA model
-does not define a vLLM tensor-parallel plan. You may supply multiple proteins;
-the runtime processes them one at a time to preserve their bidirectional
-attention boundaries.
+ESM-2 checkpoint to that compute target. On first use, Transformers downloads
+the selected weights from Hugging Face and caches them below the workspace.
+Installation uses the recipe's native Transformers and Transformer Engine path
+and does not compile vLLM. ESM-2 inference currently requires `gpus = 1`. You
+may supply multiple proteins; the runtime processes them one at a time on the
+selected GPU to preserve their bidirectional attention boundaries.
 
 ```{r esm2}
 esm2_compute <- bionemo_compute(

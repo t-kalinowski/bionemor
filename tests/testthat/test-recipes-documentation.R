@@ -41,7 +41,7 @@ test_that("runtime assets are pinned to BioNeMo Recipes", {
       file.path(root, "docker"),
       recursive = FALSE
     )),
-    c("evo2-recipes", "esm2-vllm")
+    c("evo2-recipes", "esm2-transformers")
   )
   expect_true(file.exists(file.path(
     root,
@@ -136,8 +136,8 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(embeddings, "averaged", fixed = TRUE)
 
   esm_recipe <- read_text(file.path("man", "esm2_recipe.Rd"), "esm2_recipe")
-  expect_match(esm_recipe, "CUDA/C\\+\\+ extensions")
-  expect_match(esm_recipe, "tens of minutes", fixed = TRUE)
+  expect_match(esm_recipe, "native Transformers", fixed = TRUE)
+  expect_match(esm_recipe, "does not compile vLLM", fixed = TRUE)
 
   esm_embeddings <- read_text(
     file.path("man", "esm2_embed.Rd"),

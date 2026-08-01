@@ -23,25 +23,8 @@ recipe_install_spec <- function(recipe) {
     "adapter uv fallback must be NULL or one string" = is.null(
       spec$uv_fallback
     ) ||
-      is_scalar_string(spec$uv_fallback),
-    "adapter uv insertion flag must be TRUE or FALSE" = is_scalar_logical(
-      spec$uv_after_from %||% FALSE
-    ),
-    "adapter uv strategies must be exclusive" = !isTRUE(
-      spec$uv_after_from
-    ) ||
-      is.null(spec$uv_fallback),
-    "adapter build arguments must be a named character vector" = is.character(
-      spec$build_args %||% character()
-    ) &&
-      !anyNA(spec$build_args %||% character()) &&
-      (length(spec$build_args %||% character()) == 0L ||
-        !is.null(names(spec$build_args)) &&
-          all(grepl("^[A-Z][A-Z0-9_]*$", names(spec$build_args))) &&
-          !anyDuplicated(names(spec$build_args)))
+      is_scalar_string(spec$uv_fallback)
   )
-  spec$build_args <- spec$build_args %||% character()
-  spec$uv_after_from <- spec$uv_after_from %||% FALSE
   spec
 }
 
@@ -478,9 +461,6 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
     recipe_uv_image_reference(lock),
     " /uv /uvx /bin/"
   )
-  if (spec$uv_after_from) {
-    lines <- append(lines, uv_copy, after = from)
-  }
   if (!is.null(spec$uv_fallback)) {
     uv <- which(instructions == spec$uv_fallback)
     if (length(uv) != 1L) {
@@ -792,37 +772,6 @@ bionemo_install <- function(
   }
   paths <- install_paths(compute)
   build <- recipe_image_requires_build(compute)
-  build_args <- character()
-  if (build) {
-    install_spec <- recipe_install_spec(compute@recipe)
-    build_args <- install_spec$build_args
-    adapter <- adapter_record(compute@recipe@adapter)
-    build_hook <- adapter$install_build_args
-    if (!is.null(build_hook)) {
-      stopifnot(
-        "adapter install build hook must be a function" = is.function(
-          build_hook
-        )
-      )
-      build_args <- build_hook(compute, build_args)
-    }
-    suffix_hook <- adapter$install_image_suffix
-    if (!is.null(suffix_hook)) {
-      stopifnot(
-        "adapter image suffix hook must be a function" = is.function(
-          suffix_hook
-        )
-      )
-      resolved_image <- default_recipe_image(
-        compute@recipe,
-        suffix_hook(compute, build_args)
-      )
-      if (!identical(compute@image, resolved_image)) {
-        compute@image_digest <- NULL
-      }
-      compute@image <- resolved_image
-    }
-  }
 
   if (build && (rebuild || !container_image_exists(compute))) {
     lock <- recipe_install_lock(compute@recipe)
@@ -840,18 +789,6 @@ bionemo_install <- function(
     }
     verify_base_image_digest(engine, compute@recipe)
     helper_revision <- package_helper_revision(compute@recipe)
-    adapter_build_args <- unlist(
-      lapply(
-        names(build_args),
-        function(name) {
-          c(
-            "--build-arg",
-            paste0(name, "=", build_args[[name]])
-          )
-        }
-      ),
-      use.names = FALSE
-    )
     run_install_command(
       engine,
       c(
@@ -871,7 +808,6 @@ bionemo_install <- function(
           "BIONEMOR_BASE_IMAGE_DIGEST=",
           compute@recipe@base_image_digest %||% ""
         ),
-        adapter_build_args,
         paths$context
       ),
       error = "failed to build the pinned BioNeMo recipe image",
@@ -1480,6 +1416,7 @@ doctor_runtime_rows <- function(report, compute) {
   )
   optional_versions <- c(
     "runtime Transformer Engine" = "transformer_engine",
+    "runtime Transformers" = "transformers",
     "runtime Megatron Bridge" = "megatron_bridge",
     "runtime vLLM" = "vllm"
   )

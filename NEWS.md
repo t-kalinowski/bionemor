@@ -2,8 +2,9 @@
 
 * Added task-specific generation, sequence scoring, embeddings, dataset
   preparation, and LoRA or full fine-tuning APIs.
-* Added a complete ESM-2 vLLM adapter for pooled protein embeddings across the
-  six NVIDIA checkpoints from 8M through 15B parameters.
+* Added a complete ESM-2 Transformers and Transformer Engine adapter for pooled
+  protein embeddings across the six NVIDIA checkpoints from 8M through 15B
+  parameters.
 * Added installed workflow discovery and family-qualified string dispatch with
   `bionemo_workflows()` and `bionemo_run()`.
 * Made the recipe argument to `bionemo_compute()` required so the selected

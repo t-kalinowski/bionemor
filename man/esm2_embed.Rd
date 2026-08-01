@@ -35,18 +35,18 @@ A numeric matrix with class \code{esm2_embeddings}, or a \code{BioNeMoJob}
 when \code{async = TRUE}.
 }
 \description{
-\code{esm2_embed()} runs the ESM-2 pooling model through the package-pinned vLLM
-recipe and returns one last-token, L2-normalized embedding row per input
-protein. Model weights are downloaded from the model's pinned Hugging Face
-revision on first use and cached below the compute workspace.
+\code{esm2_embed()} runs the ESM-2 model through the package-pinned native
+Transformers and Transformer Engine runtime. It returns one last-token,
+L2-normalized embedding row per input protein. Model weights are downloaded
+from the model's pinned Hugging Face revision on first use and cached below
+the compute workspace.
 }
 \details{
 Use the embedding rows for sequence similarity, clustering, or as features
 in downstream R models. They are model representations, not measurements of
-protein function. ESM-2 currently requires \code{gpus = 1} because the pinned
-NVIDIA model does not define a vLLM tensor-parallel plan. You may supply
-multiple proteins; the runtime processes them one at a time to preserve
-their bidirectional attention boundaries.
+protein function. ESM-2 currently requires \code{gpus = 1}. You may supply
+multiple proteins; the runtime processes them one at a time on the selected
+GPU to preserve their bidirectional attention boundaries.
 }
 \examples{
 \dontrun{

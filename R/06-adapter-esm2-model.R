@@ -36,8 +36,8 @@ esm2_models <- function() {
 #'
 #' `esm2()` creates an offline model descriptor. By default, inference obtains
 #' the exact checkpoint listed by [esm2_models()] when it first runs. Supply a
-#' runtime-visible, Hugging Face/vLLM-compatible local checkpoint directory
-#' whose architecture matches `size` to use local weights.
+#' runtime-visible, Hugging Face Transformers-compatible local checkpoint
+#' directory whose architecture matches `size` to use local weights.
 #'
 #' @param size A canonical model name or upstream model alias.
 #' @param checkpoint `NULL` or one compatible, runtime-visible local checkpoint
@@ -84,10 +84,10 @@ esm2 <- function(size = "8m", checkpoint = NULL, compute = NULL) {
 #' Bind an ESM-2 model to compute
 #'
 #' `esm2_model()` returns a model ready for embedding on `compute`. With
-#' `path = NULL`, vLLM obtains the package-pinned Hugging Face checkpoint on
-#' first use. Set `path` to a runtime-visible, Hugging Face/vLLM-compatible
-#' checkpoint directory whose architecture matches `size` to avoid that
-#' download.
+#' `path = NULL`, Transformers obtains the package-pinned Hugging Face
+#' checkpoint on first use. Set `path` to a runtime-visible, Transformers-
+#' compatible checkpoint directory whose architecture matches `size` to avoid
+#' that download.
 #'
 #' @param size A canonical model name or upstream model alias.
 #' @param compute A [bionemo_compute()] descriptor.

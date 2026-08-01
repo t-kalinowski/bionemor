@@ -27,11 +27,9 @@ An S7 \code{BioNeMoRecipe} descriptor.
 }
 \description{
 \code{esm2_recipe()} is an offline descriptor for the package-pinned BioNeMo
-Recipes ESM-2 vLLM workflow. It does not download source, pull an image, or
-start a runtime. During installation, the package-managed image compiles
-vLLM's CUDA/C++ extensions from source for the compute capability reported
-by the selected NVIDIA GPU or GPUs. On an 8-vCPU machine, the first build can
-take tens of minutes; later calls reuse the architecture-specific image.
+Recipes ESM-2 workflow. It does not download source, pull an image, or start
+a runtime. Installation uses the recipe's native Transformers and
+Transformer Engine path and does not compile vLLM.
 }
 \examples{
 recipe <- esm2_recipe()

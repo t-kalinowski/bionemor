@@ -20,16 +20,14 @@ adapter_registry <- function() {
       install_spec = bionemor_adapter_evo2_megatron_install_spec,
       doctor_model = bionemor_adapter_evo2_megatron_doctor_model
     ),
-    `esm2-vllm` = list(
+    `esm2-transformers` = list(
       adapter_version = 1L,
-      run = bionemor_adapter_esm2_vllm_run,
-      materialize = bionemor_adapter_esm2_vllm_materialize,
-      manifest_context = bionemor_adapter_esm2_vllm_manifest_context,
+      run = bionemor_adapter_esm2_transformers_run,
+      materialize = bionemor_adapter_esm2_transformers_materialize,
+      manifest_context = bionemor_adapter_esm2_transformers_manifest_context,
       provenance = recipe_runtime_provenance,
-      install_spec = bionemor_adapter_esm2_vllm_install_spec,
-      install_build_args = bionemor_adapter_esm2_vllm_install_build_args,
-      install_image_suffix = bionemor_adapter_esm2_vllm_install_image_suffix,
-      doctor_model = bionemor_adapter_esm2_vllm_doctor_model
+      install_spec = bionemor_adapter_esm2_transformers_install_spec,
+      doctor_model = bionemor_adapter_esm2_transformers_doctor_model
     )
   )
 }

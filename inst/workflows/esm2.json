@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "adapter": "esm2-vllm",
+  "adapter": "esm2-transformers",
   "adapter_version": 1,
   "family": "esm2",
   "protocol_version": 1,

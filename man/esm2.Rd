@@ -20,8 +20,8 @@ An S7 \code{Esm2Model}.
 \description{
 \code{esm2()} creates an offline model descriptor. By default, inference obtains
 the exact checkpoint listed by \code{\link[=esm2_models]{esm2_models()}} when it first runs. Supply a
-runtime-visible, Hugging Face/vLLM-compatible local checkpoint directory
-whose architecture matches \code{size} to use local weights.
+runtime-visible, Hugging Face Transformers-compatible local checkpoint
+directory whose architecture matches \code{size} to use local weights.
 }
 \examples{
 model <- esm2("8m")

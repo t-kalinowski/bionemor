@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Run pinned ESM-2 pooling models and write portable embeddings."""
+"""Run pinned ESM-2 models and write portable protein embeddings."""
 
 from __future__ import annotations
 
@@ -19,11 +19,10 @@ from typing import Any
 
 
 PROTOCOL_VERSION = 1
-HELPER_VERSION = "0.1.2"
+HELPER_VERSION = "0.2.0"
 EXECUTION_SCHEMA_VERSION = 1
-DRIVER = "esm2-vllm"
-VLLM_VERSION = "0.15.1"
-VLLM_REVISION = "1892993bc18e243e2c05841314c5e9c06a80c70d"
+DRIVER = "esm2-transformers"
+TRANSFORMERS_VERSION = "5.14.1"
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -57,20 +56,8 @@ def package_version(name: str) -> str | None:
         return None
 
 
-def compatible_vllm_version(version: str | None) -> bool:
-    if version is None:
-        return False
-    return version.split("+", maxsplit=1)[0] == VLLM_VERSION or version.startswith(
-        f"0.15.2.dev0+g{VLLM_REVISION[:9]}"
-    )
-
-
-def supported_compute_capabilities() -> list[str]:
-    return [
-        value.strip()
-        for value in os.environ.get("BIONEMOR_CUDA_ARCH_LIST", "").split(";")
-        if value.strip()
-    ]
+def compatible_transformers_version(version: str | None) -> bool:
+    return version == TRANSFORMERS_VERSION
 
 
 def gpu_runtime() -> dict[str, Any]:
@@ -115,36 +102,25 @@ def gpu_runtime() -> dict[str, Any]:
         "gpu_count": gpu_count,
         "driver": driver,
         "gpus": gpus,
-        "vllm": package_version("vllm"),
+        "transformers": package_version("transformers"),
+        "transformer_engine": package_version("transformer-engine"),
     }
 
 
 def description() -> dict[str, Any]:
-    version = package_version("vllm")
-    revision = os.environ.get("BIONEMOR_VLLM_REVISION")
+    version = package_version("transformers")
     runtime = gpu_runtime()
-    supported = supported_compute_capabilities()
-    gpu_supported = runtime["gpu_count"] > 0 and (
-        not supported
-        or all(
-            f"{gpu['compute_capability_major']}.{gpu['compute_capability_minor']}"
-            in supported
-            for gpu in runtime["gpus"]
-        )
-    )
     available = (
-        importlib.util.find_spec("vllm") is not None
-        and compatible_vllm_version(version)
-        and (not revision or revision == VLLM_REVISION)
-        and gpu_supported
+        importlib.util.find_spec("transformers") is not None
+        and importlib.util.find_spec("transformer_engine") is not None
+        and compatible_transformers_version(version)
+        and runtime["cuda_available"]
     )
-    runtime["supported_compute_capabilities"] = supported
-    runtime["vllm_revision"] = revision
     return {
         "protocol_version": PROTOCOL_VERSION,
         "helper_version": HELPER_VERSION,
         "helper_sha256": sha256_file(Path(__file__).resolve()),
-        "recipe_version": f"vllm-{VLLM_VERSION}",
+        "recipe_version": f"transformers-{TRANSFORMERS_VERSION}",
         "recipe_revision": os.environ.get("BIONEMOR_RECIPE_REVISION"),
         "driver": DRIVER,
         "execution_schema_version": EXECUTION_SCHEMA_VERSION,
@@ -193,51 +169,51 @@ def read_requests(path: Path) -> tuple[list[str], list[str]]:
     return ids, sequences
 
 
-def embedding_values(output: Any) -> list[float]:
-    embedding = output.outputs.embedding
+def embedding_values(embedding: Any) -> list[float]:
+    if hasattr(embedding, "detach"):
+        embedding = embedding.detach().cpu()
     if hasattr(embedding, "tolist"):
         embedding = embedding.tolist()
     values = [float(value) for value in embedding]
     if not values or any(not math.isfinite(value) for value in values):
-        raise RuntimeError("vLLM returned an empty or non-finite embedding")
+        raise RuntimeError("ESM-2 returned an empty or non-finite embedding")
     return values
 
 
 def embed(args: argparse.Namespace) -> None:
-    from vllm import LLM
+    import torch
+    from transformers import AutoModel, AutoTokenizer
 
     ids, sequences = read_requests(args.input)
-    model_args: dict[str, Any] = {
-        "model": args.model,
-        "runner": "pooling",
+    load_args: dict[str, Any] = {
         "trust_remote_code": True,
-        "dtype": "float32",
-        "enforce_eager": True,
-        "max_num_batched_tokens": args.max_num_batched_tokens,
-        # NVEsm is bidirectional. Its vLLM Transformers fallback does not
-        # preserve request boundaries or support causal prefix reuse.
-        "max_num_seqs": args.max_num_seqs,
-        "enable_prefix_caching": not args.disable_prefix_caching,
-        "tensor_parallel_size": args.tensor_parallel_size,
-        "disable_log_stats": True,
-        "seed": 42,
     }
     if args.revision is not None:
-        model_args["revision"] = args.revision
-        model_args["tokenizer_revision"] = args.revision
-    model = LLM(**model_args)
-    outputs = model.embed(sequences, use_tqdm=False)
-    if len(outputs) != len(ids):
-        raise RuntimeError("vLLM returned the wrong number of embeddings")
+        load_args["revision"] = args.revision
+    torch.manual_seed(42)
+    torch.cuda.manual_seed_all(42)
+    tokenizer = AutoTokenizer.from_pretrained(args.model, **load_args)
+    model = (
+        AutoModel.from_pretrained(args.model, **load_args)
+        .to("cuda", dtype=torch.float32)
+        .eval()
+    )
     rows = []
     width = None
-    for identifier, output in zip(ids, outputs, strict=True):
-        values = embedding_values(output)
-        if width is None:
-            width = len(values)
-        elif len(values) != width:
-            raise RuntimeError("vLLM returned embeddings with different widths")
-        rows.append(json.dumps({"id": identifier, "embedding": values}))
+    with torch.inference_mode():
+        for identifier, sequence in zip(ids, sequences, strict=True):
+            inputs = tokenizer(sequence, return_tensors="pt")
+            inputs = {name: value.to("cuda") for name, value in inputs.items()}
+            hidden = model(**inputs).last_hidden_state[0, -1, :].float()
+            norm = torch.linalg.vector_norm(hidden)
+            if not bool(torch.isfinite(hidden).all()) or norm.item() <= 1e-9:
+                raise RuntimeError("ESM-2 returned an invalid embedding")
+            values = embedding_values(hidden / norm)
+            if width is None:
+                width = len(values)
+            elif len(values) != width:
+                raise RuntimeError("ESM-2 returned embeddings with different widths")
+            rows.append(json.dumps({"id": identifier, "embedding": values}))
     atomic_write_text(args.output, "\n".join(rows) + "\n")
 
 
@@ -253,14 +229,6 @@ def parser() -> argparse.ArgumentParser:
     embedding.add_argument("--revision")
     embedding.add_argument("--input", type=Path, required=True)
     embedding.add_argument("--output", type=Path, required=True)
-    embedding.add_argument(
-        "--max-num-batched-tokens", type=int, required=True
-    )
-    embedding.add_argument("--max-num-seqs", type=int, choices=[1], required=True)
-    embedding.add_argument(
-        "--disable-prefix-caching", action="store_true", required=True
-    )
-    embedding.add_argument("--tensor-parallel-size", type=int, required=True)
     return value
 
 

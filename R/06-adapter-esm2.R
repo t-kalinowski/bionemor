@@ -25,8 +25,8 @@ esm2_gpu_count <- function(compute) {
   list(
     ok = ok,
     detail = paste0(
-      "ESM-2 vLLM currently requires gpus = 1 because the pinned model ",
-      "does not define a tensor-parallel plan; compute requests gpus = ",
+      "ESM-2 currently requires gpus = 1 because the native Transformers ",
+      "helper runs on one CUDA device; compute requests gpus = ",
       compute@gpus
     )
   )
@@ -37,8 +37,6 @@ esm2_embedding_plan <- function(
   portable,
   source,
   source_revision,
-  max_num_batched_tokens,
-  tensor_parallel_size,
   compute
 ) {
   args <- c(
@@ -49,14 +47,7 @@ esm2_embedding_plan <- function(
     "--input",
     input,
     "--output",
-    portable,
-    "--max-num-batched-tokens",
-    as.character(max_num_batched_tokens),
-    "--max-num-seqs",
-    "1",
-    "--disable-prefix-caching",
-    "--tensor-parallel-size",
-    as.character(tensor_parallel_size)
+    portable
   )
   command_plan(
     list(command_spec(
@@ -71,17 +62,17 @@ esm2_embedding_plan <- function(
 
 #' Extract pooled ESM-2 protein embeddings
 #'
-#' `esm2_embed()` runs the ESM-2 pooling model through the package-pinned vLLM
-#' recipe and returns one last-token, L2-normalized embedding row per input
-#' protein. Model weights are downloaded from the model's pinned Hugging Face
-#' revision on first use and cached below the compute workspace.
+#' `esm2_embed()` runs the ESM-2 model through the package-pinned native
+#' Transformers and Transformer Engine runtime. It returns one last-token,
+#' L2-normalized embedding row per input protein. Model weights are downloaded
+#' from the model's pinned Hugging Face revision on first use and cached below
+#' the compute workspace.
 #'
 #' Use the embedding rows for sequence similarity, clustering, or as features
 #' in downstream R models. They are model representations, not measurements of
-#' protein function. ESM-2 currently requires `gpus = 1` because the pinned
-#' NVIDIA model does not define a vLLM tensor-parallel plan. You may supply
-#' multiple proteins; the runtime processes them one at a time to preserve
-#' their bidirectional attention boundaries.
+#' protein function. ESM-2 currently requires `gpus = 1`. You may supply
+#' multiple proteins; the runtime processes them one at a time on the selected
+#' GPU to preserve their bidirectional attention boundaries.
 #'
 #' @param object An ESM-2 model descriptor from [esm2()] or [esm2_model()].
 #' @param newdata A character vector of protein sequences, an `XStringSet`, a
@@ -122,9 +113,9 @@ esm2_embed <- function(
   )
   compute <- resolve_model_compute(object, compute)
   stopifnot(
-    "compute must use the ESM-2 vLLM recipe" = identical(
+    "compute must use the ESM-2 Transformers recipe" = identical(
       compute@recipe@adapter,
-      "esm2-vllm"
+      "esm2-transformers"
     )
   )
   output <- validate_output_path(output, compute)
@@ -201,8 +192,6 @@ esm2_embed <- function(
     portable = portable,
     source = source,
     source_revision = source_revision,
-    max_num_batched_tokens = as.integer(object@context_length + 2L),
-    tensor_parallel_size = compute@gpus,
     compute = compute
   )
   submit_plan(
@@ -292,13 +281,13 @@ method(predict, Esm2Model) <- function(
   esm2_embed(object, newdata, compute = compute, ...)
 }
 
-bionemor_adapter_esm2_vllm_install_spec <- function(recipe) {
+bionemor_adapter_esm2_transformers_install_spec <- function(recipe) {
   stopifnot(
-    "recipe must use the ESM-2 vLLM adapter" = S7_inherits(
+    "recipe must use the ESM-2 Transformers adapter" = S7_inherits(
       recipe,
       BioNeMoRecipe
     ) &&
-      identical(recipe@adapter, "esm2-vllm")
+      identical(recipe@adapter, "esm2-transformers")
   )
   list(
     lock = esm2_recipe_lock(),
@@ -306,11 +295,13 @@ bionemor_adapter_esm2_vllm_install_spec <- function(recipe) {
     helper_asset = c("scripts", "embed-esm2.py"),
     helper_filename = "embed-esm2.py",
     semantic_operations = "embed",
-    docker_appendage = c("docker", "esm2-vllm", "Dockerfile.append"),
-    uv_after_from = TRUE,
-    image_repository = "bionemor/esm2",
-    image_version = "esm2-vllm-0.15.1",
-    build_args = c(INSTALL_VLLM = "true"),
+    docker_appendage = c(
+      "docker",
+      "esm2-transformers",
+      "Dockerfile.append"
+    ),
+    image_repository = "bionemor/esm2-transformers",
+    image_version = "esm2-transformers-5.14.1",
     probes = list(
       inference = "bionemor-esm2-helper",
       training = character(),
@@ -320,76 +311,16 @@ bionemor_adapter_esm2_vllm_install_spec <- function(recipe) {
   )
 }
 
-bionemor_adapter_esm2_vllm_install_build_args <- function(
+bionemor_adapter_esm2_transformers_doctor_model <- function(
   compute,
-  build_args
+  model,
+  report
 ) {
-  stopifnot(
-    "compute must use the ESM-2 vLLM adapter" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ) &&
-      identical(compute@recipe@adapter, "esm2-vllm"),
-    "build arguments must be a named character vector" = is.character(
-      build_args
-    ) &&
-      !is.null(names(build_args))
-  )
-  probe <- run_install_command(
-    "nvidia-smi",
-    c("--query-gpu=compute_cap", "--format=csv,noheader,nounits"),
-    error = "failed to detect the GPU compute capability",
-    code = "BN_RUNTIME_MISSING",
-    recipe_revision = compute@recipe@revision,
-    hint = "Run nvidia-smi and verify that the requested GPUs are available."
-  )
-  architectures <- trimws(strsplit(trimws(probe$stdout), "\n")[[1L]])
-  selected <- utils::head(architectures, compute@gpus)
-  if (
-    length(selected) != compute@gpus ||
-      any(!grepl("^[0-9]+[.][0-9]+$", selected)) ||
-      length(unique(selected)) != 1L
-  ) {
-    bionemor_abort(
-      "BN_RUNTIME_MISSING",
-      "ESM-2 image builds require the selected GPUs to report one shared compute capability",
-      operation = "install",
-      recipe_revision = compute@recipe@revision,
-      hint = "Run nvidia-smi and select GPUs with the same compute capability."
-    )
-  }
-  c(build_args, TORCH_CUDA_ARCH_LIST = selected[[1L]])
-}
-
-bionemor_adapter_esm2_vllm_install_image_suffix <- function(
-  compute,
-  build_args
-) {
-  stopifnot(
-    "compute must use the ESM-2 vLLM adapter" = S7_inherits(
-      compute,
-      BioNeMoCompute
-    ) &&
-      identical(compute@recipe@adapter, "esm2-vllm"),
-    "build arguments must contain one CUDA architecture" =
-      is_scalar_string(build_args[["TORCH_CUDA_ARCH_LIST"]]) &&
-      grepl(
-        "^[0-9]+[.][0-9]+$",
-        build_args[["TORCH_CUDA_ARCH_LIST"]]
-      )
-  )
-  paste0(
-    "sm",
-    gsub(".", "", build_args[["TORCH_CUDA_ARCH_LIST"]], fixed = TRUE)
-  )
-}
-
-bionemor_adapter_esm2_vllm_doctor_model <- function(compute, model, report) {
   stopifnot(
     "model must be an ESM-2 model" = S7_inherits(model, Esm2Model),
-    "compute must use the ESM-2 vLLM adapter" = identical(
+    "compute must use the ESM-2 Transformers adapter" = identical(
       compute@recipe@adapter,
-      "esm2-vllm"
+      "esm2-transformers"
     ),
     "capability report must be a list" = is.list(report)
   )
@@ -447,16 +378,16 @@ bionemor_adapter_esm2_vllm_doctor_model <- function(compute, model, report) {
   )
 }
 
-bionemor_adapter_esm2_vllm_manifest_context <- function(
+bionemor_adapter_esm2_transformers_manifest_context <- function(
   workflow,
   job,
   request,
   plan
 ) {
   stopifnot(
-    "workflow must use the ESM-2 vLLM adapter" = identical(
+    "workflow must use the ESM-2 Transformers adapter" = identical(
       workflow@adapter,
-      "esm2-vllm"
+      "esm2-transformers"
     ),
     "manifest request and plan must be lists" = is.list(request) &&
       is.list(plan)
@@ -501,15 +432,15 @@ bionemor_adapter_esm2_vllm_manifest_context <- function(
   )
 }
 
-bionemor_adapter_esm2_vllm_materialize <- function(
+bionemor_adapter_esm2_transformers_materialize <- function(
   workflow,
   job,
   descriptor
 ) {
   stopifnot(
-    "workflow must use the ESM-2 vLLM adapter" = identical(
+    "workflow must use the ESM-2 Transformers adapter" = identical(
       workflow@adapter,
-      "esm2-vllm"
+      "esm2-transformers"
     ),
     "job result descriptor must be a list" = is.list(descriptor)
   )
@@ -525,7 +456,7 @@ bionemor_adapter_esm2_vllm_materialize <- function(
   esm2_materialize_embedding(job, descriptor)
 }
 
-bionemor_adapter_esm2_vllm_run <- function(
+bionemor_adapter_esm2_transformers_run <- function(
   workflow,
   model,
   input,
@@ -535,9 +466,9 @@ bionemor_adapter_esm2_vllm_run <- function(
   name
 ) {
   stopifnot(
-    "workflow must use the ESM-2 vLLM adapter" = identical(
+    "workflow must use the ESM-2 Transformers adapter" = identical(
       workflow@adapter,
-      "esm2-vllm"
+      "esm2-transformers"
     ),
     "model must be an ESM-2 model" = S7_inherits(model, Esm2Model),
     "workflow and model families must match" = identical(

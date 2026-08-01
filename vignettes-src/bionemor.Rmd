@@ -215,17 +215,13 @@ into memory.
 
 ESM-2 uses a separate recipe because its runtime and model commands differ from
 Evo 2. This complete example creates a second compute descriptor, installs the
-pinned ESM-2 vLLM runtime, and embeds two short proteins with the smallest
-registered model.
+pinned native Transformers and Transformer Engine runtime, and embeds two short
+proteins with the smallest registered model.
 
-During installation, the package-managed ESM-2 image compiles vLLM's CUDA/C++
-extensions from source for the current NVIDIA GPU architecture. On an 8-vCPU
-machine, this first build can take tens of minutes; later calls reuse the image.
-A GPU with a different compute capability gets its own cached image.
-ESM-2 inference currently requires `gpus = 1` because the pinned NVIDIA model
-does not define a vLLM tensor-parallel plan. You may supply multiple proteins;
-the runtime processes them one at a time to preserve their bidirectional
-attention boundaries.
+Installation uses the recipe's native Transformers and Transformer Engine path
+and does not compile vLLM. ESM-2 inference currently requires `gpus = 1`. You
+may supply multiple proteins; the runtime processes them one at a time on the
+selected GPU to preserve their bidirectional attention boundaries.
 
 ```{r esm2-embed}
 esm2_compute <- bionemo_compute(
@@ -253,8 +249,8 @@ The result contains one last-token, L2-normalized row per protein. Use these
 vectors for sequence similarity, clustering, or as features in downstream R
 models. They are model representations, not measurements of protein function.
 `esm2_models()` lists the available pinned checkpoints and their embedding
-dimensions without downloading weights. vLLM downloads the selected checkpoint
-on first use and caches it below the ESM-2 workspace.
+dimensions without downloading weights. Transformers downloads the selected
+checkpoint on first use and caches it below the ESM-2 workspace.
 
 ## Reopen a durable job
 

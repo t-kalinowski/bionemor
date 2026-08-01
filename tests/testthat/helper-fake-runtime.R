@@ -362,31 +362,17 @@ fake_recipes_runtime <- function(bin) {
 fake_esm2_runtime <- function(
   bin,
   compute_capability_major = 8L,
-  compute_capability_minor = 9L,
-  supported_compute_capabilities = c("8.0", "8.6", "8.9", "9.0")
+  compute_capability_minor = 9L
 ) {
   stopifnot(
     is_scalar_integerish(compute_capability_major, min = 0L),
-    is_scalar_integerish(compute_capability_minor, min = 0L),
-    is.character(supported_compute_capabilities),
-    !anyNA(supported_compute_capabilities)
+    is_scalar_integerish(compute_capability_minor, min = 0L)
   )
   capability <- paste(
     compute_capability_major,
     compute_capability_minor,
     sep = "."
   )
-  embed_available <- !length(supported_compute_capabilities) ||
-    capability %in% supported_compute_capabilities
-  supported_expression <- if (length(supported_compute_capabilities)) {
-    paste0(
-      "c(",
-      paste(shQuote(supported_compute_capabilities), collapse = ", "),
-      ")"
-    )
-  } else {
-    "list()"
-  }
   dir.create(bin, recursive = TRUE, showWarnings = FALSE)
   write_executable(
     file.path(bin, "nvidia-smi"),
@@ -400,13 +386,7 @@ fake_esm2_runtime <- function(
       "value <- function(flag) args[[match(flag, args) + 1L]]",
       "if (identical(args[[1L]], 'describe')) {",
       paste0(
-        "  report <- list(protocol_version = 1L, helper_version = '0.1.0', helper_sha256 = paste(rep('e', 64L), collapse = ''), recipe_version = 'vllm-0.15.1', recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e', driver = 'esm2-vllm', execution_schema_version = 1L, semantic_operations = list('embed'), commands = list(embed = ",
-        embed_available,
-        "), features = list(pooled_embeddings_jsonl = ",
-        embed_available,
-        "), runtime = list(python = '3.12.0', pytorch = '2.8.0', cuda = '12.9', cuda_available = TRUE, gpu_count = 1L, driver = '575.51', vllm = '0.15.1+cu133', supported_compute_capabilities = ",
-        supported_expression,
-        ", gpus = list(list(index = 0L, name = 'L40S', total_memory_bytes = 51539607552, compute_capability_major = ",
+        "  report <- list(protocol_version = 1L, helper_version = '0.2.0', helper_sha256 = paste(rep('e', 64L), collapse = ''), recipe_version = 'transformers-5.14.1', recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e', driver = 'esm2-transformers', execution_schema_version = 1L, semantic_operations = list('embed'), commands = list(embed = TRUE), features = list(pooled_embeddings_jsonl = TRUE), runtime = list(python = '3.12.0', pytorch = '2.8.0', cuda = '12.9', cuda_available = TRUE, gpu_count = 1L, driver = '575.51', transformers = '5.14.1', transformer_engine = '2.16.0', gpus = list(list(index = 0L, name = 'L40S', total_memory_bytes = 51539607552, compute_capability_major = ",
         as.integer(compute_capability_major),
         "L, compute_capability_minor = ",
         as.integer(compute_capability_minor),
