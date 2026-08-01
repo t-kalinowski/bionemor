@@ -50,6 +50,14 @@ test_that("GPU documentation has a guarded manual render workflow", {
     fixed = TRUE
   )))
   expect_true(all(grepl("esm2_embed(", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("CUDA/C\\+\\+[[:space:]]+extensions", onboarding)))
+  expect_true(all(grepl("tens of minutes", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("similarity", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("clustering", onboarding, fixed = TRUE)))
+  expect_true(all(grepl(
+    "downstream[[:space:]]+R[[:space:]]+models",
+    onboarding
+  )))
 
   fine_tune <- sources[[3L]]
   expect_match(fine_tune, "evo2_finetune(", fixed = TRUE)

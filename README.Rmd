@@ -206,9 +206,10 @@ function. Embedding row names preserve the input IDs.
 ESM-2 uses its own recipe and compute descriptor. `esm2_model()` binds a pinned
 ESM-2 checkpoint to that compute target. On first use, vLLM downloads the
 selected weights from Hugging Face and caches them below the workspace.
-During installation, the package-managed image is compiled for the current
-NVIDIA GPU architecture. The first build can take some time. Rebuild the image
-before using a GPU with a different compute capability.
+During installation, the package-managed image compiles vLLM's CUDA/C++
+extensions from source for the current NVIDIA GPU architecture. On an 8-vCPU
+machine, this first build can take tens of minutes; later calls reuse the image.
+Rebuild it before using a GPU with a different compute capability.
 
 ```{r esm2}
 esm2_compute <- bionemo_compute(
@@ -231,9 +232,11 @@ str(protein_embeddings)
 round(protein_embeddings[, 1:4, drop = FALSE], 4)
 ```
 
-Each row is one last-token, L2-normalized protein embedding. `esm2_models()`
-lists the available pinned checkpoints and their embedding dimensions without
-downloading weights.
+Each row is one last-token, L2-normalized protein embedding. You can use these
+vectors for sequence similarity, clustering, or as features in downstream R
+models. They are model representations, not measurements of protein function.
+`esm2_models()` lists the available pinned checkpoints and their embedding
+dimensions without downloading weights.
 
 ## Run longer work
 
