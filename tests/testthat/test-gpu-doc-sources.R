@@ -45,6 +45,16 @@ test_that("GPU documentation has a guarded manual render workflow", {
     fixed = TRUE
   )))
   expect_true(all(grepl(
+    "BIONEMOR_DOCS_CHECKPOINT",
+    onboarding,
+    fixed = TRUE
+  )))
+  expect_true(all(grepl(
+    "checkpoint = checkpoint",
+    onboarding,
+    fixed = TRUE
+  )))
+  expect_true(all(grepl(
     'esm2_model("8m", esm2_compute)',
     onboarding,
     fixed = TRUE

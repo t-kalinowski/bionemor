@@ -142,8 +142,19 @@ checkpoint format used by the Evo 2 recipe, and binds the compute descriptor to
 the returned model. The prepared checkpoint is reused on later calls from the
 same workspace.
 
-```{r evo2-model}
+```r
 model <- evo2_model("7b", evo2_compute)
+model
+```
+
+```{r evo2-model-capture, echo=FALSE}
+checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
+stopifnot(dir.exists(checkpoint))
+model <- evo2(
+  "7b",
+  checkpoint = checkpoint,
+  compute = evo2_compute
+)
 model
 ```
 
