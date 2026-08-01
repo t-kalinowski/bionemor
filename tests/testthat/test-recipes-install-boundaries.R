@@ -338,6 +338,12 @@ test_that("installation builds from locked source and immutable image inputs", {
     "build-context",
     "dirty.txt"
   )))
+
+  invocation <- readLines(result$install_log, warn = FALSE)
+  probes <- invocation[startsWith(invocation, "run ")]
+  expect_length(probes, 2L)
+  expect_true(all(grepl("describe --json", probes, fixed = TRUE)))
+  expect_false(any(grepl("--help", invocation, fixed = TRUE)))
 })
 
 test_that("ESM installation uses its locked native Transformers runtime", {

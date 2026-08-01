@@ -687,11 +687,11 @@ verify_base_image_digest <- function(engine, recipe) {
 #' Existing explicit images are not rebuilt; their immutable ID and required
 #' provenance labels are verified.
 #'
-#' Every path performs a GPU-backed helper capability probe and checks the
-#' `--help` entry point for every command implemented by the selected recipe.
-#' The helper's protocol, recipe version, and recipe revision must match the
-#' compute descriptor. Local containers are probed by the configured
-#' Docker-compatible engine. Local external runtimes are probed directly.
+#' Every path performs a GPU-backed helper capability probe and verifies the
+#' commands advertised by the selected recipe. The helper's protocol, recipe
+#' version, and recipe revision must match the compute descriptor. Local
+#' containers are probed by the configured Docker-compatible engine. Local
+#' external runtimes are probed directly.
 #'
 #' Slurm installation does not install packages or build an image. It submits
 #' synchronous probe jobs so the checks run in allocations rather than on the
@@ -1225,32 +1225,6 @@ verify_runtime_commands <- function(compute, report, target = "all") {
       commands = commands[!available],
       hint = "Install the package-pinned recipe runtime."
     )
-  }
-  for (command in commands) {
-    probe <- runtime_probe(
-      compute,
-      command,
-      "--help",
-      gpus = compute@engine == "container"
-    )
-    if (probe$status != 0L) {
-      detail <- redact_credentials(trimws(paste(probe$stderr, probe$stdout)))
-      bionemor_abort(
-        "BN_RUNTIME_MISSING",
-        paste0(
-          "recipe command probe failed for ",
-          command,
-          if (nzchar(detail)) paste0(": ", detail) else ""
-        ),
-        operation = "install",
-        recipe_revision = compute@recipe@revision,
-        request_id = probe$request_id %||% NULL,
-        log_paths = probe$log_paths %||% NULL,
-        command = command,
-        upstream_exit_status = as.integer(probe$status),
-        hint = "Install the package-pinned recipe runtime."
-      )
-    }
   }
   invisible(report)
 }

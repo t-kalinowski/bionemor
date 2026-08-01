@@ -67,11 +67,11 @@ digest-qualified base image, verifies that digest, and builds the image.
 Existing explicit images are not rebuilt; their immutable ID and required
 provenance labels are verified.
 
-Every path performs a GPU-backed helper capability probe and checks the
-\code{--help} entry point for every command implemented by the selected recipe.
-The helper's protocol, recipe version, and recipe revision must match the
-compute descriptor. Local containers are probed by the configured
-Docker-compatible engine. Local external runtimes are probed directly.
+Every path performs a GPU-backed helper capability probe and verifies the
+commands advertised by the selected recipe. The helper's protocol, recipe
+version, and recipe revision must match the compute descriptor. Local
+containers are probed by the configured Docker-compatible engine. Local
+external runtimes are probed directly.
 
 Slurm installation does not install packages or build an image. It submits
 synchronous probe jobs so the checks run in allocations rather than on the

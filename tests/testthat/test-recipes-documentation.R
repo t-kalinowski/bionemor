@@ -202,6 +202,13 @@ test_that("public documentation states the current runtime and API contracts", {
     fixed = TRUE
   )
 
+  install <- read_text(
+    file.path("man", "bionemo_install.Rd"),
+    "bionemo_install"
+  )
+  expect_match(install, "commands advertised", fixed = TRUE)
+  expect_no_match(install, "--help", fixed = TRUE)
+
   checkpoint <- read_text(
     file.path("man", "evo2_checkpoint.Rd"),
     "evo2_checkpoint"

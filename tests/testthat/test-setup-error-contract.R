@@ -72,17 +72,24 @@ test_that("runtime recipe mismatches expose BN_RECIPE_MISMATCH", {
   expect_identical(error$actual_recipe_revision, actual_revision)
 })
 
-test_that("failed installation command probes expose BN_RUNTIME_MISSING", {
+test_that("missing advertised commands expose BN_RUNTIME_MISSING", {
   workspace <- tempfile("bionemor-install-runtime-missing-")
   bin <- tempfile("bionemor-install-runtime-missing-bin-")
   dir.create(workspace)
-  fake_recipes_runtime(bin)
-  suppressWarnings(fake_bionemo_runtime(bin))
-  write_executable(
-    file.path(bin, "infer_evo2"),
+  dir.create(bin)
+  write_r_executable(
+    file.path(bin, "bionemor-evo2-helper"),
     c(
-      "printf 'infer_evo2 failed to import\\n' >&2",
-      "exit 23"
+      "report <- list(",
+      "  protocol_version = 1L,",
+      "  driver = 'evo2-megatron',",
+      "  execution_schema_version = 1L,",
+      "  semantic_operations = list('generate'),",
+      "  recipe_version = '2.4',",
+      "  recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e',",
+      "  commands = list(infer_evo2 = FALSE, predict_evo2 = TRUE, train_evo2 = TRUE, preprocess_evo2 = TRUE, savanna_to_mbridge = TRUE, nemo2_to_mbridge = TRUE, mbridge_to_vortex = TRUE, remove_optimizer = TRUE)",
+      ")",
+      "cat(jsonlite::toJSON(report, auto_unbox = TRUE))"
     )
   )
   withr::local_envvar(
@@ -103,6 +110,5 @@ test_that("failed installation command probes expose BN_RUNTIME_MISSING", {
   expect_identical(error$code, "BN_RUNTIME_MISSING")
   expect_identical(error$operation, "install")
   expect_identical(error$recipe_revision, compute@recipe@revision)
-  expect_identical(error$command, "infer_evo2")
-  expect_identical(error$upstream_exit_status, 23L)
+  expect_identical(error$commands, "infer_evo2")
 })

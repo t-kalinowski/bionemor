@@ -201,8 +201,8 @@ test_that("Slurm installation probes the runtime inside allocations", {
 
   expect_equal(installed@config$capabilities$recipe_version, "2.4")
   invocations <- readLines(log, warn = FALSE)
-  expect_equal(sum(startsWith(invocations, "sbatch|")), 9L)
-  expect_equal(sum(startsWith(invocations, "sacct|")), 9L)
+  expect_equal(sum(startsWith(invocations, "sbatch|")), 1L)
+  expect_equal(sum(startsWith(invocations, "sacct|")), 1L)
   scripts <- sub(
     "^sbatch\\|",
     "",
@@ -250,7 +250,7 @@ test_that("Slurm installation records a local SIF SHA-256 digest", {
   expect_equal(installed@config$capabilities$image_digest, expected)
   expect_equal(
     sum(startsWith(readLines(slurm_log, warn = FALSE), "sbatch|")),
-    9L
+    1L
   )
   expect_true(image %in% readLines(apptainer_log, warn = FALSE))
   invocations <- readLines(slurm_log, warn = FALSE)
