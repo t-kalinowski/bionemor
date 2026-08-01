@@ -55,6 +55,10 @@ esm2_embedding_plan <- function(
 #' protein. Model weights are downloaded from the model's pinned Hugging Face
 #' revision on first use and cached below the compute workspace.
 #'
+#' Use the embedding rows for sequence similarity, clustering, or as features
+#' in downstream R models. They are model representations, not measurements of
+#' protein function.
+#'
 #' @param object An ESM-2 model descriptor from [esm2()] or [esm2_model()].
 #' @param newdata A character vector of protein sequences, an `XStringSet`, a
 #'   data frame with a `sequence` column, or a FASTA path. Named inputs retain

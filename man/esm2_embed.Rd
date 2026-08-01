@@ -40,6 +40,11 @@ recipe and returns one last-token, L2-normalized embedding row per input
 protein. Model weights are downloaded from the model's pinned Hugging Face
 revision on first use and cached below the compute workspace.
 }
+\details{
+Use the embedding rows for sequence similarity, clustering, or as features
+in downstream R models. They are model representations, not measurements of
+protein function.
+}
 \examples{
 \dontrun{
 compute <- bionemo_compute(

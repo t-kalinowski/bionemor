@@ -135,6 +135,21 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(embeddings, "row names", fixed = TRUE)
   expect_match(embeddings, "averaged", fixed = TRUE)
 
+  esm_recipe <- read_text(file.path("man", "esm2_recipe.Rd"), "esm2_recipe")
+  expect_match(esm_recipe, "CUDA/C\\+\\+ extensions")
+  expect_match(esm_recipe, "tens of minutes", fixed = TRUE)
+
+  esm_embeddings <- read_text(
+    file.path("man", "esm2_embed.Rd"),
+    "esm2_embed"
+  )
+  expect_match(esm_embeddings, "sequence similarity", fixed = TRUE)
+  expect_match(esm_embeddings, "downstream R models", fixed = TRUE)
+  expect_match(
+    esm_embeddings,
+    "not measurements of[[:space:]]+protein function"
+  )
+
   lora <- read_text(file.path("man", "evo2_lora.Rd"), "evo2_lora")
   expect_match(lora, "effective scale", fixed = TRUE)
   expect_match(lora, "dense_projection", fixed = TRUE)
