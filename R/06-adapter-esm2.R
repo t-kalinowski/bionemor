@@ -24,23 +24,22 @@ esm2_tensor_parallelism <- function(object, compute) {
   )
   heads <- as.integer(esm2_model_record(object@size)$attention_heads)
   ok <- heads %% compute@gpus == 0L
+  suffix <- if (ok) {
+    "divides the attention-head count"
+  } else {
+    paste(
+      "is unsupported because the tensor parallel size must divide",
+      "the attention-head count"
+    )
+  }
   list(
     ok = ok,
-    detail = paste0(
-      "ESM-2 model '",
+    detail = sprintf(
+      "ESM-2 model '%s' has %d attention heads; gpus = %d %s",
       object@size,
-      "' has ",
       heads,
-      " attention heads; gpus = ",
       compute@gpus,
-      if (ok) {
-        " divides the attention-head count"
-      } else {
-        paste0(
-          " is unsupported because the tensor parallel size must divide ",
-          "the attention-head count"
-        )
-      }
+      suffix
     )
   )
 }
