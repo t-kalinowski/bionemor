@@ -7,8 +7,8 @@
 esm2_models()
 }
 \value{
-A data frame with model names, sizes, attention-head counts,
-embedding dimensions, and immutable Hugging Face source identifiers.
+A data frame with model names, sizes, embedding dimensions, and
+immutable Hugging Face source identifiers.
 }
 \description{
 \code{esm2_models()} describes the NVIDIA ESM-2 checkpoints available to the

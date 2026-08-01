@@ -14,32 +14,20 @@ esm2_huggingface_environment <- function(compute) {
   c(HF_HOME = cache, credentials)
 }
 
-esm2_tensor_parallelism <- function(object, compute) {
+esm2_gpu_count <- function(compute) {
   stopifnot(
-    "object must be an ESM-2 model" = S7_inherits(object, Esm2Model),
     "compute must be a BioNeMo compute descriptor" = S7_inherits(
       compute,
       BioNeMoCompute
     )
   )
-  heads <- as.integer(esm2_model_record(object@size)$attention_heads)
-  ok <- heads %% compute@gpus == 0L
-  suffix <- if (ok) {
-    "divides the attention-head count"
-  } else {
-    paste(
-      "is unsupported because the tensor parallel size must divide",
-      "the attention-head count"
-    )
-  }
+  ok <- identical(compute@gpus, 1L)
   list(
     ok = ok,
-    detail = sprintf(
-      "ESM-2 model '%s' has %d attention heads; gpus = %d %s",
-      object@size,
-      heads,
-      compute@gpus,
-      suffix
+    detail = paste0(
+      "ESM-2 vLLM currently requires gpus = 1 because the pinned model ",
+      "does not define a tensor-parallel plan; compute requests gpus = ",
+      compute@gpus
     )
   )
 }
@@ -87,9 +75,8 @@ esm2_embedding_plan <- function(
 #'
 #' Use the embedding rows for sequence similarity, clustering, or as features
 #' in downstream R models. They are model representations, not measurements of
-#' protein function. The compute descriptor's GPU count is vLLM's tensor
-#' parallel size and must divide the model's attention-head count reported by
-#' [esm2_models()].
+#' protein function. ESM-2 currently requires `gpus = 1` because the pinned
+#' NVIDIA model does not define a vLLM tensor-parallel plan.
 #'
 #' @param object An ESM-2 model descriptor from [esm2()] or [esm2_model()].
 #' @param newdata A character vector of protein sequences, an `XStringSet`, a
@@ -137,9 +124,9 @@ esm2_embed <- function(
   )
   output <- validate_output_path(output, compute)
   record <- esm2_model_record(object@size)
-  tensor_parallelism <- esm2_tensor_parallelism(object, compute)
-  if (!tensor_parallelism$ok) {
-    stop(tensor_parallelism$detail, call. = FALSE)
+  gpu_count <- esm2_gpu_count(compute)
+  if (!gpu_count$ok) {
+    stop(gpu_count$detail, call. = FALSE)
   }
   checkpoint <- model_checkpoint_path(object, base = compute@workspace)
   if (is.null(checkpoint)) {
@@ -425,12 +412,12 @@ bionemor_adapter_esm2_vllm_doctor_model <- function(compute, model, report) {
   }
   checkpoint <- model_checkpoint_path(model, base = compute@workspace)
   source_ok <- is.null(checkpoint) || dir.exists(checkpoint)
-  tensor_parallelism <- esm2_tensor_parallelism(model, compute)
+  gpu_count <- esm2_gpu_count(compute)
   rbind(
     doctor_row(
-      "model tensor parallelism",
-      if (tensor_parallelism$ok) "pass" else "fail",
-      tensor_parallelism$detail
+      "model GPU count",
+      if (gpu_count$ok) "pass" else "fail",
+      gpu_count$detail
     ),
     doctor_row(
       "model memory floor",

@@ -61,7 +61,6 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
     c(
       "name",
       "parameters",
-      "attention_heads",
       "source",
       "source_revision",
       "source_format"
@@ -69,7 +68,6 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
       names(models)
   ))
   expect_equal(models$name, c("8m", "35m", "150m", "650m", "3b", "15b"))
-  expect_equal(models$attention_heads, c(20L, 20L, 20L, 20L, 40L, 40L))
   expect_true(all(grepl("^[0-9a-f]{40}$", models$source_revision)))
   expect_true(all(models$source_format == "huggingface"))
   expect_equal(models$embedding_size[models$name == "8m"], 320L)
@@ -89,8 +87,8 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
   )
 })
 
-test_that("ESM-2 rejects incompatible tensor parallelism before submission", {
-  workspace <- tempfile("bionemor-esm2-tensor-parallel-")
+test_that("ESM-2 rejects multi-GPU inference before submission", {
+  workspace <- tempfile("bionemor-esm2-multi-gpu-")
   bin <- tempfile("bionemor-esm2-bin-")
   dir.create(workspace)
   fake_esm2_runtime(bin)
@@ -101,9 +99,9 @@ test_that("ESM-2 rejects incompatible tensor parallelism before submission", {
     recipe = esm2_recipe(),
     engine = "external",
     workspace = workspace,
-    gpus = 8L
+    gpus = 2L
   )
-  model <- esm2("8m", compute = compute)
+  model <- esm2("8m")
 
   doctor <- bionemo_doctor(
     compute,
@@ -112,17 +110,21 @@ test_that("ESM-2 rejects incompatible tensor parallelism before submission", {
     verbose = FALSE
   )
   checks <- as.data.frame(doctor)
-  tensor_parallel <- checks[
-    checks$check == "model tensor parallelism",
+  gpu_count <- checks[
+    checks$check == "model GPU count",
     ,
     drop = FALSE
   ]
-  expect_identical(tensor_parallel$status, "fail")
-  expect_match(tensor_parallel$detail, "20 attention heads", fixed = TRUE)
-  expect_match(tensor_parallel$detail, "gpus = 8", fixed = TRUE)
+  expect_identical(gpu_count$status, "fail")
+  expect_match(gpu_count$detail, "gpus = 1", fixed = TRUE)
   expect_error(
-    esm2_embed(model, c(protein = "MKT")),
-    "tensor parallel size must divide the attention-head count",
+    esm2("8m", compute = compute),
+    "currently requires gpus = 1",
+    fixed = TRUE
+  )
+  expect_error(
+    esm2_embed(model, c(protein = "MKT"), compute = compute),
+    "currently requires gpus = 1",
     fixed = TRUE
   )
 })

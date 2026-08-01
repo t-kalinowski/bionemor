@@ -145,7 +145,7 @@ test_that("public documentation states the current runtime and API contracts", {
   )
   expect_match(esm_embeddings, "sequence similarity", fixed = TRUE)
   expect_match(esm_embeddings, "downstream R models", fixed = TRUE)
-  expect_match(esm_embeddings, "tensor[[:space:]]+parallel")
+  expect_match(esm_embeddings, "gpus = 1", fixed = TRUE)
   expect_match(
     esm_embeddings,
     "not measurements of[[:space:]]+protein function"

@@ -43,9 +43,8 @@ revision on first use and cached below the compute workspace.
 \details{
 Use the embedding rows for sequence similarity, clustering, or as features
 in downstream R models. They are model representations, not measurements of
-protein function. The compute descriptor's GPU count is vLLM's tensor
-parallel size and must divide the model's attention-head count reported by
-\code{\link[=esm2_models]{esm2_models()}}.
+protein function. ESM-2 currently requires \code{gpus = 1} because the pinned
+NVIDIA model does not define a vLLM tensor-parallel plan.
 }
 \examples{
 \dontrun{

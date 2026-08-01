@@ -11,8 +11,8 @@ esm2_model_record <- function(size) {
 #' `esm2_models()` describes the NVIDIA ESM-2 checkpoints available to the
 #' package. It is offline and does not download weights.
 #'
-#' @return A data frame with model names, sizes, attention-head counts,
-#'   embedding dimensions, and immutable Hugging Face source identifiers.
+#' @return A data frame with model names, sizes, embedding dimensions, and
+#'   immutable Hugging Face source identifiers.
 #'
 #' @examples
 #' esm2_models()
@@ -23,7 +23,6 @@ esm2_models <- function() {
     name = pluck_chr(records, "name"),
     model_size = pluck_chr(records, "model_size"),
     parameters = pluck_dbl(records, "parameters"),
-    attention_heads = pluck_int(records, "attention_heads"),
     context_length = pluck_int(records, "context_length"),
     embedding_size = pluck_int(records, "embedding_size"),
     source = pluck_chr(records, "source"),
@@ -59,6 +58,12 @@ esm2 <- function(size = "8m", checkpoint = NULL, compute = NULL) {
     "compute must be NULL or a BioNeMo compute descriptor" = is.null(compute) ||
       S7_inherits(compute, BioNeMoCompute)
   )
+  if (!is.null(compute)) {
+    gpu_count <- esm2_gpu_count(compute)
+    if (!gpu_count$ok) {
+      stop(gpu_count$detail, call. = FALSE)
+    }
+  }
   Esm2Model(
     family = "esm2",
     checkpoint = checkpoint,
