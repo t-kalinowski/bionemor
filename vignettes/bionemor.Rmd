@@ -1,50 +1,65 @@
 ---
-title: "Get started with BioNeMo and Evo 2"
+title: "Get started with BioNeMo workflows from R"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Get started with BioNeMo and Evo 2}
+  %\VignetteIndexEntry{Get started with BioNeMo workflows from R}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 
 
-`bionemor` lets you run NVIDIA BioNeMo workflows from R. BioNeMo Recipes is
-the Python runtime that supplies the model-specific training and inference
-commands; `bionemor` installs that runtime, prepares inputs, starts jobs, and
-returns their results to R.
+`bionemor` runs biological foundation-model workflows from R with NVIDIA
+BioNeMo Recipes. BioNeMo Recipes supplies the model-specific training and
+inference programs. `bionemor` installs a pinned recipe runtime, prepares
+inputs, starts jobs, and returns their results to R.
 
-The first supported model family is Evo 2, a model for DNA sequences. This
-article shows how to score sequences, generate continuations, and extract
-embeddings. Three terms recur throughout the package:
+The package currently supports Evo 2 workflows for DNA sequences and ESM-2
+pooled embeddings for protein sequences. Evo 2 has the broadest interface, so
+most of this article uses it as a detailed example. ESM-2 then shows how the
+same API works with another model family.
 
-- A *checkpoint* is a directory containing learned model weights and metadata.
-- A *compute descriptor* tells `bionemor` where to run, which runtime to use,
-  and where to keep checkpoints and job files.
-- An *Evo 2 model* joins a checkpoint to a compute descriptor. Once prepared,
-  it can be passed directly to scoring, generation, embedding, and fine-tuning
-  functions.
+Five concepts recur throughout the package:
+
+- A *recipe* selects the model-specific BioNeMo runtime.
+- A *workflow* is one model-family operation, such as DNA scoring or protein
+  embedding.
+- A *compute descriptor* records where jobs run, which recipe they use, and
+  where checkpoints and job files are stored.
+- A *model* describes a registered checkpoint and can retain its compute
+  descriptor.
+- A *job* records a run so it can be monitored or reopened from another R
+  session.
 
 The output in this article was captured on 2026-08-01 with an NVIDIA L40S
-using package revision 8819b8ec4d86. The executable source
+using package revision 7da249b5f346. The executable source
 is `vignettes-src/bionemor.Rmd`; the package vignette is pre-rendered so it can
 be read without a GPU.
 
 ## Start with an NVIDIA GPU
 
-All current `bionemor` workflows require a CUDA-capable NVIDIA GPU.
-There is no CPU fallback.
+All current model operations require a supported CUDA-capable NVIDIA GPU.
+There is no CPU fallback. Workflow and model discovery work without a GPU.
 
 For local use, run R on a Linux machine with Git, `tar`, Docker, and the NVIDIA
 Container Toolkit. Configure Docker so containers can see the GPU, and
-authenticate Docker to `nvcr.io` before installing the runtime.
+authenticate Docker to `nvcr.io` before installing a runtime.
 
-If you do not have a suitable machine, Brev is one way to rent one. Review the
+NVIDIA NGC is the container registry that supplies the runtime's base image.
+Create an NGC API key, then authenticate Docker on the GPU machine:
+
+```bash
+echo "$NGC_API_KEY" | docker login nvcr.io \
+  --username '$oauthtoken' --password-stdin
+```
+
+If you do not have a suitable machine,
+[NVIDIA Brev](https://brev.nvidia.com/) is one way to rent one. Review the
 hourly prices shown by `brev search` before creating an instance:
 
-``` bash
-brev search --stoppable --min-total-vram 40 --sort price
-brev create bionemor-gpu --stoppable --min-total-vram 40
+```bash
+brev search --stoppable --gpu-name L40S --min-vram 48 --sort price
+brev create bionemor-gpu --stoppable --gpu-name L40S --min-vram 48
 brev shell bionemor-gpu
 
 # Run this from your local shell when you finish.
@@ -57,43 +72,78 @@ check Brev's current pricing and storage policy.
 Brev supplies the Linux GPU machine; it is not a `bionemo_compute()` backend.
 Run the package with the `local` backend inside the instance.
 
-## Install the runtime
+## Discover supported workflows
 
-Create a compute descriptor for the machine and workspace, then call
-`bionemo_install()`. The first installation downloads and builds the pinned
-BioNeMo Recipes runtime, so it can take several minutes:
+`bionemo_workflows()` reports the model families and operations implemented by
+the installed package. Discovery is offline and does not download weights:
+
 
 ``` r
 library(bionemor)
 
+workflows <- bionemo_workflows()
+workflows[c("id", "family", "task")]
+#>                id family       task
+#> 1      esm2/embed   esm2      embed
+#> 2 evo2/checkpoint   evo2 checkpoint
+#> 3     evo2/export   evo2     export
+#> 4    evo2/prepare   evo2    prepare
+#> 5  evo2/fine-tune   evo2  fine-tune
+#> 6   evo2/generate   evo2   generate
+#> 7      evo2/score   evo2      score
+#> 8    evo2/profile   evo2    profile
+#> 9      evo2/embed   evo2      embed
+```
+
+| Model family | Input | Supported workflows | Main functions |
+|---|---|---|---|
+| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, data preparation, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
+| ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
+
+The family-specific functions are the ordinary R interface. For automation,
+`bionemo_run()` also accepts a family-qualified ID such as `"evo2/score"` or
+`"esm2/embed"` from this table.
+
+## Install an Evo 2 runtime
+
+Create a compute descriptor for the machine and workspace, then call
+`bionemo_install()`. The recipe argument is required: it makes the selected
+model family and runtime visible in user code. The first installation downloads
+and builds the pinned BioNeMo Recipes runtime, so it can take several minutes.
+
+
+``` r
 workspace <- normalizePath(
-  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/evo2-work"),
+  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/bionemor-work"),
   mustWork = FALSE
 )
-compute <- bionemo_compute(
+evo2_compute <- bionemo_compute(
+  recipe = evo2_recipe(),
   backend = "local",
   engine = "container",
   workspace = workspace
 )
 
-compute <- bionemo_install(compute)
+evo2_compute <- bionemo_install(evo2_compute)
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed outside
-the package. If setup fails, `bionemo_doctor()` reports detailed runtime and
-GPU checks.
+the package. If setup fails, `bionemo_doctor()` reports runtime and GPU checks.
 
-## Prepare or reuse the model
+## Evo 2 example: prepare or reuse a model
 
 `evo2_model()` downloads the selected weights when needed, converts them to the
-checkpoint format used by BioNeMo Recipes, and binds the compute descriptor to
-the returned model. Checkpoints are large, but the prepared copy is reused on
-later calls from the same workspace.
+checkpoint format used by the Evo 2 recipe, and binds the compute descriptor to
+the returned model. The prepared checkpoint is reused on later calls from the
+same workspace.
 
-
-``` r
-model <- evo2_model("7b", compute)
+```r
+model <- evo2_model("7b", evo2_compute)
 model
+```
+
+
+```
 #> <Evo 2 model>
 #> Size:       7B
 #> Context:    1,048,576 nt
@@ -106,18 +156,18 @@ model
 `evo2_models()` lists other registered checkpoints and their hardware
 compatibility without downloading them.
 
-## Score sequences
+## Evo 2 example: score DNA
 
 
 ``` r
-sequences <- c(
+dna <- c(
   reference = "ACGTACGTACGT",
   variant = "ACGTACGTTCGT"
 )
 
 scores <- evo2_score(
   model,
-  sequences,
+  dna,
   reduction = "mean",
   strand = "both"
 )
@@ -135,13 +185,13 @@ model assigns the sequence greater likelihood; they are not calibrated
 measurements of biological function. With `strand = "both"`, each strand is
 reduced independently and `score` is their arithmetic mean.
 
-## Generate continuations
+## Evo 2 example: generate DNA
 
 
 ``` r
 generated <- evo2_generate(
   model,
-  sequences,
+  dna,
   num_tokens = 8L,
   seed = 17L
 )
@@ -157,32 +207,32 @@ Generation continues each DNA prompt. It supports one sample per prompt; set at
 most one of `top_k` and `top_p` to a positive value. Generated sequences are
 model outputs, not validated biological designs.
 
-## Extract pooled embeddings
+## Evo 2 example: extract pooled embeddings
 
 
 ``` r
-embeddings <- evo2_embed(
+dna_embeddings <- evo2_embed(
   model,
-  sequences,
+  dna,
   pool = "mean",
   strand = "both"
 )
 
-dim(embeddings)
+dim(dna_embeddings)
 #> [1]    2 4096
-str(embeddings)
+str(dna_embeddings)
 #>  'evo2_embeddings' num [1:2, 1:4096] 4.10e+10 4.13e+10 -2.55e+10 -2.58e+10 2.56e+10 ...
 #>  - attr(*, "dimnames")=List of 2
 #>   ..$ : chr [1:2] "reference" "variant"
 #>   ..$ : chr [1:4096] "dim_1" "dim_2" "dim_3" "dim_4" ...
 #>  - attr(*, "provenance")=List of 6
-#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/evo2-embedding-20260801T033220-229303"
+#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/evo2-embedding-20260801T223223-074934"
 #>   ..$ checkpoint     : chr "/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7"
 #>   ..$ layer          : chr "last"
 #>   ..$ pool           : chr "mean"
 #>   ..$ strand         : chr "both"
 #>   ..$ recipe_revision: chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
-round(embeddings[, 1:4, drop = FALSE], 4)
+round(dna_embeddings[, 1:4, drop = FALSE], 4)
 #>                 dim_1        dim_2       dim_3       dim_4
 #> reference 41006313472 -25541912576 25635586048 14001286144
 #> variant   41308303360 -25804754944 26007482368 14023655424
@@ -194,6 +244,63 @@ pooled forward and reverse vectors are averaged. Use `pool = "none"` to write
 position-level embeddings to a Parquet artifact instead of loading them all
 into memory.
 
+## ESM-2 example: embed proteins
+
+ESM-2 uses a separate recipe because its runtime and model commands differ from
+Evo 2. This complete example creates a second compute descriptor, installs the
+pinned native Transformers and Transformer Engine runtime, and embeds two short
+proteins with the smallest registered model.
+
+Installation uses the recipe's native Transformers and Transformer Engine path
+and does not compile vLLM. ESM-2 inference currently requires `gpus = 1`. You
+may supply multiple proteins; the runtime processes them one at a time on the
+selected GPU to preserve their bidirectional attention boundaries.
+
+
+``` r
+esm2_compute <- bionemo_compute(
+  recipe = esm2_recipe(),
+  backend = "local",
+  engine = "container",
+  gpus = 1L,
+  workspace = file.path(workspace, "esm2")
+)
+esm2_compute <- bionemo_install(esm2_compute)
+protein_model <- esm2_model("8m", esm2_compute)
+
+proteins <- c(
+  protein_1 = "MKTAYIAKQRQISFVKSHFSRQ",
+  protein_2 = "GAVLILKKKGHHEAELKPLAQSHATK"
+)
+protein_embeddings <- esm2_embed(protein_model, proteins)
+
+dim(protein_embeddings)
+#> [1]   2 320
+str(protein_embeddings)
+#>  'esm2_embeddings' num [1:2, 1:320] -0.00477 -0.0147 -0.02391 0.002 0.06589 ...
+#>  - attr(*, "dimnames")=List of 2
+#>   ..$ : chr [1:2] "protein_1" "protein_2"
+#>   ..$ : chr [1:320] "dim_1" "dim_2" "dim_3" "dim_4" ...
+#>  - attr(*, "provenance")=List of 6
+#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/esm2/.bionemor/runs/esm2-embedding-20260801T223315-534991"
+#>   ..$ model          : chr "8m"
+#>   ..$ source         : chr "nvidia/esm2_t6_8M_UR50D"
+#>   ..$ source_revision: chr "3674a6acb6c217bbeff709d182a11b196125dfc3"
+#>   ..$ pooling        : chr "last-token-l2"
+#>   ..$ recipe_revision: chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
+round(protein_embeddings[, 1:4, drop = FALSE], 4)
+#>             dim_1   dim_2  dim_3  dim_4
+#> protein_1 -0.0048 -0.0239 0.0659 0.0467
+#> protein_2 -0.0147  0.0020 0.0397 0.0330
+```
+
+The result contains one last-token, L2-normalized row per protein. Use these
+vectors for sequence similarity, clustering, or as features in downstream R
+models. They are model representations, not measurements of protein function.
+`esm2_models()` lists the available pinned checkpoints and their embedding
+dimensions without downloading weights. Transformers downloads the selected
+checkpoint on first use and caches it below the ESM-2 workspace.
+
 ## Reopen a durable job
 
 Every operation records its request, command plan, logs, portable outputs, and
@@ -204,7 +311,7 @@ return a job immediately and save its path:
 ``` r
 run <- evo2_generate(
   model,
-  sequences,
+  dna,
   num_tokens = 8L,
   seed = 17L,
   async = TRUE
@@ -220,6 +327,6 @@ result <- job_wait(same_run, timeout = 600)
 A `job_wait()` timeout only stops waiting. Call `job_cancel()` to cancel the
 underlying process, container, or Slurm allocation.
 
-To train adapters on your own sequences, continue with
+To prepare data and train Evo 2 adapters, continue with
 `vignette("evo2-finetune")`. For a shared GPU cluster, see
 `vignette("slurm")`.
