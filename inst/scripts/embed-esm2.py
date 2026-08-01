@@ -19,10 +19,11 @@ from typing import Any
 
 
 PROTOCOL_VERSION = 1
-HELPER_VERSION = "0.1.0"
+HELPER_VERSION = "0.1.1"
 EXECUTION_SCHEMA_VERSION = 1
 DRIVER = "esm2-vllm"
 VLLM_VERSION = "0.15.1"
+VLLM_REVISION = "1892993bc18e243e2c05841314c5e9c06a80c70d"
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -54,6 +55,14 @@ def package_version(name: str) -> str | None:
         return importlib.metadata.version(name)
     except importlib.metadata.PackageNotFoundError:
         return None
+
+
+def compatible_vllm_version(version: str | None) -> bool:
+    if version is None:
+        return False
+    return version.split("+", maxsplit=1)[0] == VLLM_VERSION or version.startswith(
+        f"0.15.2.dev0+g{VLLM_REVISION[:9]}"
+    )
 
 
 def supported_compute_capabilities() -> list[str]:
@@ -112,6 +121,7 @@ def gpu_runtime() -> dict[str, Any]:
 
 def description() -> dict[str, Any]:
     version = package_version("vllm")
+    revision = os.environ.get("BIONEMOR_VLLM_REVISION")
     runtime = gpu_runtime()
     supported = supported_compute_capabilities()
     gpu_supported = runtime["gpu_count"] > 0 and (
@@ -124,11 +134,12 @@ def description() -> dict[str, Any]:
     )
     available = (
         importlib.util.find_spec("vllm") is not None
-        and version is not None
-        and version.split("+", maxsplit=1)[0] == VLLM_VERSION
+        and compatible_vllm_version(version)
+        and (not revision or revision == VLLM_REVISION)
         and gpu_supported
     )
     runtime["supported_compute_capabilities"] = supported
+    runtime["vllm_revision"] = revision
     return {
         "protocol_version": PROTOCOL_VERSION,
         "helper_version": HELPER_VERSION,
