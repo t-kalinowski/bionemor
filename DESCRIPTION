@@ -13,8 +13,8 @@ License: MIT + file LICENSE
 URL: https://github.com/t-kalinowski/bionemor
 BugReports: https://github.com/t-kalinowski/bionemor/issues
 OS_type: unix
-SystemRequirements: Linux, supported CUDA-capable NVIDIA GPU, Docker with NVIDIA
-    Container Toolkit (for the package-managed container runtime)
+SystemRequirements: Linux, Git, tar, supported CUDA-capable NVIDIA GPU, Docker
+    with NVIDIA Container Toolkit (for the package-managed container runtime)
 Depends:
     R (>= 4.2)
 Imports:

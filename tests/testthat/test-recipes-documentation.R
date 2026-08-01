@@ -7,6 +7,8 @@ test_that("installed metadata and exports describe the Recipes runtime", {
   expect_match(text, "CUDA-capable NVIDIA GPU", fixed = TRUE)
   expect_match(text, "no CPU fallback", fixed = TRUE)
   expect_match(description$SystemRequirements, "NVIDIA GPU", fixed = TRUE)
+  expect_match(description$SystemRequirements, "Git", fixed = TRUE)
+  expect_match(description$SystemRequirements, "tar", fixed = TRUE)
   expect_true(all(
     c(
       "bionemo_install",
