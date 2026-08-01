@@ -14,8 +14,8 @@ the fitted MBridge checkpoint, and uses it for generation and scoring. It
 exercises the training and checkpoint-loading path; two steps on repeated toy
 sequences do not produce a useful biological model.
 
-The output was captured on 2026-07-31 with an NVIDIA L40S using package
-revision df19000ec8ed. The executable source is
+The output was captured on 2026-08-01 with an NVIDIA L40S using package
+revision 8819b8ec4d86. The executable source is
 `vignettes-src/evo2-finetune.Rmd`; the package vignette is pre-rendered so it
 can be read without a GPU.
 
@@ -93,7 +93,7 @@ doctor
 #>                                                                                                     0.4.1
 #>                                                                                          import available
 #>                                                        NVIDIA L40S compute 8.9, 44.4 GiB driver 610.43.02
-#>        bionemor/evo2:e8e7f597363c sha256:83328bd1c26aa314548c10b3cee0af567d7c7ebbf3e9d9f4b5bc32cafc345789
+#>        bionemor/evo2:e8e7f597363c sha256:16bdf462f456bfb6e4a74f0be1c774ecdf91fbbd7df4847094e6406d81824319
 #>  nvcr.io/nvidia/pytorch:26.06-py3 sha256:abd110b23600e877173dafc3078385b7c13ddacd7e0c6a6acb0a864586d59622
 #>                                                                                  CUDA devices are visible
 #>                                                                                                 available
@@ -149,21 +149,21 @@ prepared <- evo2_prepare(
 )
 prepared
 #> <bionemor::Evo2Dataset>
-#>  @ train       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/train.fasta"
-#>  @ validation  : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/validation.fasta"
-#>  @ test        : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/test.fasta"
+#>  @ train       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/train.fasta"
+#>  @ validation  : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/validation.fasta"
+#>  @ test        : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/test.fasta"
 #>  @ split       : Named num [1:3] 0.8 0.1 0.1
 #>  .. - attr(*, "names")= chr [1:3] "train" "validation" "test"
 #>  @ seed        : int 1
 #>  @ id_col      : chr "id"
 #>  @ sequence_col: chr "sequence"
 #>  @ prepared    : logi TRUE
-#>  @ path        : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128"
+#>  @ path        : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128"
 #>  @ manifest    :List of 17
-#>  .. $ preprocess_config       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/preprocess.yaml"
-#>  .. $ preprocess_config_digest: chr "160867b89e1a7b24f1de2efb88261ee9"
-#>  .. $ dataset_config          : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/dataset.yaml"
-#>  .. $ dataset_config_digest   : chr "75092f6d26797303c09f846a41f64155"
+#>  .. $ preprocess_config       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/preprocess.yaml"
+#>  .. $ preprocess_config_digest: chr "4b798f9833f48ea5099eefb25d822995"
+#>  .. $ dataset_config          : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/dataset.yaml"
+#>  .. $ dataset_config_digest   : chr "107b9abe8528a4b017979a1b915a514c"
 #>  .. $ tokenizer               : chr "/workspace/bionemo/tokenizers/nucleotide_fast_tokenizer_512"
 #>  .. $ tokenizer_revision      : chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
 #>  .. $ model_size              : chr "evo2_7b"
@@ -172,21 +172,21 @@ prepared
 #>  .. $ partition_seed          : int 1
 #>  .. $ inputs                  :List of 3
 #>  ..  ..$ train     :List of 6
-#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/train.fasta"
+#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/train.fasta"
 #>  ..  .. ..$ digest        : chr "db7f97ccc86863bfd345be882319d12d"
 #>  ..  .. ..$ records       : int 4
 #>  ..  .. ..$ minimum_length: int 127
 #>  ..  .. ..$ maximum_length: int 127
 #>  ..  .. ..$ mean_length   : num 127
 #>  ..  ..$ validation:List of 6
-#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/validation.fasta"
+#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/validation.fasta"
 #>  ..  .. ..$ digest        : chr "796ecf873cda573ab7f96ae299242200"
 #>  ..  .. ..$ records       : int 1
 #>  ..  .. ..$ minimum_length: int 127
 #>  ..  .. ..$ maximum_length: int 127
 #>  ..  .. ..$ mean_length   : num 127
 #>  ..  ..$ test      :List of 6
-#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128/inputs/test.fasta"
+#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/test.fasta"
 #>  ..  .. ..$ digest        : chr "efa3a2b773d54e80b5de6b61fbfc8465"
 #>  ..  .. ..$ records       : int 1
 #>  ..  .. ..$ minimum_length: int 127
@@ -210,39 +210,39 @@ prepared
 #>  ..  ..$ taxonomy_records         : int 0
 #>  ..  ..$ taxonomy_digest          : NULL
 #>  .. $ output_prefixes         :List of 3
-#>  ..  ..$ train     : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/train_nucleotide_fast_tokenizer_512_train"
-#>  ..  ..$ validation: chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
-#>  ..  ..$ test      : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/test_nucleotide_fast_tokenizer_512_test"
+#>  ..  ..$ train     : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/train_nucleotide_fast_tokenizer_512_train"
+#>  ..  ..$ validation: chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
+#>  ..  ..$ test      : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/test_nucleotide_fast_tokenizer_512_test"
 #>  .. $ outputs                 :List of 6
 #>  ..  ..$ train_nucleotide_fast_tokenizer_512_train.bin   :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/train_nucleotide_fast_token"| __truncated__
-#>  ..  .. ..$ digest: chr "f7257367dd332bcb71d7a947226afd6f"
+#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/train_nucleotide_fast_token"| __truncated__
+#>  ..  .. ..$ digest: chr "73fec06c4a8e19527ea9895384287217"
 #>  ..  .. ..$ size  : num 512
 #>  ..  ..$ validation_nucleotide_fast_tokenizer_512_val.bin:List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
+#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
 #>  ..  .. ..$ digest: chr "7ce33489b4eb0692dfe250e42abc2503"
 #>  ..  .. ..$ size  : num 128
 #>  ..  ..$ test_nucleotide_fast_tokenizer_512_test.bin     :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/test_nucleotide_fast_tokeni"| __truncated__
+#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/test_nucleotide_fast_tokeni"| __truncated__
 #>  ..  .. ..$ digest: chr "830c65af346e484f6924d26dda314575"
 #>  ..  .. ..$ size  : num 128
 #>  ..  ..$ train_nucleotide_fast_tokenizer_512_train.idx   :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/train_nucleotide_fast_token"| __truncated__
+#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/train_nucleotide_fast_token"| __truncated__
 #>  ..  .. ..$ digest: chr "a092d5f8e70fdefcef240e73c368d4fc"
 #>  ..  .. ..$ size  : num 122
 #>  ..  ..$ validation_nucleotide_fast_tokenizer_512_val.idx:List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
+#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
 #>  ..  .. ..$ digest: chr "f18daa70db2c457f7847dbe05deac2d6"
 #>  ..  .. ..$ size  : num 62
 #>  ..  ..$ test_nucleotide_fast_tokenizer_512_test.idx     :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/test_nucleotide_fast_tokeni"| __truncated__
+#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/test_nucleotide_fast_tokeni"| __truncated__
 #>  ..  .. ..$ digest: chr "f18daa70db2c457f7847dbe05deac2d6"
 #>  ..  .. ..$ size  : num 62
 #>  .. $ recipe_revision         : chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
-#>  .. $ manifest_path           : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260731-175839-tiny-evo2-128/bionemor-prepared.json"
-#>  .. $ prepared_at             : chr "2026-07-31 18:30:39 UTC"
+#>  .. $ manifest_path           : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/bionemor-prepared.json"
+#>  .. $ prepared_at             : chr "2026-08-01 03:39:19 UTC"
 #>  @ provenance  :List of 1
-#>  .. $ run_path: chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-tiny-evo2-128"
+#>  .. $ run_path: chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128"
 ```
 
 Explicit validation and test inputs keep this small example deterministic. Use
@@ -313,10 +313,10 @@ run <- evo2_finetune(
 )
 run
 #> <bionemor_job>
-#> ID: docs-20260731-175839-vignette-lora
+#> ID: docs-20260801-030742-vignette-lora
 #> Kind: fine-tune
-#> State: starting
-#> Path: /home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260731-175839-vignette-lora
+#> State: running
+#> Path: /home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-vignette-lora
 
 fitted <- job_wait(run, timeout = 3600)
 job_status(run, refresh = TRUE)
@@ -325,7 +325,7 @@ fitted
 #> <Evo 2 model>
 #> Size:       7B
 #> Context:    1,048,576 nt
-#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260731-175839/vignette-lora/docs-20260731-175839-vignette-lora/checkpoints
+#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260801-030742/vignette-lora/docs-20260801-030742-vignette-lora/checkpoints
 #> Recipe:     BioNeMo Evo 2 2.4 @ e8e7f597
 #> Ready:      yes
 #> Compute:    local/container
@@ -349,7 +349,7 @@ data.frame(
   recipe_revision = manifest$recipe_revision
 )
 #>                                                                                                                                  path
-#> 1 /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260731-175839/vignette-lora/docs-20260731-175839-vignette-lora/checkpoints
+#> 1 /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260801-030742/vignette-lora/docs-20260801-030742-vignette-lora/checkpoints
 #>    format kind
 #> 1 mbridge lora
 #>                                                                                 base_checkpoint
@@ -374,7 +374,7 @@ scores <- evo2_score(
 )
 scores[c("id", "score", "forward_score")]
 #>      id      score forward_score
-#> 1 probe -0.1706527    -0.1706527
+#> 1 probe -0.1708792    -0.1708792
 
 generated <- evo2_generate(
   fitted,

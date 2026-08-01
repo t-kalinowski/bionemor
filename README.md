@@ -19,45 +19,40 @@ claim support for other BioNeMo model families. The package-level workflow API
 keeps model family, workflow, recipe runtime, and compute separate so another
 adapter can be added to this same `bionemor` package:
 
-```r
+
+``` r
+library(bionemor)
+
 workflows <- bionemo_workflows()
 workflows[c("id", "adapter", "input_schema", "result_schema")]
-#>                id       adapter            input_schema
-#> 1 evo2/checkpoint evo2-megatron    checkpoint/source-v1
-#> 2     evo2/export evo2-megatron     path/destination-v1
-#> 3    evo2/prepare evo2-megatron         sequence/dna-v1
-#> 4  evo2/fine-tune evo2-megatron dataset/evo2-indexed-v1
-#> 5   evo2/generate evo2-megatron         sequence/dna-v1
-#> 6      evo2/score evo2-megatron         sequence/dna-v1
-#> 7    evo2/profile evo2-megatron         sequence/dna-v1
-#> 8      evo2/embed evo2-megatron         sequence/dna-v1
-#>               result_schema
-#> 1     checkpoint/mbridge-v1
-#> 2      checkpoint/vortex-v1
-#> 3   dataset/evo2-indexed-v1
-#> 4             model/evo2-v1
-#> 5  table/evo2-generation-v1
-#> 6      table/evo2-scores-v1
-#> 7  artifact/evo2-profile-v1
-#> 8 result/evo2-embeddings-v1
+#>                id       adapter            input_schema             result_schema
+#> 1 evo2/checkpoint evo2-megatron    checkpoint/source-v1     checkpoint/mbridge-v1
+#> 2     evo2/export evo2-megatron     path/destination-v1      checkpoint/vortex-v1
+#> 3    evo2/prepare evo2-megatron         sequence/dna-v1   dataset/evo2-indexed-v1
+#> 4  evo2/fine-tune evo2-megatron dataset/evo2-indexed-v1             model/evo2-v1
+#> 5   evo2/generate evo2-megatron         sequence/dna-v1  table/evo2-generation-v1
+#> 6      evo2/score evo2-megatron         sequence/dna-v1      table/evo2-scores-v1
+#> 7    evo2/profile evo2-megatron         sequence/dna-v1  artifact/evo2-profile-v1
+#> 8      evo2/embed evo2-megatron         sequence/dna-v1 result/evo2-embeddings-v1
 ```
 
 R owns the user API, input staging, model and checkpoint records, durable job
 state, Docker or Apptainer wrapping, Slurm submission, provenance, and result
 conversion. A versioned adapter owns translation to the pinned recipe commands.
 For generation, it writes a semantic execution request that a small helper
-inside the recipe runtime translates to the Python command. The other current
-Evo 2 workflows use typed argument-vector command plans and the same helper for
-portable outputs. The upstream BioNeMo, Megatron, PyTorch, and CUDA code
-performs the model computation.
+inside the recipe runtime translates to the Python command. Scoring and
+embedding use typed argument-vector command plans and the helper to normalize
+portable outputs. Checkpoint conversion, preprocessing, and fine-tuning use
+typed upstream command plans, with R materializing their results. The upstream
+BioNeMo, Megatron, PyTorch, and CUDA code performs the model computation.
 
 The execution boundary is therefore a subprocess, and container or Slurm
 backends add more subprocesses. The package does more than call `system()`: it
 defines the request and result contracts and manages the run before and after
 the upstream process. It does not reimplement the model in R.
 
-The output below was rendered on 2026-07-31 with an NVIDIA L40S using
-package revision df19000ec8ed. See
+The output below was rendered on 2026-08-01 with an NVIDIA L40S using
+package revision 8819b8ec4d86. See
 [`vignettes-src/`](vignettes-src/) and
 [`tools/render-gpu-docs.R`](tools/render-gpu-docs.R) for the executable sources
 and manual render command.
@@ -84,8 +79,6 @@ Then inspect the setup plan, install the runtime, and verify it:
 
 
 ``` r
-library(bionemor)
-
 workspace <- normalizePath(
   Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/evo2-work"),
   mustWork = FALSE
@@ -164,7 +157,7 @@ doctor
 #>                                                                                                     0.4.1
 #>                                                                                          import available
 #>                                                        NVIDIA L40S compute 8.9, 44.4 GiB driver 610.43.02
-#>        bionemor/evo2:e8e7f597363c sha256:83328bd1c26aa314548c10b3cee0af567d7c7ebbf3e9d9f4b5bc32cafc345789
+#>        bionemor/evo2:e8e7f597363c sha256:16bdf462f456bfb6e4a74f0be1c774ecdf91fbbd7df4847094e6406d81824319
 #>  nvcr.io/nvidia/pytorch:26.06-py3 sha256:abd110b23600e877173dafc3078385b7c13ddacd7e0c6a6acb0a864586d59622
 #>                                                                                  CUDA devices are visible
 #>                                                                                                 available
@@ -189,7 +182,7 @@ weights:
 ``` r
 models <- evo2_models(compute, compatible = TRUE)
 str(models)
-#> 'data.frame':    2 obs. of  12 variables:
+#> 'data.frame':	2 obs. of  12 variables:
 #>  $ name                     : chr  "7b-base" "7b"
 #>  $ model_size               : chr  "evo2_7b_base" "evo2_7b"
 #>  $ parameters               : num  7e+09 7e+09
@@ -272,12 +265,12 @@ scores <- evo2_score(
   strand = "both"
 )
 scores
-#>          id sequence_length tokens_scored     score forward_score
-#> 1 reference              12            11 -1.408769     -1.408769
-#> 2   variant              12            11 -1.411028     -1.422442
-#>   reverse_score reduction strand
-#> 1     -1.408769      mean   both
-#> 2     -1.399613      mean   both
+#>          id sequence_length tokens_scored     score forward_score reverse_score reduction
+#> 1 reference              12            11 -1.408769     -1.408769     -1.408769      mean
+#> 2   variant              12            11 -1.411028     -1.422442     -1.399613      mean
+#>   strand
+#> 1   both
+#> 2   both
 
 embeddings <- evo2_embed(
   model,
@@ -288,10 +281,17 @@ embeddings <- evo2_embed(
 dim(embeddings)
 #> [1]    2 4096
 str(embeddings)
-#>  num [1:2, 1:4096] 4.10e+10 4.13e+10 -2.55e+10 -2.58e+10 2.56e+10 ...
+#>  'evo2_embeddings' num [1:2, 1:4096] 4.10e+10 4.13e+10 -2.55e+10 -2.58e+10 2.56e+10 ...
 #>  - attr(*, "dimnames")=List of 2
 #>   ..$ : chr [1:2] "reference" "variant"
 #>   ..$ : chr [1:4096] "dim_1" "dim_2" "dim_3" "dim_4" ...
+#>  - attr(*, "provenance")=List of 6
+#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/evo2-embedding-20260801T031605-312966"
+#>   ..$ checkpoint     : chr "/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7"
+#>   ..$ layer          : chr "last"
+#>   ..$ pool           : chr "mean"
+#>   ..$ strand         : chr "both"
+#>   ..$ recipe_revision: chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
 round(embeddings[, 1:4, drop = FALSE], 4)
 #>                 dim_1        dim_2       dim_3       dim_4
 #> reference 41006313472 -25541912576 25635586048 14001286144
@@ -370,7 +370,7 @@ fitted
 #> <Evo 2 model>
 #> Size:       7B
 #> Context:    1,048,576 nt
-#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260731-175839/readme-lora/docs-20260731-175839-readme-lora/checkpoints
+#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260801-030742/readme-lora/docs-20260801-030742-readme-lora/checkpoints
 #> Recipe:     BioNeMo Evo 2 2.4 @ e8e7f597
 #> Ready:      yes
 #> Compute:    local/container
@@ -404,7 +404,7 @@ evo2_score(
   strand = "forward"
 )[c("id", "score")]
 #>      id      score
-#> 1 probe -0.1700051
+#> 1 probe -0.1702135
 
 evo2_generate(
   fitted,

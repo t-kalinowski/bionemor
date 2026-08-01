@@ -13,8 +13,8 @@ The Slurm backend submits one-node jobs with `sbatch`, reads allocation state
 with `sacct`, and cancels with `scancel`. The R process, compute nodes, and
 container must see the same workspace paths.
 
-This reference was pre-rendered on 2026-07-31 from package revision
-df19000ec8ed. Its commands were not executed on Brev:
+This reference was pre-rendered on 2026-08-01 from package revision
+8819b8ec4d86. Its commands were not executed on Brev:
 scheduler, shared-filesystem, container-runtime, and allocation behavior must be
 validated on the target cluster.
 
