@@ -61,6 +61,7 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
     c(
       "name",
       "parameters",
+      "attention_heads",
       "source",
       "source_revision",
       "source_format"
@@ -68,6 +69,7 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
       names(models)
   ))
   expect_equal(models$name, c("8m", "35m", "150m", "650m", "3b", "15b"))
+  expect_equal(models$attention_heads, c(20L, 20L, 20L, 20L, 40L, 40L))
   expect_true(all(grepl("^[0-9a-f]{40}$", models$source_revision)))
   expect_true(all(models$source_format == "huggingface"))
   expect_equal(models$embedding_size[models$name == "8m"], 320L)
@@ -84,6 +86,44 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
   expect_identical(
     head(names(formals(esm2_embed)), 3L),
     c("object", "newdata", "compute")
+  )
+})
+
+test_that("ESM-2 rejects incompatible tensor parallelism before submission", {
+  workspace <- tempfile("bionemor-esm2-tensor-parallel-")
+  bin <- tempfile("bionemor-esm2-bin-")
+  dir.create(workspace)
+  fake_esm2_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = esm2_recipe(),
+    engine = "external",
+    workspace = workspace,
+    gpus = 8L
+  )
+  model <- esm2("8m", compute = compute)
+
+  doctor <- bionemo_doctor(
+    compute,
+    model = model,
+    target = "inference",
+    verbose = FALSE
+  )
+  checks <- as.data.frame(doctor)
+  tensor_parallel <- checks[
+    checks$check == "model tensor parallelism",
+    ,
+    drop = FALSE
+  ]
+  expect_identical(tensor_parallel$status, "fail")
+  expect_match(tensor_parallel$detail, "20 attention heads", fixed = TRUE)
+  expect_match(tensor_parallel$detail, "gpus = 8", fixed = TRUE)
+  expect_error(
+    esm2_embed(model, c(protein = "MKT")),
+    "tensor parallel size must divide the attention-head count",
+    fixed = TRUE
   )
 })
 
