@@ -53,6 +53,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("CUDA/C\\+\\+[[:space:]]+extensions", onboarding)))
   expect_true(all(grepl("tens of minutes", onboarding, fixed = TRUE)))
   expect_true(all(grepl("its own cached image", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("gpus = 1", onboarding, fixed = TRUE)))
   expect_true(all(grepl("similarity", onboarding, fixed = TRUE)))
   expect_true(all(grepl("clustering", onboarding, fixed = TRUE)))
   expect_true(all(grepl(

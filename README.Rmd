@@ -210,12 +210,15 @@ During installation, the package-managed image compiles vLLM's CUDA/C++
 extensions from source for the current NVIDIA GPU architecture. On an 8-vCPU
 machine, this first build can take tens of minutes; later calls reuse the image.
 A GPU with a different compute capability gets its own cached image.
+ESM-2 inference currently requires `gpus = 1` because the pinned NVIDIA model
+does not define a vLLM tensor-parallel plan.
 
 ```{r esm2}
 esm2_compute <- bionemo_compute(
   recipe = esm2_recipe(),
   backend = "local",
   engine = "container",
+  gpus = 1L,
   workspace = file.path(workspace, "esm2")
 )
 esm2_compute <- bionemo_install(esm2_compute)
