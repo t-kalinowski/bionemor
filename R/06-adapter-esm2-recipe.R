@@ -6,8 +6,8 @@ esm2_recipe_lock <- function() {
 #'
 #' `esm2_recipe()` is an offline descriptor for the package-pinned BioNeMo
 #' Recipes ESM-2 vLLM workflow. It does not download source, pull an image, or
-#' start a runtime. The package-managed image supports NVIDIA compute
-#' capabilities 8.0, 8.6, 8.9, and 9.0.
+#' start a runtime. During installation, the package-managed image is compiled
+#' for the compute capability reported by the selected NVIDIA GPU or GPUs.
 #'
 #' @param revision BioNeMo Recipes revision. `"recommended"` uses the exact
 #'   package lock. Otherwise, supply a full commit SHA unless

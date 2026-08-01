@@ -388,6 +388,10 @@ fake_esm2_runtime <- function(
     "list()"
   }
   dir.create(bin, recursive = TRUE, showWarnings = FALSE)
+  write_executable(
+    file.path(bin, "nvidia-smi"),
+    paste0("printf '", capability, "\\n'")
+  )
   write_r_executable(
     file.path(bin, "bionemor-esm2-helper"),
     c(

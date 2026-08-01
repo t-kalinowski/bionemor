@@ -206,8 +206,9 @@ function. Embedding row names preserve the input IDs.
 ESM-2 uses its own recipe and compute descriptor. `esm2_model()` binds a pinned
 ESM-2 checkpoint to that compute target. On first use, vLLM downloads the
 selected weights from Hugging Face and caches them below the workspace.
-The package-managed image supports NVIDIA compute capabilities 8.0, 8.6, 8.9,
-and 9.0; installation reports an unsupported GPU before inference starts.
+During installation, the package-managed image is compiled for the current
+NVIDIA GPU architecture. The first build can take some time. Rebuild the image
+before using a GPU with a different compute capability.
 
 ```{r esm2}
 esm2_compute <- bionemo_compute(

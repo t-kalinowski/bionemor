@@ -278,10 +278,7 @@ bionemor_adapter_esm2_vllm_install_spec <- function(recipe) {
     uv_after_from = TRUE,
     image_repository = "bionemor/esm2",
     image_version = "esm2-vllm-0.15.1",
-    build_args = c(
-      INSTALL_VLLM = "true",
-      TORCH_CUDA_ARCH_LIST = "8.0;8.6;8.9;9.0"
-    ),
+    build_args = c(INSTALL_VLLM = "true"),
     probes = list(
       inference = "bionemor-esm2-helper",
       training = character(),
@@ -289,6 +286,47 @@ bionemor_adapter_esm2_vllm_install_spec <- function(recipe) {
     ),
     command_keys = c(`bionemor-esm2-helper` = "embed")
   )
+}
+
+bionemor_adapter_esm2_vllm_install_build_args <- function(
+  compute,
+  build_args
+) {
+  stopifnot(
+    "compute must use the ESM-2 vLLM adapter" = S7_inherits(
+      compute,
+      BioNeMoCompute
+    ) &&
+      identical(compute@recipe@adapter, "esm2-vllm"),
+    "build arguments must be a named character vector" = is.character(
+      build_args
+    ) &&
+      !is.null(names(build_args))
+  )
+  probe <- run_install_command(
+    "nvidia-smi",
+    c("--query-gpu=compute_cap", "--format=csv,noheader,nounits"),
+    error = "failed to detect the GPU compute capability",
+    code = "BN_RUNTIME_MISSING",
+    recipe_revision = compute@recipe@revision,
+    hint = "Run nvidia-smi and verify that the requested GPUs are available."
+  )
+  architectures <- trimws(strsplit(trimws(probe$stdout), "\n")[[1L]])
+  selected <- utils::head(architectures, compute@gpus)
+  if (
+    length(selected) != compute@gpus ||
+      any(!grepl("^[0-9]+[.][0-9]+$", selected)) ||
+      length(unique(selected)) != 1L
+  ) {
+    bionemor_abort(
+      "BN_RUNTIME_MISSING",
+      "ESM-2 image builds require the selected GPUs to report one shared compute capability",
+      operation = "install",
+      recipe_revision = compute@recipe@revision,
+      hint = "Run nvidia-smi and select GPUs with the same compute capability."
+    )
+  }
+  c(build_args, TORCH_CUDA_ARCH_LIST = selected[[1L]])
 }
 
 bionemor_adapter_esm2_vllm_doctor_model <- function(compute, model, report) {

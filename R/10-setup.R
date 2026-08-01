@@ -811,13 +811,23 @@ bionemo_install <- function(
     verify_base_image_digest(engine, compute@recipe)
     helper_revision <- package_helper_revision(compute@recipe)
     install_spec <- recipe_install_spec(compute@recipe)
+    build_args <- install_spec$build_args
+    build_hook <- adapter_record(compute@recipe@adapter)$install_build_args
+    if (!is.null(build_hook)) {
+      stopifnot(
+        "adapter install build hook must be a function" = is.function(
+          build_hook
+        )
+      )
+      build_args <- build_hook(compute, build_args)
+    }
     adapter_build_args <- unlist(
       lapply(
-        names(install_spec$build_args),
+        names(build_args),
         function(name) {
           c(
             "--build-arg",
-            paste0(name, "=", install_spec$build_args[[name]])
+            paste0(name, "=", build_args[[name]])
           )
         }
       ),

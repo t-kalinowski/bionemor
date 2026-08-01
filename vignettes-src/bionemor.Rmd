@@ -218,8 +218,9 @@ Evo 2. This complete example creates a second compute descriptor, installs the
 pinned ESM-2 vLLM runtime, and embeds two short proteins with the smallest
 registered model.
 
-The package-managed ESM-2 image supports NVIDIA compute capabilities 8.0, 8.6,
-8.9, and 9.0. Installation reports an unsupported GPU before inference starts.
+During installation, the package-managed ESM-2 image is compiled for the
+current NVIDIA GPU architecture. The first build can take some time. Rebuild
+the image before using a GPU with a different compute capability.
 
 ```{r esm2-embed}
 esm2_compute <- bionemo_compute(

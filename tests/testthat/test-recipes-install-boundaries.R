@@ -357,7 +357,7 @@ test_that("ESM installation uses its locked Dockerfile and build arguments", {
   expect_match(build, "--build-arg INSTALL_VLLM=true", fixed = TRUE)
   expect_match(
     build,
-    "--build-arg TORCH_CUDA_ARCH_LIST=8.0;8.6;8.9;9.0",
+    "--build-arg TORCH_CUDA_ARCH_LIST=8.9",
     fixed = TRUE
   )
 })
