@@ -71,6 +71,8 @@ test_that("GPU documentation has a guarded manual render workflow", {
   )))
 
   fine_tune <- sources[[3L]]
+  expect_match(fine_tune, "BIONEMOR_DOCS_CHECKPOINT", fixed = TRUE)
+  expect_match(fine_tune, "checkpoint = checkpoint", fixed = TRUE)
   expect_match(fine_tune, "evo2_finetune(", fixed = TRUE)
   expect_match(fine_tune, "fitted_score", fixed = TRUE)
   expect_match(fine_tune, "fitted_generation", fixed = TRUE)

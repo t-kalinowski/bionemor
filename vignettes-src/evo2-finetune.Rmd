@@ -59,11 +59,23 @@ compute <- bionemo_compute(
   workspace = workspace
 )
 compute <- bionemo_install(compute)
+```
+
+Prepare the recommended checkpoint once and reuse it from the workspace:
+
+```r
 model <- evo2_model("7b", compute)
 ```
 
-`evo2_model()` reuses the checkpoint when it is already present in the
-workspace.
+```{r model-capture, include=FALSE}
+checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
+stopifnot(dir.exists(checkpoint))
+model <- evo2(
+  "7b",
+  checkpoint = checkpoint,
+  compute = compute
+)
+```
 
 ## Prepare a tiny dataset
 
