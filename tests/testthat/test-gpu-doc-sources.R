@@ -47,6 +47,11 @@ test_that("GPU documentation has an explicit manual render workflow", {
   expect_match(readme_source, "without leaving R", fixed = TRUE)
   expect_match(readme_source, "Slurm support is experimental", fixed = TRUE)
   expect_match(readme_source, "bionemo_workflows()", fixed = TRUE)
+  expect_match(
+    readme_source,
+    "```{r workflows}\nlibrary(bionemor)\n\nworkflows <-",
+    fixed = TRUE
+  )
   expect_match(readme_source, "str(models)", fixed = TRUE)
   expect_match(readme_source, "\n)\nscores\n\nembeddings <-", fixed = TRUE)
   expect_match(readme_source, "str(embeddings)", fixed = TRUE)

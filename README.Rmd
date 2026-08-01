@@ -38,6 +38,8 @@ keeps model family, workflow, recipe runtime, and compute separate so another
 adapter can be added to this same `bionemor` package:
 
 ```{r workflows}
+library(bionemor)
+
 workflows <- bionemo_workflows()
 workflows[c("id", "adapter", "input_schema", "result_schema")]
 ```
@@ -84,8 +86,6 @@ echo "$NGC_API_KEY" | docker login nvcr.io \
 Then inspect the setup plan, install the runtime, and verify it:
 
 ```{r runtime}
-library(bionemor)
-
 workspace <- normalizePath(
   Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/evo2-work"),
   mustWork = FALSE
