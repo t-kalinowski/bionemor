@@ -85,7 +85,9 @@ locked_recipe_install <- function(
   dockerfile_blob,
   image_version,
   archive_dockerfile,
-  setup_runtime
+  setup_runtime,
+  image = NULL,
+  prebuilt = FALSE
 ) {
   workspace <- tempfile("bionemor-locked-install-")
   bin <- tempfile("bionemor-locked-bin-")
@@ -98,6 +100,9 @@ locked_recipe_install <- function(
   dir.create(workspace)
   dir.create(archive_source)
   setup_runtime(bin)
+  if (prebuilt) {
+    file.create(built_state)
+  }
 
   base_reference <- paste0(recipe@base_image, "@", recipe@base_image_digest)
   image_id <- paste0("sha256:", strrep("e", 64L))
@@ -275,7 +280,8 @@ locked_recipe_install <- function(
     {
       installed <- bionemo_install(bionemo_compute(
         recipe = recipe,
-        workspace = workspace
+        workspace = workspace,
+        image = image
       ))
       bionemo_install(installed)
     }
@@ -373,4 +379,32 @@ test_that("ESM installation uses its locked Dockerfile and build arguments", {
     "--build-arg TORCH_CUDA_ARCH_LIST=8.9",
     fixed = TRUE
   )
+})
+
+test_that("an explicit ESM image remains verification-only", {
+  recipe <- esm2_recipe()
+  image <- paste0(
+    "bionemor/esm2:",
+    substr(recipe@revision, 1L, 12L),
+    "-custom"
+  )
+  result <- locked_recipe_install(
+    recipe = recipe,
+    helper_filename = "embed-esm2.py",
+    dockerfile_blob = "989ba6b853bcd31eeced5544e8e479361ef428c6",
+    image_version = "esm2-vllm-0.15.1",
+    archive_dockerfile = c(
+      paste("FROM", recipe@base_image),
+      "WORKDIR /workspace/bionemo",
+      "COPY . .",
+      "RUN pip install -r requirements.txt"
+    ),
+    setup_runtime = fake_esm2_runtime,
+    image = image,
+    prebuilt = TRUE
+  )
+
+  expect_identical(result$installed@image, image)
+  invocation <- readLines(result$install_log, warn = FALSE)
+  expect_false(any(startsWith(invocation, "build ")))
 })

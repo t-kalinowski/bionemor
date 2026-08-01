@@ -316,6 +316,7 @@ bionemo_compute <- function(
     stop("workspace must be writable")
   }
 
+  managed_recipe_image <- FALSE
   if (backend == "local" && engine == "container") {
     container_engine <- config$container_engine %||% "docker"
     if (
@@ -331,8 +332,10 @@ bionemo_compute <- function(
           identical(image, recipe_base_image_reference(recipe)))
     ) {
       image <- default_recipe_image(recipe)
+      managed_recipe_image <- TRUE
     }
   }
+  config$.bionemor_managed_recipe_image <- managed_recipe_image
 
   image_digest <- NULL
   if (!is.null(image) && grepl("@sha256:[0-9a-fA-F]{64}$", image)) {

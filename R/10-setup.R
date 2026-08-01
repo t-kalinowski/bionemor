@@ -101,11 +101,8 @@ install_paths <- function(compute) {
 }
 
 recipe_image_requires_build <- function(compute) {
-  default <- default_recipe_image(compute@recipe)
   compute@recipe@verified &&
-    (identical(compute@image, default) ||
-      startsWith(compute@image, paste0(default, "-")) ||
-      identical(compute@image, compute@recipe@base_image))
+    isTRUE(compute@config$.bionemor_managed_recipe_image)
 }
 
 expected_container_image_labels <- function(
