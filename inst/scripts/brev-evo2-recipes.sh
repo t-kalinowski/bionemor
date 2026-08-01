@@ -41,6 +41,9 @@ evidence="${BIONEMOR_EVO2_EVIDENCE:-}"
 capture_date="${BIONEMOR_EVO2_CAPTURE_DATE:-}"
 package_revision="${BIONEMOR_PACKAGE_REVISION:-}"
 package_dirty="${BIONEMOR_PACKAGE_DIRTY:-}"
+r_library="$HOME/R-library"
+R_LIBS_USER="$r_library${R_LIBS_USER:+:$R_LIBS_USER}"
+export R_LIBS_USER
 source_root="$(mktemp -d)"
 
 cleanup() {
@@ -279,7 +282,8 @@ docker run \
   "$image_id" \
   bionemor-evo2-helper capabilities --json
 
-R CMD INSTALL "$repo_dir"
+mkdir -p "$r_library"
+R CMD INSTALL --library="$r_library" "$repo_dir"
 BIONEMOR_EVO2_CHECKPOINT="$checkpoint" \
   BIONEMOR_EVO2_IMAGE="$image_id" \
   BIONEMOR_EVO2_WORKSPACE="$workspace" \

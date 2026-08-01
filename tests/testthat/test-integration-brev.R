@@ -72,6 +72,26 @@ test_that("Brev acceptance uses the locked image build and requires inference", 
     "inst/docker/evo2-recipes/Dockerfile.append",
     fixed = TRUE
   )
+  expect_match(
+    build,
+    'r_library="$HOME/R-library"',
+    fixed = TRUE
+  )
+  expect_match(
+    build,
+    'mkdir -p "$r_library"',
+    fixed = TRUE
+  )
+  expect_match(
+    build,
+    'R_LIBS_USER="$r_library${R_LIBS_USER:+:$R_LIBS_USER}"',
+    fixed = TRUE
+  )
+  expect_match(
+    build,
+    'R CMD INSTALL --library="$r_library" "$repo_dir"',
+    fixed = TRUE
+  )
   expect_true(all(vapply(
     c(
       "BIONEMOR_RECIPE_REVISION",
