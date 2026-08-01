@@ -19,7 +19,7 @@ from typing import Any
 
 
 PROTOCOL_VERSION = 1
-HELPER_VERSION = "0.1.1"
+HELPER_VERSION = "0.1.2"
 EXECUTION_SCHEMA_VERSION = 1
 DRIVER = "esm2-vllm"
 VLLM_VERSION = "0.15.1"
@@ -214,6 +214,10 @@ def embed(args: argparse.Namespace) -> None:
         "dtype": "float32",
         "enforce_eager": True,
         "max_num_batched_tokens": args.max_num_batched_tokens,
+        # NVEsm is bidirectional. Its vLLM Transformers fallback does not
+        # preserve request boundaries or support causal prefix reuse.
+        "max_num_seqs": args.max_num_seqs,
+        "enable_prefix_caching": not args.disable_prefix_caching,
         "tensor_parallel_size": args.tensor_parallel_size,
         "disable_log_stats": True,
         "seed": 42,
@@ -251,6 +255,10 @@ def parser() -> argparse.ArgumentParser:
     embedding.add_argument("--output", type=Path, required=True)
     embedding.add_argument(
         "--max-num-batched-tokens", type=int, required=True
+    )
+    embedding.add_argument("--max-num-seqs", type=int, choices=[1], required=True)
+    embedding.add_argument(
+        "--disable-prefix-caching", action="store_true", required=True
     )
     embedding.add_argument("--tensor-parallel-size", type=int, required=True)
     return value

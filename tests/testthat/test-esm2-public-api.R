@@ -310,10 +310,15 @@ test_that("ESM-2 embeddings use the public durable workflow", {
       "--model",
       "nvidia/esm2_t6_8M_UR50D",
       "--revision",
-      "3674a6acb6c217bbeff709d182a11b196125dfc3"
+      "3674a6acb6c217bbeff709d182a11b196125dfc3",
+      "--disable-prefix-caching"
     ) %in%
       arguments
   ))
+  expect_identical(
+    arguments[[match("--max-num-seqs", arguments) + 1L]],
+    "1"
+  )
   input_path <- arguments[[match("--input", arguments) + 1L]]
   expect_equal(
     readLines(input_path, warn = FALSE),

@@ -44,7 +44,9 @@ revision on first use and cached below the compute workspace.
 Use the embedding rows for sequence similarity, clustering, or as features
 in downstream R models. They are model representations, not measurements of
 protein function. ESM-2 currently requires \code{gpus = 1} because the pinned
-NVIDIA model does not define a vLLM tensor-parallel plan.
+NVIDIA model does not define a vLLM tensor-parallel plan. You may supply
+multiple proteins; the runtime processes them one at a time to preserve
+their bidirectional attention boundaries.
 }
 \examples{
 \dontrun{

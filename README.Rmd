@@ -211,7 +211,9 @@ extensions from source for the current NVIDIA GPU architecture. On an 8-vCPU
 machine, this first build can take tens of minutes; later calls reuse the image.
 A GPU with a different compute capability gets its own cached image.
 ESM-2 inference currently requires `gpus = 1` because the pinned NVIDIA model
-does not define a vLLM tensor-parallel plan.
+does not define a vLLM tensor-parallel plan. You may supply multiple proteins;
+the runtime processes them one at a time to preserve their bidirectional
+attention boundaries.
 
 ```{r esm2}
 esm2_compute <- bionemo_compute(

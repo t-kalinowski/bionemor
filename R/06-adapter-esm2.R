@@ -52,6 +52,9 @@ esm2_embedding_plan <- function(
     portable,
     "--max-num-batched-tokens",
     as.character(max_num_batched_tokens),
+    "--max-num-seqs",
+    "1",
+    "--disable-prefix-caching",
     "--tensor-parallel-size",
     as.character(tensor_parallel_size)
   )
@@ -76,7 +79,9 @@ esm2_embedding_plan <- function(
 #' Use the embedding rows for sequence similarity, clustering, or as features
 #' in downstream R models. They are model representations, not measurements of
 #' protein function. ESM-2 currently requires `gpus = 1` because the pinned
-#' NVIDIA model does not define a vLLM tensor-parallel plan.
+#' NVIDIA model does not define a vLLM tensor-parallel plan. You may supply
+#' multiple proteins; the runtime processes them one at a time to preserve
+#' their bidirectional attention boundaries.
 #'
 #' @param object An ESM-2 model descriptor from [esm2()] or [esm2_model()].
 #' @param newdata A character vector of protein sequences, an `XStringSet`, a
