@@ -1345,7 +1345,6 @@ materialize_finetune_job <- function(job, descriptor) {
     family = descriptor$family,
     checkpoint = checkpoint,
     compute = job@compute,
-    task = "causal_lm",
     config = descriptor$config,
     provenance = list(
       run_path = descriptor$run_path,

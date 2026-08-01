@@ -62,7 +62,6 @@ esm2 <- function(size = "8m", checkpoint = NULL, compute = NULL) {
     family = "esm2",
     checkpoint = checkpoint,
     compute = compute,
-    task = "embedding",
     config = list(),
     provenance = list(
       source = record$source,

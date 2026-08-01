@@ -634,7 +634,6 @@ evo2 <- function(
     family = "evo2",
     checkpoint = checkpoint,
     compute = compute,
-    task = "causal_lm",
     config = config,
     provenance = list(),
     size = record$name,

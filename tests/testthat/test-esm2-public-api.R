@@ -76,7 +76,7 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
   expect_s3_class(model, "bionemor::Esm2Model")
   expect_equal(model@family, "esm2")
   expect_equal(model@size, "8m")
-  expect_equal(model@task, "embedding")
+  expect_false("task" %in% names(S7::props(model)))
   expect_null(model@checkpoint)
   expect_null(model@compute)
 
