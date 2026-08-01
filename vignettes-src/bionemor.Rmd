@@ -72,9 +72,7 @@ compute descriptor to the returned model:
 
 ```{r model}
 models <- evo2_models(compute, compatible = TRUE)
-models[models$name %in% c("1b-base", "7b"), c(
-  "name", "parameters", "context_length", "compatible"
-)]
+str(models)
 
 checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
 stopifnot(dir.exists(checkpoint))
@@ -105,7 +103,7 @@ scores <- evo2_score(
   reduction = "mean",
   strand = "both"
 )
-scores[c("id", "score", "forward_score", "reverse_score")]
+scores
 ```
 
 The values are reduced token log probabilities. Higher values indicate greater
@@ -142,6 +140,7 @@ embeddings <- evo2_embed(
 )
 
 dim(embeddings)
+str(embeddings)
 round(embeddings[, 1:4, drop = FALSE], 4)
 ```
 

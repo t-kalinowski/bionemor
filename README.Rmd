@@ -20,15 +20,42 @@ stopifnot(
 
 # bionemor
 
-`bionemor` prepares Evo 2 models, runs batch inference, and fine-tunes with
-NVIDIA BioNeMo Recipes without leaving R. Inputs and results are R vectors,
-data frames, matrices, and durable job objects.
+`bionemor` prepares models, runs batch inference, and fine-tunes with NVIDIA
+BioNeMo Recipes without leaving R. Inputs and results are R vectors, data
+frames, matrices, and durable job objects.
 
 The main workflow is:
 
 1. Configure and verify a pinned recipe runtime once.
 2. Prepare or reuse the recommended checkpoint with `evo2_model()`.
 3. Generate, score, embed, or fine-tune DNA sequences.
+
+## Package scope and the BioNeMo stack
+
+This release ships one adapter, for the Evo 2 Megatron recipe. It does not yet
+claim support for other BioNeMo model families. The package-level workflow API
+keeps model family, workflow, recipe runtime, and compute separate so another
+adapter can be added to this same `bionemor` package:
+
+```{r workflows}
+workflows <- bionemo_workflows()
+workflows[c("id", "adapter", "input_schema", "result_schema")]
+```
+
+R owns the user API, input staging, model and checkpoint records, durable job
+state, Docker or Apptainer wrapping, Slurm submission, provenance, and result
+conversion. A versioned adapter owns translation to the pinned recipe commands.
+For generation, it writes a semantic execution request that a small helper
+inside the recipe runtime translates to the Python command. Scoring and
+embedding use typed argument-vector command plans and the helper to normalize
+portable outputs. Checkpoint conversion, preprocessing, and fine-tuning use
+typed upstream command plans, with R materializing their results. The upstream
+BioNeMo, Megatron, PyTorch, and CUDA code performs the model computation.
+
+The execution boundary is therefore a subprocess, and container or Slurm
+backends add more subprocesses. The package does more than call `system()`: it
+defines the request and result contracts and manages the run before and after
+the upstream process. It does not reimplement the model in R.
 
 The output below was rendered on `r docs_date` with an `r docs_gpu` using
 package revision `r substr(docs_revision, 1L, 12L)`. See
@@ -88,9 +115,7 @@ weights:
 
 ```{r models}
 models <- evo2_models(compute, compatible = TRUE)
-models[models$name %in% c("1b-base", "7b"), c(
-  "name", "parameters", "context_length", "compatible", "download_size"
-)]
+str(models)
 ```
 
 `evo2_model()` prepares the recommended dense MBridge checkpoint on its first
@@ -148,7 +173,7 @@ scores <- evo2_score(
   reduction = "mean",
   strand = "both"
 )
-scores[c("id", "score", "forward_score", "reverse_score")]
+scores
 
 embeddings <- evo2_embed(
   model,
@@ -157,6 +182,7 @@ embeddings <- evo2_embed(
   strand = "both"
 )
 dim(embeddings)
+str(embeddings)
 round(embeddings[, 1:4, drop = FALSE], 4)
 ```
 

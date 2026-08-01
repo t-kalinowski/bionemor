@@ -46,6 +46,15 @@ test_that("GPU documentation has an explicit manual render workflow", {
   readme_source <- gpu_source_text[[1L]]
   expect_match(readme_source, "without leaving R", fixed = TRUE)
   expect_match(readme_source, "Slurm support is experimental", fixed = TRUE)
+  expect_match(readme_source, "bionemo_workflows()", fixed = TRUE)
+  expect_match(readme_source, "str(models)", fixed = TRUE)
+  expect_match(readme_source, "\n)\nscores\n\nembeddings <-", fixed = TRUE)
+  expect_match(readme_source, "str(embeddings)", fixed = TRUE)
+
+  vignette_source <- gpu_source_text[[2L]]
+  expect_match(vignette_source, "str(models)", fixed = TRUE)
+  expect_match(vignette_source, "\n)\nscores\n", fixed = TRUE)
+  expect_match(vignette_source, "str(embeddings)", fixed = TRUE)
 
   workflow <- paste(
     readLines(
