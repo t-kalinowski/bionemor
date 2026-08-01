@@ -38,13 +38,11 @@ attach a checkpoint separately with \code{\link[=evo2_model]{evo2_model()}} or \
 \section{Setup lifecycle}{
 
 
-A typical setup has three explicit stages:
+A typical setup has two explicit stages:
 \enumerate{
 \item Create a descriptor with \code{\link[=bionemo_compute]{bionemo_compute()}}. This chooses the backend,
 engine, workspace, recipe, image, and requested resources without probing
 the runtime.
-\item Inspect \code{\link[=bionemo_install_plan]{bionemo_install_plan()}} when the commands and immutable inputs
-should be reviewed before execution.
 \item Call \code{bionemo_install()} and retain its returned compute descriptor. The
 return value contains the resolved image digest when applicable and a
 validated capability report in \code{compute@config$capabilities}.
@@ -90,7 +88,6 @@ compute <- bionemo_compute(
   engine = "container",
   workspace = "~/evo2-work"
 )
-bionemo_install_plan(compute)
 compute <- bionemo_install(compute)
 
 # The returned descriptor carries immutable image and capability metadata.
@@ -101,6 +98,5 @@ bionemo_doctor(compute, target = "inference", verbose = FALSE)
 
 }
 \seealso{
-\code{\link[=bionemo_install_plan]{bionemo_install_plan()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}},
-\code{\link[=bionemo_doctor]{bionemo_doctor()}}, \code{\link[=evo2_model]{evo2_model()}}
+\code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}, \code{\link[=evo2_model]{evo2_model()}}
 }

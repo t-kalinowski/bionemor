@@ -42,7 +42,7 @@ fi
 checkpoint_source="$(cd -- "$checkpoint_source" && pwd -P)"
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_dir="$(cd -- "$script_dir/../.." && pwd)"
+repo_dir="$(cd -- "$script_dir/../../.." && pwd)"
 package_revision="$(git -C "$repo_dir" rev-parse HEAD)"
 if [[ ! "$package_revision" =~ ^[0-9a-f]{40}$ ]]; then
   echo "package source revision must be a full commit SHA" >&2
@@ -89,7 +89,7 @@ brev exec "$instance" \
   "test -d '$checkpoint' || { echo 'BIONEMOR_EVO2_CHECKPOINT is not available on the instance' >&2; exit 2; }"
 brev copy "$repo_dir/" "$instance:/home/ubuntu/bionemor/"
 brev exec "$instance" \
-  "BIONEMOR_EVO2_CAPTURE_DATE='$capture_date' BIONEMOR_EVO2_CHECKPOINT='$checkpoint' BIONEMOR_EVO2_EVIDENCE='$remote_evidence' BIONEMOR_PACKAGE_DIRTY='$package_dirty' BIONEMOR_PACKAGE_REVISION='$package_revision' bash /home/ubuntu/bionemor/inst/scripts/brev-evo2-recipes.sh --acceptance"
+  "BIONEMOR_EVO2_CAPTURE_DATE='$capture_date' BIONEMOR_EVO2_CHECKPOINT='$checkpoint' BIONEMOR_EVO2_EVIDENCE='$remote_evidence' BIONEMOR_PACKAGE_DIRTY='$package_dirty' BIONEMOR_PACKAGE_REVISION='$package_revision' bash /home/ubuntu/bionemor/validation/brev-evo2/scripts/brev-evo2-recipes.sh --acceptance"
 
 mkdir -p "$validation_root"
 capture_tmp="$(mktemp -d "$validation_root/.capture-${capture_date}.XXXXXX")"

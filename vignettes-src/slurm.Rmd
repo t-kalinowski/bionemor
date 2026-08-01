@@ -14,25 +14,34 @@ docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
 stopifnot(nzchar(docs_date), nzchar(docs_revision))
 ```
 
-The Slurm backend submits one-node jobs with `sbatch`, reads allocation state
-with `sacct`, and cancels with `scancel`. The R process, compute nodes, and
-container must see the same workspace paths.
+Use the Slurm backend when a shared GPU cluster schedules work with `sbatch`.
+`bionemor` reads allocation state with `sacct` and cancels jobs with `scancel`.
+It currently submits one-node jobs.
 
-This reference was pre-rendered on `r docs_date` from package revision
-`r substr(docs_revision, 1L, 12L)`. Its commands were not executed on Brev:
-scheduler, shared-filesystem, container-runtime, and allocation behavior must be
-validated on the target cluster.
+These examples were pre-rendered on `r docs_date` from package revision
+`r substr(docs_revision, 1L, 12L)`, but were not executed on a Slurm cluster.
+Treat them as configuration templates until scheduler, shared
+filesystem, container runtime, and allocation behavior have been validated on
+your cluster.
 
-Slurm support is experimental. `bionemo_install()` verifies the runtime from a
-synchronous Slurm allocation. It does not run GPU or Apptainer probes on the
-login host.
+## Cluster requirements
 
-The compute-node environment must provide `bash`, `awk`, `mkfifo`, and the same
-`Rscript` path used by the submitting R process. It must also provide
-`sha256sum` when a local SIF is used. That R installation must have `jsonlite`
-available.
+Before using this backend, confirm that:
 
-## Administrator-managed external runtime
+- The submitting process can call `sbatch`, `sacct`, and `scancel`.
+- The login node, compute nodes, and container see the workspace at the same
+  absolute path.
+- GPU allocations provide an NVIDIA CUDA GPU.
+- Compute nodes provide `bash`, `awk`, `mkfifo`, and the same `Rscript` path
+  used to submit the job; that R installation needs `jsonlite`.
+- Apptainer is available on compute nodes when `engine = "container"`.
+- `sha256sum` is available when using a local SIF image.
+
+Slurm support is experimental. `bionemo_install()` verifies the BioNeMo runtime
+inside a synchronous Slurm allocation; it does not require GPU or Apptainer
+probes to pass on the login host.
+
+## Use an administrator-managed runtime
 
 Use `engine = "external"` when the pinned BioNeMo Recipes commands and package
 helper are already available on compute nodes:
@@ -54,7 +63,7 @@ compute <- bionemo_install(compute)
 bionemo_doctor(compute, target = "training", verbose = FALSE)
 ```
 
-## Apptainer
+## Use an existing Apptainer image
 
 Use `engine = "container"` with an existing Apptainer image built from the
 verified Evo 2 recipe:
@@ -76,8 +85,8 @@ For a local SIF path, `bionemo_install()` computes and records its SHA-256
 digest before submitting verification probes. The image must be readable on the
 shared filesystem. A digest-qualified image URI records the supplied digest.
 
-Version 1 does not build a SIF on a compute node or select cluster modules. The
-allocation environment must provide `apptainer`.
+`bionemor` does not build a SIF on a compute node or select cluster modules.
+Prepare the image and required modules before running these examples.
 
 ## Submit and reopen a job
 

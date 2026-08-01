@@ -404,7 +404,6 @@ evo2_prepare <- function(
   overwrite = FALSE,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   compute <- resolve_model_compute(model, compute)
   stopifnot(
     "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
@@ -446,26 +445,11 @@ evo2_prepare <- function(
     ),
     control = S7::props(control)
   )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "model",
-      destination = "path",
-      dataset = "data",
-      control = "control"
-    )
-  )
-  request_origins$control <- object_value_origins(
-    control,
-    fallback = request_origins$control
-  )
   run_path <- create_run(
     compute,
     "prepare",
     name,
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/prepare"))
   )
   inputs <- file.path(run_path, "inputs")
@@ -980,7 +964,6 @@ evo2_finetune <- function(
   async = TRUE,
   timeout = Inf
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   compute <- resolve_model_compute(object, compute)
   stopifnot(
     "object must be an Evo 2 model" = S7_inherits(object, Evo2Model),
@@ -1154,37 +1137,11 @@ evo2_finetune <- function(
     control = S7::props(control),
     gradient_accumulation = accumulation
   )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "object",
-      steps = "steps",
-      method = "method",
-      method_config = "method",
-      data = "data",
-      control = "control"
-    ),
-    auto_resolved = c(
-      "tokenizer",
-      "precision",
-      "gradient_accumulation"
-    )
-  )
-  request_origins$method_config <- object_value_origins(
-    method,
-    fallback = request_origins$method
-  )
-  request_origins$control <- object_value_origins(
-    control,
-    fallback = request_origins$control
-  )
   run_path <- create_run(
     compute,
     "fine-tune",
     name,
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/fine-tune"))
   )
   args <- c(

@@ -5,7 +5,7 @@ This directory contains maintainer workflows that require billable GPU compute.
 ## Acceptance capture
 
 Dated subdirectories are produced by the opt-in
-`inst/scripts/brev-evo2-run.sh --run` workflow. Each capture must come from a
+`validation/brev-evo2/scripts/brev-evo2-run.sh --run` workflow. Each capture must come from a
 completed mechanical acceptance run and contain its full-precision evidence
 record, compact outputs, redacted terminal manifests, and retained LoRA
 inspection metadata.

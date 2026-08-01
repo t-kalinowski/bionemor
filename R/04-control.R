@@ -27,11 +27,7 @@ validate_control_extra <- function(extra, allowed) {
 
 inference_extra_fields <- c(
   "no_sequence_parallel",
-  "min_length",
-  "eden_tokenizer",
-  "hybrid_override_pattern",
-  "num_layers",
-  "seq_len_interpolation_factor"
+  "min_length"
 )
 
 #' Construct typed Evo 2 inference controls
@@ -41,14 +37,11 @@ inference_extra_fields <- c(
 #' embeddings. Task-specific sampling, pooling, strand, and batch arguments
 #' stay on the corresponding inference function.
 #'
-#' @param tensor_parallel_size,pipeline_parallel_size,context_parallel_size
+#' @param tensor_parallel_size,context_parallel_size
 #'   Model-parallel rank counts. Their product cannot exceed the GPUs allocated
 #'   by [bionemo_compute()]. Generation requires the product to equal the
-#'   allocated GPU count. Pipeline parallelism must be one. Positional profiles
-#'   and embeddings also require context parallelism of one.
-#' @param micro_batch_size Reserved for upstream support and must remain one.
-#'   Use the task-specific `batch_size` argument for prediction and
-#'   `max_batch_size` for generation.
+#'   allocated GPU count. Positional profiles and embeddings require context
+#'   parallelism of one. Evo 2 inference uses one pipeline stage.
 #' @param max_sequence_length Optional generation context limit. `NULL` lets
 #'   the recipe and model determine the limit.
 #' @param max_batch_size Maximum prompt records admitted to one generation call
@@ -90,9 +83,7 @@ inference_extra_fields <- c(
 #' @export
 evo2_inference_control <- function(
   tensor_parallel_size = 1L,
-  pipeline_parallel_size = 1L,
   context_parallel_size = 1L,
-  micro_batch_size = 1L,
   max_sequence_length = NULL,
   max_batch_size = 1L,
   precision = c("auto", "bf16", "fp8"),
@@ -105,7 +96,6 @@ evo2_inference_control <- function(
   dynamic_block_size = 256L,
   extra = list()
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   precision <- match.arg(precision)
   vortex_style_fp8 <- match.arg(vortex_style_fp8)
   cuda_graphs <- match.arg(cuda_graphs)
@@ -114,17 +104,8 @@ evo2_inference_control <- function(
       tensor_parallel_size,
       min = 1
     ),
-    "pipeline_parallel_size must be 1" = is_scalar_integerish(
-      pipeline_parallel_size,
-      min = 1
-    ) &&
-      pipeline_parallel_size == 1,
     "context_parallel_size must be a positive integer" = is_scalar_integerish(
       context_parallel_size,
-      min = 1
-    ),
-    "micro_batch_size must be a positive integer" = is_scalar_integerish(
-      micro_batch_size,
       min = 1
     ),
     "max_sequence_length must be NULL or a positive integer" = is.null(
@@ -158,11 +139,9 @@ evo2_inference_control <- function(
   )
   extra <- validate_control_extra(extra, inference_extra_fields)
 
-  result <- Evo2InferenceControl(
+  Evo2InferenceControl(
     tensor_parallel_size = as.integer(tensor_parallel_size),
-    pipeline_parallel_size = as.integer(pipeline_parallel_size),
     context_parallel_size = as.integer(context_parallel_size),
-    micro_batch_size = as.integer(micro_batch_size),
     max_sequence_length = as_nullable_integer(max_sequence_length),
     max_batch_size = as.integer(max_batch_size),
     precision = precision,
@@ -174,10 +153,6 @@ evo2_inference_control <- function(
     dynamic_max_tokens = as_nullable_integer(dynamic_max_tokens),
     dynamic_block_size = as.integer(dynamic_block_size),
     extra = extra
-  )
-  set_object_value_origins(
-    result,
-    argument_origin_map(S7::props(result), invocation)
   )
 }
 
@@ -248,7 +223,6 @@ evo2_preprocess_control <- function(
   chunk_size = 1L,
   seed = 1L
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   transcribe <- match.arg(transcribe)
   stopifnot(
     "uppercase must be TRUE or FALSE" = is_scalar_logical(uppercase),
@@ -299,7 +273,7 @@ evo2_preprocess_control <- function(
     "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0)
   )
 
-  result <- Evo2PreprocessControl(
+  Evo2PreprocessControl(
     uppercase = uppercase,
     embed_reverse_complement = embed_reverse_complement,
     random_reverse_complement = as.double(random_reverse_complement),
@@ -315,10 +289,6 @@ evo2_preprocess_control <- function(
     concurrency = as.integer(concurrency),
     chunk_size = as.integer(chunk_size),
     seed = as.integer(seed)
-  )
-  set_object_value_origins(
-    result,
-    argument_origin_map(S7::props(result), invocation)
   )
 }
 
@@ -381,7 +351,6 @@ evo2_lora <- function(
   targets = c("hyena", "attention", "mlp"),
   fully_trainable = character()
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   stopifnot(
     "rank must be a positive integer" = is_scalar_integerish(rank, min = 1),
     "alpha must be positive" = is_scalar_number(alpha) && alpha > 0,
@@ -420,28 +389,13 @@ evo2_lora <- function(
     )
   }
 
-  result <- Evo2LoRA(
+  Evo2LoRA(
     kind = "lora",
     rank = as.integer(rank),
     alpha = as.double(alpha),
     dropout = as.double(dropout),
     targets = targets,
     fully_trainable = fully_trainable
-  )
-  set_object_value_origins(
-    result,
-    argument_origin_map(
-      S7::props(result),
-      invocation,
-      argument_map = c(
-        rank = "rank",
-        alpha = "alpha",
-        dropout = "dropout",
-        targets = "targets",
-        fully_trainable = "fully_trainable"
-      ),
-      adapter_defaults = "kind"
-    )
   )
 }
 
@@ -457,11 +411,7 @@ evo2_lora <- function(
 #' evo2_full()
 #' @export
 evo2_full <- function() {
-  result <- Evo2FullFineTune(kind = "full")
-  set_object_value_origins(
-    result,
-    list(kind = "adapter_default")
-  )
+  Evo2FullFineTune(kind = "full")
 }
 
 fit_extra_fields <- c(
@@ -480,18 +430,6 @@ fit_extra_fields <- c(
   "enable_preemption",
   "no_renormalize_loss"
 )
-
-evo2_precision_recipe <- function(precision, mixed_precision_recipe = NULL) {
-  if (!is.null(mixed_precision_recipe)) {
-    return(mixed_precision_recipe)
-  }
-  switch(
-    precision,
-    auto = NULL,
-    bf16 = "bf16_mixed",
-    `fp8-current` = "bf16_with_fp8_current_scaling_mixed"
-  )
-}
 
 #' Construct typed Evo 2 fitting controls
 #'
@@ -601,7 +539,6 @@ evo2_fit_control <- function(
   dataset_seed = NULL,
   extra = list()
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   precision <- match.arg(precision)
   activation_checkpointing <- match.arg(activation_checkpointing)
   if (!is_scalar_integerish(sequence_length, min = 1)) {
@@ -741,7 +678,7 @@ evo2_fit_control <- function(
   }
   extra <- validate_control_extra(extra, fit_extra_fields)
 
-  result <- Evo2FitControl(
+  Evo2FitControl(
     sequence_length = as.integer(sequence_length),
     global_batch_size = as.integer(global_batch_size),
     micro_batch_size = as.integer(micro_batch_size),
@@ -778,9 +715,5 @@ evo2_fit_control <- function(
     seed = as.integer(seed),
     dataset_seed = as_nullable_integer(dataset_seed),
     extra = extra
-  )
-  set_object_value_origins(
-    result,
-    argument_origin_map(S7::props(result), invocation)
   )
 }

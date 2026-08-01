@@ -28,67 +28,6 @@ bionemor_condition_codes <- c(
   "BN_PROTOCOL"
 )
 
-value_origin_codes <- c(
-  "user_requested",
-  "package_default",
-  "adapter_default",
-  "auto_resolved"
-)
-
-argument_origin_map <- function(
-  values,
-  call,
-  argument_map = stats::setNames(names(values), names(values)),
-  adapter_defaults = character(),
-  auto_resolved = character()
-) {
-  if (
-    !is.list(values) || is.null(names(values)) || !all(nzchar(names(values)))
-  ) {
-    stop("values must be a named list")
-  }
-  if (!is.call(call)) {
-    stop("call must be a matched call")
-  }
-  if (
-    !is.character(argument_map) ||
-      is.null(names(argument_map)) ||
-      !all(nzchar(names(argument_map)))
-  ) {
-    stop("argument map must name request fields")
-  }
-  supplied <- setdiff(names(call), c("", "..."))
-  origins <- stats::setNames(
-    rep("package_default", length(values)),
-    names(values)
-  )
-  mapped <- intersect(names(argument_map), names(origins))
-  origins[mapped] <- ifelse(
-    unname(argument_map[mapped]) %in% supplied,
-    "user_requested",
-    "package_default"
-  )
-  origins[intersect(adapter_defaults, names(origins))] <- "adapter_default"
-  origins[intersect(auto_resolved, names(origins))] <- "auto_resolved"
-  if (!all(unlist(origins, use.names = FALSE) %in% value_origin_codes)) {
-    stop("value origin is unsupported")
-  }
-  as.list(origins)
-}
-
-set_object_value_origins <- function(object, origins) {
-  attr(object, "bionemor_value_origins") <- origins
-  object
-}
-
-object_value_origins <- function(object, fallback = "user_requested") {
-  attr(object, "bionemor_value_origins", exact = TRUE) %||%
-    stats::setNames(
-      as.list(rep(fallback, length(S7::prop_names(object)))),
-      S7::prop_names(object)
-    )
-}
-
 bionemor_abort <- function(code, message, ..., call = NULL) {
   if (!is_scalar_string(code) || !code %in% bionemor_condition_codes) {
     stop("code must be a registered BioNeMo condition code")
@@ -228,18 +167,6 @@ redact_credentials <- function(x) {
   x
 }
 
-redact_text_file <- function(path) {
-  if (!file.exists(path)) {
-    return(invisible(path))
-  }
-  contents <- readLines(path, warn = FALSE)
-  redacted <- redact_credentials(contents)
-  if (!identical(contents, redacted)) {
-    writeLines(redacted, path, useBytes = TRUE)
-  }
-  invisible(path)
-}
-
 prop_string <- function(default = NULL, allow_null = FALSE) {
   force(allow_null)
   new_property(
@@ -292,26 +219,6 @@ prop_integer <- function(default = NULL, min = NULL, allow_null = FALSE) {
         } else {
           paste0("must be at least ", min)
         }
-      }
-    }
-  )
-}
-
-prop_double <- function(default = NULL, allow_null = FALSE) {
-  force(allow_null)
-  new_property(
-    class = if (allow_null) NULL | class_double else class_double,
-    default = if (is.null(default) && !allow_null) {
-      quote(stop("Required"))
-    } else {
-      default
-    },
-    validator = function(value) {
-      if (allow_null && is.null(value)) {
-        return(NULL)
-      }
-      if (!is_scalar_number(value)) {
-        "must be one finite number"
       }
     }
   )
@@ -429,10 +336,6 @@ stable_partition_value <- function(seed, id) {
 
 as_nullable_integer <- function(x) {
   if (is.null(x)) NULL else as.integer(x)
-}
-
-as_nullable_double <- function(x) {
-  if (is.null(x)) NULL else as.double(x)
 }
 
 model_checkpoint_path <- function(model, base = NULL) {

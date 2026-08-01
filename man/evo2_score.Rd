@@ -12,7 +12,6 @@ evo2_score(
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
   prepend_bos = FALSE,
-  mask_phylogenetic_tags = FALSE,
   normalize = c("dna", "none"),
   control = evo2_inference_control(),
   output = NULL,
@@ -33,14 +32,10 @@ scored token count; \code{"sum"} retains the total.}
 
 \item{strand}{Score the supplied sequence, its reverse complement, or both.}
 
-\item{batch_size}{Prediction micro-batch size. The inference control's
-\code{micro_batch_size} must remain one.}
+\item{batch_size}{Prediction micro-batch size.}
 
 \item{prepend_bos}{Whether the prediction entry point should prepend the
 beginning-of-sequence token before scoring.}
-
-\item{mask_phylogenetic_tags}{Reserved for upstream support. It must be
-\code{FALSE} because the pinned prediction entry point does not apply it.}
 
 \item{normalize}{Sequence normalization mode. With \code{normalize = "none"},
 reverse-strand operations require uppercase IUPAC DNA.}

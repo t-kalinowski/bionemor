@@ -186,11 +186,8 @@ test_that("fine-tuning rejects models without a verified execution policy", {
 test_that("current inference and fine-tuning controls use semantic fields", {
   inference <- evo2_inference_control()
   expect_equal(inference@precision, "auto")
-  expect_equal(inference@pipeline_parallel_size, 1L)
-  expect_error(
-    evo2_inference_control(pipeline_parallel_size = 2L),
-    "pipeline"
-  )
+  expect_equal(inference@tensor_parallel_size, 1L)
+  expect_equal(inference@context_parallel_size, 1L)
 
   fit_control <- evo2_fit_control(
     global_batch_size = 8L,
@@ -500,22 +497,22 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     file.path(job_path(job), "manifest.json"),
     simplifyVector = FALSE
   )
+  expect_null(run_manifest$value_origins)
   expect_identical(
-    run_manifest$value_origins$request$control$global_batch_size,
-    "user_requested"
+    run_manifest$request$control$global_batch_size,
+    2L
   )
   expect_identical(
-    run_manifest$value_origins$request$control$eval_interval,
-    "package_default"
+    run_manifest$request$control$eval_interval,
+    100L
   )
   expect_identical(
-    run_manifest$value_origins$resolved$data_parallel_size,
-    "auto_resolved"
+    run_manifest$plan$metadata$resolved_control$data_parallel_size,
+    1L
   )
-  expect_identical(
-    run_manifest$precision$semantic_origin,
-    "user_requested"
-  )
+  expect_identical(run_manifest$precision$semantic, "bf16")
+  expect_identical(run_manifest$precision$resolved_recipe, "bf16_mixed")
+  expect_named(run_manifest$precision, c("semantic", "resolved_recipe"))
   fitted_manifest <- checkpoint_manifest(fitted@checkpoint)
   expect_identical(fitted_manifest$source_trust, "not-required")
   expect_false(fitted_manifest$source_verified)

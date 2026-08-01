@@ -70,7 +70,7 @@ test_that("terminal jobs persist complete redacted run provenance", {
   )
   expect_equal(manifest$precision$semantic, "auto")
   expect_equal(manifest$precision$resolved_recipe, "bf16_mixed")
-  expect_equal(manifest$precision$origin, "auto_resolved")
+  expect_named(manifest$precision, c("semantic", "resolved_recipe"))
   expect_equal(manifest$runtime$backend, "local")
   expect_equal(manifest$runtime$engine, "external")
   expect_equal(manifest$runtime$details$megatron_core, "0.13.0")

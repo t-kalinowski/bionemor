@@ -157,7 +157,6 @@ persist_inference_input_source <- function(run_path, input) {
   path <- file.path(run_path, "request.json")
   request <- read_json_file(path, simplify = FALSE)
   request$request$input_source <- input$input_source
-  request$request_origins$input_source <- "auto_resolved"
   atomic_write_json(request, path)
   input$input_source
 }
@@ -240,7 +239,6 @@ generation_prompt_rows <- function(input) {
 #' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
 #'   attached by [evo2_model()] or a previous fine-tuning run.
 #' @param num_tokens Maximum number of new tokens per prompt.
-#' @param n Samples per prompt. The pinned recipe currently supports only one.
 #' @param temperature,top_k,top_p Sampling temperature and top-k or nucleus
 #'   filtering. At most one of `top_k` and `top_p` may be positive. Set
 #'   `top_k = 0` when using top-p sampling.
@@ -303,7 +301,6 @@ evo2_generate <- function(
   prompt,
   compute = NULL,
   num_tokens = 100L,
-  n = 1L,
   temperature = 0.7,
   top_k = 3L,
   top_p = 0,
@@ -316,7 +313,6 @@ evo2_generate <- function(
   name = NULL,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   normalize <- match.arg(normalize)
   validate <- match.arg(validate)
   stopifnot(
@@ -324,11 +320,6 @@ evo2_generate <- function(
       num_tokens,
       min = 1
     ),
-    "n must equal 1 with the pinned recipe" = is_scalar_integerish(
-      n,
-      min = 1
-    ) &&
-      n == 1,
     "temperature must be positive" = is_scalar_number(temperature) &&
       temperature > 0,
     "top_k must be a non-negative integer" = is_scalar_integerish(
@@ -357,7 +348,6 @@ evo2_generate <- function(
   request <- list(
     model = object@size,
     num_tokens = as.integer(num_tokens),
-    n = as.integer(n),
     temperature = as.double(temperature),
     top_k = as.integer(top_k),
     top_p = as.double(top_p),
@@ -367,33 +357,11 @@ evo2_generate <- function(
     validate = validate,
     control = S7::props(control)
   )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "object",
-      num_tokens = "num_tokens",
-      n = "n",
-      temperature = "temperature",
-      top_k = "top_k",
-      top_p = "top_p",
-      seed = "seed",
-      return_probabilities = "return_probabilities",
-      normalize = "normalize",
-      validate = "validate",
-      control = "control"
-    )
-  )
-  request_origins$control <- object_value_origins(
-    control,
-    fallback = request_origins$control
-  )
   run_path <- create_run(
     compute,
     "generation",
     name,
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/generate"))
   )
   input <- prepare_sequence_input(
@@ -809,12 +777,9 @@ materialize_generation_job <- function(job, descriptor) {
 #' @param reduction `"mean"` divides each strand's log-probability sum by its
 #'   scored token count; `"sum"` retains the total.
 #' @param strand Score the supplied sequence, its reverse complement, or both.
-#' @param batch_size Prediction micro-batch size. The inference control's
-#'   `micro_batch_size` must remain one.
+#' @param batch_size Prediction micro-batch size.
 #' @param prepend_bos Whether the prediction entry point should prepend the
 #'   beginning-of-sequence token before scoring.
-#' @param mask_phylogenetic_tags Reserved for upstream support. It must be
-#'   `FALSE` because the pinned prediction entry point does not apply it.
 #' @param normalize Sequence normalization mode. With `normalize = "none"`,
 #'   reverse-strand operations require uppercase IUPAC DNA.
 #' @param control Controls from [evo2_inference_control()].
@@ -860,14 +825,12 @@ evo2_score <- function(
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
   prepend_bos = FALSE,
-  mask_phylogenetic_tags = FALSE,
   normalize = c("dna", "none"),
   control = evo2_inference_control(),
   output = NULL,
   name = NULL,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   reduction <- match.arg(reduction)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
@@ -877,16 +840,8 @@ evo2_score <- function(
       min = 1
     ),
     "prepend_bos must be TRUE or FALSE" = is_scalar_logical(prepend_bos),
-    "mask_phylogenetic_tags must be TRUE or FALSE" = is_scalar_logical(
-      mask_phylogenetic_tags
-    ),
-    "mask_phylogenetic_tags must be FALSE with the pinned recipe" = identical(
-      mask_phylogenetic_tags,
-      FALSE
-    ),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
-  validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
   checkpoint_root <- context$checkpoint_root
@@ -899,34 +854,14 @@ evo2_score <- function(
     strand = strand,
     batch_size = as.integer(batch_size),
     prepend_bos = prepend_bos,
-    mask_phylogenetic_tags = mask_phylogenetic_tags,
     normalize = normalize,
     control = S7::props(control)
-  )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "object",
-      reduction = "reduction",
-      strand = "strand",
-      batch_size = "batch_size",
-      prepend_bos = "prepend_bos",
-      mask_phylogenetic_tags = "mask_phylogenetic_tags",
-      normalize = "normalize",
-      control = "control"
-    )
-  )
-  request_origins$control <- object_value_origins(
-    control,
-    fallback = request_origins$control
   )
   run_path <- create_run(
     compute,
     "score",
     name,
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/score"))
   )
   input <- prepare_sequence_input(
@@ -1065,8 +1000,6 @@ materialize_score_job <- function(job, descriptor) {
 #' one.
 #'
 #' @inheritParams evo2_score
-#' @param metric Positional metric. The current recipe supports
-#'   `"log_probability"`.
 #' @param output Required Parquet output path inside the compute workspace for
 #'   container execution.
 #'
@@ -1094,7 +1027,6 @@ evo2_profile <- function(
   object,
   newdata,
   compute = NULL,
-  metric = c("log_probability"),
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
   normalize = c("dna", "none"),
@@ -1103,8 +1035,6 @@ evo2_profile <- function(
   name = NULL,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
-  metric <- match.arg(metric)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
   stopifnot(
@@ -1119,7 +1049,6 @@ evo2_profile <- function(
     ),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
-  validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
   checkpoint_root <- context$checkpoint_root
@@ -1128,34 +1057,16 @@ evo2_profile <- function(
   output <- validate_output_path(output, compute)
   request <- list(
     model = object@size,
-    metric = metric,
     strand = strand,
     batch_size = as.integer(batch_size),
     normalize = normalize,
     control = S7::props(control)
-  )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "object",
-      metric = "metric",
-      strand = "strand",
-      batch_size = "batch_size",
-      normalize = "normalize",
-      control = "control"
-    )
-  )
-  request_origins$control <- object_value_origins(
-    control,
-    fallback = request_origins$control
   )
   run_path <- create_run(
     compute,
     "profile",
     name,
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/profile"))
   )
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
@@ -1289,7 +1200,6 @@ evo2_embed <- function(
   name = NULL,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   pool <- match.arg(pool)
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
@@ -1310,7 +1220,6 @@ evo2_embed <- function(
     ),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
-  validate_prediction_control(control)
   context <- validate_inference_context(object, compute, control)
   checkpoint <- context$checkpoint
   checkpoint_root <- context$checkpoint_root
@@ -1326,29 +1235,11 @@ evo2_embed <- function(
     normalize = normalize,
     control = S7::props(control)
   )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "object",
-      layer = "layer",
-      pool = "pool",
-      strand = "strand",
-      batch_size = "batch_size",
-      normalize = "normalize",
-      control = "control"
-    )
-  )
-  request_origins$control <- object_value_origins(
-    control,
-    fallback = request_origins$control
-  )
   run_path <- create_run(
     compute,
     "embedding",
     name,
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/embed"))
   )
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
@@ -1504,26 +1395,11 @@ materialize_embedding_job <- function(job, descriptor) {
 method(predict, Evo2Model) <- function(
   object,
   newdata,
-  type = c("score", "generate", "embedding", "response", "raw"),
+  type = c("score", "generate", "embedding"),
   compute = NULL,
   ...
 ) {
   type <- match.arg(type)
-  if (type == "raw") {
-    bionemor_abort(
-      "BN_PROTOCOL",
-      "portable raw-forward output is not yet supported",
-      operation = "raw-forward",
-      model = object@size
-    )
-  }
-  if (type == "response") {
-    warning(
-      "type = \"response\" is deprecated; use type = \"generate\"",
-      call. = FALSE
-    )
-    type <- "generate"
-  }
   arguments <- c(list(object = object, compute = compute), list(...))
   switch(
     type,

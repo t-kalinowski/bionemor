@@ -1,8 +1,8 @@
 ---
-title: "Fine-tune Evo 2 and retain the checkpoint"
+title: "Fine-tune Evo 2 with LoRA"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Fine-tune Evo 2 and retain the checkpoint}
+  %\VignetteIndexEntry{Fine-tune Evo 2 with LoRA}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -22,17 +22,23 @@ docs_revision <- Sys.getenv("BIONEMOR_DOCS_PACKAGE_REVISION")
 stopifnot(nzchar(docs_gpu), nzchar(docs_date), nzchar(docs_revision))
 ```
 
-This example prepares a small dataset, runs two LoRA optimizer steps, retains
-the fitted MBridge checkpoint, and uses it for generation and scoring. It
-exercises the training and checkpoint-loading path; two steps on repeated toy
-sequences do not produce a useful biological model.
+This article adapts Evo 2 to a DNA sequence collection with low-rank adaptation
+(LoRA), saves the fitted checkpoint, and uses it for scoring and generation.
+LoRA trains small adapter matrices while leaving most of the base model
+unchanged, so it requires less GPU memory than updating every model weight.
+
+Complete the setup in `vignette("bionemor")` first. Fine-tuning still requires
+an NVIDIA CUDA GPU, an installed BioNeMo Recipes runtime, and a prepared Evo 2
+checkpoint. The example below uses repeated toy sequences and only two
+optimizer steps to exercise the workflow. It does not produce a useful
+biological model.
 
 The output was captured on `r docs_date` with an `r docs_gpu` using package
 revision `r substr(docs_revision, 1L, 12L)`. The executable source is
 `vignettes-src/evo2-finetune.Rmd`; the package vignette is pre-rendered so it
 can be read without a GPU.
 
-## Configure the runtime and dense checkpoint
+## Set up the runtime and base model
 
 ```{r runtime}
 library(bionemor)
@@ -52,32 +58,20 @@ compute <- bionemo_compute(
   workspace = workspace
 )
 compute <- bionemo_install(compute)
-checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
-stopifnot(dir.exists(checkpoint))
-model <- evo2(
-  "7b",
-  checkpoint = checkpoint,
-  compute = compute
-)
-
-doctor <- bionemo_doctor(
-  compute,
-  model = model,
-  target = "training",
-  verbose = FALSE
-)
-stopifnot(doctor@ok)
-doctor
+model <- evo2_model("7b", compute)
 ```
 
-The capture reuses a prepared custom checkpoint. In a new workspace, use
-`model <- evo2_model("7b", compute)` to prepare the recommended source. Both
-paths retain `compute` on the returned model.
+`evo2_model()` reuses the checkpoint when it is already present in the
+workspace.
 
 ## Prepare a tiny dataset
 
-The nucleotide tokenizer uses one token per base. Each input below contains 127
-bases, and preprocessing appends the end-of-document token to produce the
+`evo2_dataset()` accepts named sequence vectors or FASTA files. Supply
+independent validation and test sequences so training and evaluation do not
+measure memorization of closely related inputs.
+
+The nucleotide tokenizer uses one token per base. Each toy sequence below has
+127 bases; preprocessing appends an end-of-document token to create the
 128-token samples requested by the fitting control.
 
 ```{r data}
@@ -113,24 +107,32 @@ prepared <- evo2_prepare(
   ),
   overwrite = TRUE
 )
-prepared
+
+data.frame(
+  split = names(prepared@manifest$inputs),
+  records = vapply(
+    prepared@manifest$inputs,
+    function(input) input$records,
+    integer(1L)
+  ),
+  row.names = NULL
+)
 ```
 
-Explicit validation and test inputs keep this small example deterministic. Use
-independent biological sequences and held-out splits for real work.
+Explicit validation and test inputs keep this small example deterministic. For
+real work, choose held-out splits that reflect the biological question and
+avoid leakage between related sequences.
 
 ## Choose LoRA targets
 
-`targets` selects semantic module groups in every matching model layer:
+`evo2_lora()` describes which parts of the model receive trainable adapters:
 
-- `"hyena"` selects `dense_projection` and `dense`.
-- `"attention"` selects `linear_qkv` and `linear_proj`.
-- `"mlp"` selects `linear_fc1` and `linear_fc2`.
+- `"hyena"` selects the Hyena sequence-mixing blocks.
+- `"attention"` selects attention blocks.
+- `"mlp"` selects feed-forward blocks.
 
-These are adapter locations, not prediction targets or response variables. The
-effective adapter scale is `alpha / rank`. Modules listed in `fully_trainable`
-remain unfrozen without receiving adapters; tied `word_embeddings` and
-`output_layer` must be listed together.
+These are adapter locations, not response variables. `rank` controls adapter
+capacity, and the effective adapter scale is `alpha / rank`.
 
 ```{r method}
 method <- evo2_lora(
@@ -142,7 +144,7 @@ method <- evo2_lora(
 method
 ```
 
-## Run two optimizer steps
+## Fine-tune the model
 
 ```{r fit}
 run <- evo2_finetune(
@@ -180,8 +182,9 @@ job_status(run, refresh = TRUE)
 fitted
 ```
 
-`job_wait()` returns a fitted `Evo2Model`. Its timeout only stops waiting; it
-does not cancel training.
+With `async = TRUE`, `evo2_finetune()` returns immediately with a durable job.
+`job_wait()` returns a fitted `Evo2Model` that points to the saved checkpoint
+and retains the compute descriptor. A wait timeout does not cancel training.
 
 ## Inspect and reuse the fitted checkpoint
 
@@ -190,38 +193,37 @@ fitted_checkpoint <- checkpoint_path(fitted)
 manifest <- checkpoint_manifest(fitted)
 
 data.frame(
-  path = fitted_checkpoint,
   format = manifest$format,
-  kind = manifest$kind,
-  base_checkpoint = manifest$base_checkpoint_path,
-  recipe_revision = manifest$recipe_revision
+  method = manifest$kind,
+  base_checkpoint = basename(manifest$base_checkpoint_path)
 )
 ```
 
 Keep the checkpoint root returned by `checkpoint_path()`, which contains
 `bionemor-checkpoint.json`. A LoRA checkpoint records its dense base checkpoint
-and requires that base to remain available.
+and requires that base to remain available. Pass `fitted` directly to inference
+functions while working in the same R session.
 
 ```{r fitted-inference}
 probe <- c(probe = sequence_127("ACGTGCAA"))
 
-scores <- evo2_score(
+fitted_scores <- evo2_score(
   fitted,
   probe,
   reduction = "mean",
   strand = "forward"
 )
-scores[c("id", "score", "forward_score")]
+fitted_scores[c("id", "score", "forward_score")]
 
-generated <- evo2_generate(
+fitted_generation <- evo2_generate(
   fitted,
   probe,
   num_tokens = 8L,
   seed = 17L
 )
-generated[c("input_id", "prompt", "completion", "finish_reason")]
+fitted_generation[c("input_id", "prompt", "completion", "finish_reason")]
 ```
 
-The smoke check verifies that the adapter and dense base load and return
-well-formed results. It does not require two training steps to improve a score
-or generate exact bases.
+These calls confirm that the adapter and dense base load together and return
+well-formed results. The values only validate the workflow; two toy training
+steps are not evidence of improved biological performance.

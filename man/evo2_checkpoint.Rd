@@ -68,9 +68,9 @@ later call reuses the destination only when that manifest matches the request.
 Unknown pickle-based sources require \code{trust = TRUE}; exact sources and
 revisions from the package registry are trusted automatically.
 
-Version 1 uses the pinned recipe's Transformer Engine key mapping for
-Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
-register the resulting MBridge checkpoint.
+Savanna conversion uses the pinned recipe's Transformer Engine key mapping.
+Convert no-TE checkpoints explicitly upstream, then register the resulting
+MBridge checkpoint.
 }
 \examples{
 model <- evo2("7b")

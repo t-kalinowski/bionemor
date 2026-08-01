@@ -287,7 +287,7 @@ R CMD INSTALL --library="$r_library" "$repo_dir"
 BIONEMOR_EVO2_CHECKPOINT="$checkpoint" \
   BIONEMOR_EVO2_IMAGE="$image_id" \
   BIONEMOR_EVO2_WORKSPACE="$workspace" \
-  Rscript "$repo_dir/inst/scripts/brev-evo2-recipes-smoke.R"
+  Rscript "$repo_dir/validation/brev-evo2/scripts/brev-evo2-recipes-smoke.R"
 
 if [[ "$run_acceptance" == true ]]; then
   BIONEMOR_EVO2_CAPTURE_DATE="$capture_date" \
@@ -298,5 +298,5 @@ if [[ "$run_acceptance" == true ]]; then
     BIONEMOR_PACKAGE_DIRTY="$package_dirty" \
     BIONEMOR_PACKAGE_REVISION="$package_revision" \
     BIONEMOR_PACKAGE_SOURCE="$repo_dir" \
-    Rscript "$repo_dir/inst/scripts/brev-evo2-recipes-acceptance.R"
+    Rscript "$repo_dir/validation/brev-evo2/scripts/brev-evo2-recipes-acceptance.R"
 fi

@@ -665,36 +665,14 @@ test_that("semantic inference controls map to exact supported recipe flags", {
       num_layers = 2L,
       seq_len_interpolation_factor = 2
     )
-    control <- evo2_inference_control(
-      extra = stats::setNames(list(value), setting)
-    )
     expect_error(
-      evo2_score(model, "ACGT", compute, control = control),
-      "not applied by the pinned prediction entry point",
-      class = "BN_PROTOCOL"
+      evo2_inference_control(
+        extra = stats::setNames(list(value), setting)
+      ),
+      "unsupported setting"
     )
     expect_length(readLines(log), before)
   }
-  expect_error(
-    evo2_score(
-      model,
-      "ACGT",
-      compute,
-      mask_phylogenetic_tags = TRUE
-    ),
-    "mask_phylogenetic_tags must be FALSE"
-  )
-  expect_length(readLines(log), before)
-  expect_error(
-    evo2_score(
-      model,
-      "ACGT",
-      compute,
-      control = evo2_inference_control(micro_batch_size = 2L)
-    ),
-    "use the task-specific batch_size argument"
-  )
-  expect_length(readLines(log), before)
   expect_error(
     evo2_generate(
       model,

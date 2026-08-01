@@ -6,9 +6,7 @@
 \usage{
 evo2_inference_control(
   tensor_parallel_size = 1L,
-  pipeline_parallel_size = 1L,
   context_parallel_size = 1L,
-  micro_batch_size = 1L,
   max_sequence_length = NULL,
   max_batch_size = 1L,
   precision = c("auto", "bf16", "fp8"),
@@ -23,14 +21,10 @@ evo2_inference_control(
 )
 }
 \arguments{
-\item{tensor_parallel_size, pipeline_parallel_size, context_parallel_size}{Model-parallel rank counts. Their product cannot exceed the GPUs allocated
+\item{tensor_parallel_size, context_parallel_size}{Model-parallel rank counts. Their product cannot exceed the GPUs allocated
 by \code{\link[=bionemo_compute]{bionemo_compute()}}. Generation requires the product to equal the
-allocated GPU count. Pipeline parallelism must be one. Positional profiles
-and embeddings also require context parallelism of one.}
-
-\item{micro_batch_size}{Reserved for upstream support and must remain one.
-Use the task-specific \code{batch_size} argument for prediction and
-\code{max_batch_size} for generation.}
+allocated GPU count. Positional profiles and embeddings require context
+parallelism of one. Evo 2 inference uses one pipeline stage.}
 
 \item{max_sequence_length}{Optional generation context limit. \code{NULL} lets
 the recipe and model determine the limit.}

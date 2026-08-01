@@ -1,4 +1,4 @@
-test_that("the recipe lock drives compute and installation planning", {
+test_that("the recipe lock drives compute descriptors", {
   workspace <- tempfile("bionemor-recipe-")
   recipe <- evo2_recipe()
 
@@ -42,34 +42,6 @@ test_that("the recipe lock drives compute and installation planning", {
     bionemo_compute(engine = "embedded", workspace = tempfile()),
     "external"
   )
-
-  plan <- bionemo_install_plan(compute)
-  expect_s3_class(plan, "bionemor::BioNeMoSetupPlan")
-  serialized <- jsonlite::toJSON(plan@steps, auto_unbox = TRUE)
-  expect_match(serialized, recipe@revision, fixed = TRUE)
-  expect_match(serialized, "recipes/evo2_megatron/Dockerfile", fixed = TRUE)
-  expect_match(serialized, recipe@base_image, fixed = TRUE)
-  expect_match(serialized, recipe@base_image_digest, fixed = TRUE)
-  expect_false(grepl("<resolved-at-install>", serialized, fixed = TRUE))
-  expect_match(
-    serialized,
-    "BIONEMOR_HELPER_REVISION=[0-9a-f]{40}"
-  )
-  expect_match(serialized, "\"run\"", fixed = TRUE)
-  expect_match(serialized, "\"--gpus\"", fixed = TRUE)
-  expect_match(serialized, "bionemor-evo2-helper", fixed = TRUE)
-  for (command in c(
-    "infer_evo2",
-    "predict_evo2",
-    "preprocess_evo2",
-    "train_evo2",
-    "evo2_convert_savanna_to_mbridge",
-    "evo2_convert_nemo2_to_mbridge",
-    "evo2_export_mbridge_to_vortex",
-    "evo2_remove_optimizer"
-  )) {
-    expect_match(serialized, command, fixed = TRUE)
-  }
 })
 
 test_that("a Savanna checkpoint is converted once and registered as MBridge", {
@@ -579,23 +551,8 @@ test_that("generation batches prompts and returns portable R results", {
   )
   expect_length(readLines(log), before)
   expect_error(
-    evo2_generate(model, "ACGT", compute, n = 2L),
-    "n must equal 1"
-  )
-  expect_length(readLines(log), before)
-  expect_error(
     evo2_generate(model, "ACGT", compute, seed = 0L),
     "seed must be NULL or a positive integer"
-  )
-  expect_length(readLines(log), before)
-  expect_error(
-    evo2_generate(
-      model,
-      "ACGT",
-      compute,
-      control = evo2_inference_control(micro_batch_size = 2L)
-    ),
-    "use max_batch_size for generation"
   )
   expect_length(readLines(log), before)
 })
@@ -833,22 +790,6 @@ test_that("scoring returns ordered portable results and predict delegates", {
 
   delegated <- predict(model, sequences, type = "score", compute = compute)
   expect_s3_class(delegated, "evo2_scores")
-  expect_error(
-    predict(model, sequences, type = "raw", compute = compute),
-    "portable raw-forward output is not yet supported",
-    class = "BN_PROTOCOL"
-  )
-  expect_warning(
-    generated <- predict(
-      model,
-      sequences,
-      type = "response",
-      compute = compute,
-      num_tokens = 4L
-    ),
-    "deprecated"
-  )
-  expect_s3_class(generated, "evo2_generation")
 })
 
 test_that("asynchronous jobs can be reopened from their run directory", {
@@ -948,9 +889,6 @@ test_that("inference requests retain original FASTA provenance", {
       simplifyVector = FALSE
     )
     expect_equal(manifest$request$input_source, expected)
-    expect_identical(
-      manifest$value_origins$request$input_source,
-      "auto_resolved"
-    )
+    expect_null(manifest$value_origins)
   }
 })

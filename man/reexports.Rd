@@ -23,7 +23,7 @@ fit(
 predict(
   object,
   newdata,
-  type = c("score", "generate", "embedding", "response", "raw"),
+  type = c("score", "generate", "embedding"),
   compute = NULL,
   ...
 )
@@ -52,8 +52,7 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 
 \item{newdata}{Sequences or prompts.}
 
-\item{type}{Inference operation. \code{"response"} is a deprecated alias for
-\code{"generate"}. \code{"raw"} produces a targeted unsupported-operation error.}
+\item{type}{Inference operation: \code{"score"}, \code{"generate"}, or \code{"embedding"}.}
 
 \item{...}{Reserved for future compatibility and must be empty for \code{fit()};
 passed to the selected task-specific function for \code{predict()}.}

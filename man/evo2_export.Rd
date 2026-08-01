@@ -7,7 +7,6 @@
 evo2_export(
   model,
   path,
-  format = "vortex",
   strip_optimizer = TRUE,
   compute,
   overwrite = FALSE,
@@ -18,8 +17,6 @@ evo2_export(
 \item{model}{An Evo 2 model bound to a dense MBridge checkpoint.}
 
 \item{path}{Destination \code{.pt} path.}
-
-\item{format}{Export format. Version 1 supports \code{"vortex"}.}
 
 \item{strip_optimizer}{Whether to create a weights-only MBridge intermediate.}
 

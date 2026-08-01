@@ -1,28 +1,33 @@
+bionemor_root <- normalizePath(
+  file.path("..", ".."),
+  mustWork = TRUE
+)
+stopifnot(file.exists(file.path(bionemor_root, "DESCRIPTION")))
+source(
+  file.path(bionemor_root, "tests", "testthat", "helper-fake-runtime.R"),
+  local = TRUE
+)
+
+brev_validation_script <- function(name) {
+  normalizePath(
+    file.path(
+      bionemor_root,
+      "validation",
+      "brev-evo2",
+      "scripts",
+      name
+    ),
+    mustWork = TRUE
+  )
+}
+
 test_that("Brev acceptance uses the locked image build and requires inference", {
-  build_script <- system.file(
-    "scripts",
-    "brev-evo2-recipes.sh",
-    package = "bionemor",
-    mustWork = TRUE
+  build_script <- brev_validation_script("brev-evo2-recipes.sh")
+  smoke_script <- brev_validation_script("brev-evo2-recipes-smoke.R")
+  acceptance_script <- brev_validation_script(
+    "brev-evo2-recipes-acceptance.R"
   )
-  smoke_script <- system.file(
-    "scripts",
-    "brev-evo2-recipes-smoke.R",
-    package = "bionemor",
-    mustWork = TRUE
-  )
-  acceptance_script <- system.file(
-    "scripts",
-    "brev-evo2-recipes-acceptance.R",
-    package = "bionemor",
-    mustWork = TRUE
-  )
-  run_script <- system.file(
-    "scripts",
-    "brev-evo2-run.sh",
-    package = "bionemor",
-    mustWork = TRUE
-  )
+  run_script <- brev_validation_script("brev-evo2-run.sh")
   build <- paste(readLines(build_script, warn = FALSE), collapse = "\n")
   smoke <- paste(readLines(smoke_script, warn = FALSE), collapse = "\n")
   acceptance <- paste(
@@ -196,11 +201,8 @@ test_that("Brev acceptance uses the locked image build and requires inference", 
 })
 
 test_that("the Brev acceptance capture fails before starting GPU work", {
-  acceptance_script <- system.file(
-    "scripts",
-    "brev-evo2-recipes-acceptance.R",
-    package = "bionemor",
-    mustWork = TRUE
+  acceptance_script <- brev_validation_script(
+    "brev-evo2-recipes-acceptance.R"
   )
   acceptance_expressions <- parse(acceptance_script)
   expect_error(
@@ -226,12 +228,7 @@ test_that("the Brev acceptance capture fails before starting GPU work", {
 })
 
 test_that("the Brev runner copies evidence before stopping the instance", {
-  run_script <- system.file(
-    "scripts",
-    "brev-evo2-run.sh",
-    package = "bionemor",
-    mustWork = TRUE
-  )
+  run_script <- brev_validation_script("brev-evo2-run.sh")
   bin <- tempfile("bionemor-fake-brev-bin-")
   checkpoint <- tempfile("bionemor-brev-checkpoint-")
   dir.create(bin)
@@ -278,9 +275,8 @@ test_that("the Brev runner copies evidence before stopping the instance", {
 
   run_capture <- function(capture_date, stop_status) {
     log <- tempfile("bionemor-fake-brev-log-")
-    capture <- testthat::test_path(
-      "..",
-      "..",
+    capture <- file.path(
+      bionemor_root,
       "validation",
       "brev-evo2",
       capture_date
@@ -332,11 +328,7 @@ test_that("the opt-in Brev acceptance workflow completes and stops its instance"
     Sys.getenv("BIONEMOR_RUN_BREV") != "true",
     "Set BIONEMOR_RUN_BREV=true to provision the acceptance instance."
   )
-  script <- system.file(
-    "scripts",
-    "brev-evo2-run.sh",
-    package = "bionemor"
-  )
+  script <- brev_validation_script("brev-evo2-run.sh")
   result <- processx::run(
     "bash",
     c(script, "--run"),

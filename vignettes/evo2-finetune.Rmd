@@ -1,25 +1,31 @@
 ---
-title: "Fine-tune Evo 2 and retain the checkpoint"
+title: "Fine-tune Evo 2 with LoRA"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Fine-tune Evo 2 and retain the checkpoint}
+  %\VignetteIndexEntry{Fine-tune Evo 2 with LoRA}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 
 
-This example prepares a small dataset, runs two LoRA optimizer steps, retains
-the fitted MBridge checkpoint, and uses it for generation and scoring. It
-exercises the training and checkpoint-loading path; two steps on repeated toy
-sequences do not produce a useful biological model.
+This article adapts Evo 2 to a DNA sequence collection with low-rank adaptation
+(LoRA), saves the fitted checkpoint, and uses it for scoring and generation.
+LoRA trains small adapter matrices while leaving most of the base model
+unchanged, so it requires less GPU memory than updating every model weight.
+
+Complete the setup in `vignette("bionemor")` first. Fine-tuning still requires
+an NVIDIA CUDA GPU, an installed BioNeMo Recipes runtime, and a prepared Evo 2
+checkpoint. The example below uses repeated toy sequences and only two
+optimizer steps to exercise the workflow. It does not produce a useful
+biological model.
 
 The output was captured on 2026-08-01 with an NVIDIA L40S using package
 revision 8819b8ec4d86. The executable source is
 `vignettes-src/evo2-finetune.Rmd`; the package vignette is pre-rendered so it
 can be read without a GPU.
 
-## Configure the runtime and dense checkpoint
+## Set up the runtime and base model
 
 
 ``` r
@@ -40,77 +46,20 @@ compute <- bionemo_compute(
   workspace = workspace
 )
 compute <- bionemo_install(compute)
-checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
-stopifnot(dir.exists(checkpoint))
-model <- evo2(
-  "7b",
-  checkpoint = checkpoint,
-  compute = compute
-)
-
-doctor <- bionemo_doctor(
-  compute,
-  model = model,
-  target = "training",
-  verbose = FALSE
-)
-stopifnot(doctor@ok)
-doctor
-#> <BioNeMo doctor>
-#> Target: training
-#> Status: pass
-#>                       check status
-#>                     backend   pass
-#>                  host tools   pass
-#>                   workspace   pass
-#>             helper protocol   pass
-#>                      recipe   pass
-#>              runtime Python   pass
-#>             runtime PyTorch   pass
-#>                runtime CUDA   pass
-#>  runtime Transformer Engine   pass
-#>     runtime Megatron Bridge   pass
-#>             runtime BioNeMo   pass
-#>                         GPU   pass
-#>                       image   pass
-#>                  base image   pass
-#>   container GPU passthrough   pass
-#>             preprocess_evo2   pass
-#>                  train_evo2   pass
-#>         model compatibility   pass
-#>          checkpoint storage   pass
-#>            model checkpoint   pass
-#>                                                                                                    detail
-#>                                                                                      docker are available
-#>                                                                           bash, awk, mkfifo are available
-#>                                                                   /home/ubuntu/bionemor-recipes-workspace
-#>                                                                                                protocol 1
-#>                                                                                    recipe 2.4 at e8e7f597
-#>                                                                                                    3.12.3
-#>                                                                               2.13.0a0+8145d630e8.nv26.06
-#>                                                                                                      13.3
-#>                                                                                           2.16.0+4220403e
-#>                                                                                                     0.4.1
-#>                                                                                          import available
-#>                                                        NVIDIA L40S compute 8.9, 44.4 GiB driver 610.43.02
-#>        bionemor/evo2:e8e7f597363c sha256:16bdf462f456bfb6e4a74f0be1c774ecdf91fbbd7df4847094e6406d81824319
-#>  nvcr.io/nvidia/pytorch:26.06-py3 sha256:abd110b23600e877173dafc3078385b7c13ddacd7e0c6a6acb0a864586d59622
-#>                                                                                  CUDA devices are visible
-#>                                                                                                 available
-#>                                                                                                 available
-#>                                                  advertised GPUs support the validated BF16 or FP8 policy
-#>                                                                             checkpoint is already present
-#>                                                                                             evo2_7b dense
+model <- evo2_model("7b", compute)
 ```
 
-The capture reuses a prepared custom checkpoint. In a new workspace, use
-`model <- evo2_model("7b", compute)` to prepare the recommended source. Both
-paths retain `compute` on the returned model.
+`evo2_model()` reuses the checkpoint when it is already present in the
+workspace.
 
 ## Prepare a tiny dataset
 
-The nucleotide tokenizer uses one token per base. Each input below contains 127
-bases, and preprocessing appends the end-of-document token to produce the
+`evo2_dataset()` accepts named sequence vectors or FASTA files. Supply
+independent validation and test sequences so training and evaluation do not
+measure memorization of closely related inputs.
+
+The nucleotide tokenizer uses one token per base. Each toy sequence below has
+127 bases; preprocessing appends an end-of-document token to create the
 128-token samples requested by the fitting control.
 
 
@@ -147,119 +96,35 @@ prepared <- evo2_prepare(
   ),
   overwrite = TRUE
 )
-prepared
-#> <bionemor::Evo2Dataset>
-#>  @ train       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/train.fasta"
-#>  @ validation  : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/validation.fasta"
-#>  @ test        : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/test.fasta"
-#>  @ split       : Named num [1:3] 0.8 0.1 0.1
-#>  .. - attr(*, "names")= chr [1:3] "train" "validation" "test"
-#>  @ seed        : int 1
-#>  @ id_col      : chr "id"
-#>  @ sequence_col: chr "sequence"
-#>  @ prepared    : logi TRUE
-#>  @ path        : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128"
-#>  @ manifest    :List of 17
-#>  .. $ preprocess_config       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/preprocess.yaml"
-#>  .. $ preprocess_config_digest: chr "4b798f9833f48ea5099eefb25d822995"
-#>  .. $ dataset_config          : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/dataset.yaml"
-#>  .. $ dataset_config_digest   : chr "107b9abe8528a4b017979a1b915a514c"
-#>  .. $ tokenizer               : chr "/workspace/bionemo/tokenizers/nucleotide_fast_tokenizer_512"
-#>  .. $ tokenizer_revision      : chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
-#>  .. $ model_size              : chr "evo2_7b"
-#>  .. $ partitions              : chr [1:3] "train" "validation" "test"
-#>  .. $ partition_method        : chr "explicit"
-#>  .. $ partition_seed          : int 1
-#>  .. $ inputs                  :List of 3
-#>  ..  ..$ train     :List of 6
-#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/train.fasta"
-#>  ..  .. ..$ digest        : chr "db7f97ccc86863bfd345be882319d12d"
-#>  ..  .. ..$ records       : int 4
-#>  ..  .. ..$ minimum_length: int 127
-#>  ..  .. ..$ maximum_length: int 127
-#>  ..  .. ..$ mean_length   : num 127
-#>  ..  ..$ validation:List of 6
-#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/validation.fasta"
-#>  ..  .. ..$ digest        : chr "796ecf873cda573ab7f96ae299242200"
-#>  ..  .. ..$ records       : int 1
-#>  ..  .. ..$ minimum_length: int 127
-#>  ..  .. ..$ maximum_length: int 127
-#>  ..  .. ..$ mean_length   : num 127
-#>  ..  ..$ test      :List of 6
-#>  ..  .. ..$ path          : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128/inputs/test.fasta"
-#>  ..  .. ..$ digest        : chr "efa3a2b773d54e80b5de6b61fbfc8465"
-#>  ..  .. ..$ records       : int 1
-#>  ..  .. ..$ minimum_length: int 127
-#>  ..  .. ..$ maximum_length: int 127
-#>  ..  .. ..$ mean_length   : num 127
-#>  .. $ preprocessing           :List of 16
-#>  ..  ..$ uppercase                : logi FALSE
-#>  ..  ..$ embed_reverse_complement : logi FALSE
-#>  ..  ..$ random_reverse_complement: num 0
-#>  ..  ..$ random_lineage_dropout   : num 0
-#>  ..  ..$ transcribe               : chr "none"
-#>  ..  ..$ append_eod               : logi TRUE
-#>  ..  ..$ sample_length            : int 128
-#>  ..  ..$ drop_empty_sequences     : logi TRUE
-#>  ..  ..$ filter_nnn               : logi FALSE
-#>  ..  ..$ prompt_spacer_length     : int 131072
-#>  ..  ..$ workers                  : int 1
-#>  ..  ..$ concurrency              : int 100000
-#>  ..  ..$ chunk_size               : int 1
-#>  ..  ..$ seed                     : int 17
-#>  ..  ..$ taxonomy_records         : int 0
-#>  ..  ..$ taxonomy_digest          : NULL
-#>  .. $ output_prefixes         :List of 3
-#>  ..  ..$ train     : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/train_nucleotide_fast_tokenizer_512_train"
-#>  ..  ..$ validation: chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
-#>  ..  ..$ test      : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/test_nucleotide_fast_tokenizer_512_test"
-#>  .. $ outputs                 :List of 6
-#>  ..  ..$ train_nucleotide_fast_tokenizer_512_train.bin   :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/train_nucleotide_fast_token"| __truncated__
-#>  ..  .. ..$ digest: chr "73fec06c4a8e19527ea9895384287217"
-#>  ..  .. ..$ size  : num 512
-#>  ..  ..$ validation_nucleotide_fast_tokenizer_512_val.bin:List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
-#>  ..  .. ..$ digest: chr "7ce33489b4eb0692dfe250e42abc2503"
-#>  ..  .. ..$ size  : num 128
-#>  ..  ..$ test_nucleotide_fast_tokenizer_512_test.bin     :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/test_nucleotide_fast_tokeni"| __truncated__
-#>  ..  .. ..$ digest: chr "830c65af346e484f6924d26dda314575"
-#>  ..  .. ..$ size  : num 128
-#>  ..  ..$ train_nucleotide_fast_tokenizer_512_train.idx   :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/train_nucleotide_fast_token"| __truncated__
-#>  ..  .. ..$ digest: chr "a092d5f8e70fdefcef240e73c368d4fc"
-#>  ..  .. ..$ size  : num 122
-#>  ..  ..$ validation_nucleotide_fast_tokenizer_512_val.idx:List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/validation_nucleotide_fast_"| __truncated__
-#>  ..  .. ..$ digest: chr "f18daa70db2c457f7847dbe05deac2d6"
-#>  ..  .. ..$ size  : num 62
-#>  ..  ..$ test_nucleotide_fast_tokenizer_512_test.idx     :List of 3
-#>  ..  .. ..$ path  : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/test_nucleotide_fast_tokeni"| __truncated__
-#>  ..  .. ..$ digest: chr "f18daa70db2c457f7847dbe05deac2d6"
-#>  ..  .. ..$ size  : num 62
-#>  .. $ recipe_revision         : chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
-#>  .. $ manifest_path           : chr "/home/ubuntu/bionemor-recipes-workspace/datasets/docs-20260801-030742-tiny-evo2-128/bionemor-prepared.json"
-#>  .. $ prepared_at             : chr "2026-08-01 03:39:19 UTC"
-#>  @ provenance  :List of 1
-#>  .. $ run_path: chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-030742-tiny-evo2-128"
+data.frame(
+  split = names(prepared@manifest$inputs),
+  records = vapply(
+    prepared@manifest$inputs,
+    function(input) input$records,
+    integer(1L)
+  ),
+  row.names = NULL
+)
+#>        split records
+#> 1      train       4
+#> 2 validation       1
+#> 3       test       1
 ```
 
-Explicit validation and test inputs keep this small example deterministic. Use
-independent biological sequences and held-out splits for real work.
+Explicit validation and test inputs keep this small example deterministic. For
+real work, choose held-out splits that reflect the biological question and
+avoid leakage between related sequences.
 
 ## Choose LoRA targets
 
-`targets` selects semantic module groups in every matching model layer:
+`evo2_lora()` describes which parts of the model receive trainable adapters:
 
-- `"hyena"` selects `dense_projection` and `dense`.
-- `"attention"` selects `linear_qkv` and `linear_proj`.
-- `"mlp"` selects `linear_fc1` and `linear_fc2`.
+- `"hyena"` selects the Hyena sequence-mixing blocks.
+- `"attention"` selects attention blocks.
+- `"mlp"` selects feed-forward blocks.
 
-These are adapter locations, not prediction targets or response variables. The
-effective adapter scale is `alpha / rank`. Modules listed in `fully_trainable`
-remain unfrozen without receiving adapters; tied `word_embeddings` and
-`output_layer` must be listed together.
+These are adapter locations, not response variables. `rank` controls adapter
+capacity, and the effective adapter scale is `alpha / rank`.
 
 
 ``` r
@@ -279,7 +144,7 @@ method
 #>  @ fully_trainable: chr(0)
 ```
 
-## Run two optimizer steps
+## Fine-tune the model
 
 
 ``` r
@@ -331,8 +196,9 @@ fitted
 #> Compute:    local/container
 ```
 
-`job_wait()` returns a fitted `Evo2Model`. Its timeout only stops waiting; it
-does not cancel training.
+With `async = TRUE`, `evo2_finetune()` returns immediately with a durable job.
+`job_wait()` returns a fitted `Evo2Model` that points to the saved checkpoint
+and retains the compute descriptor. A wait timeout does not cancel training.
 
 ## Inspect and reuse the fitted checkpoint
 
@@ -342,47 +208,40 @@ fitted_checkpoint <- checkpoint_path(fitted)
 manifest <- checkpoint_manifest(fitted)
 
 data.frame(
-  path = fitted_checkpoint,
   format = manifest$format,
-  kind = manifest$kind,
-  base_checkpoint = manifest$base_checkpoint_path,
-  recipe_revision = manifest$recipe_revision
+  method = manifest$kind,
+  base_checkpoint = basename(manifest$base_checkpoint_path)
 )
-#>                                                                                                                                  path
-#> 1 /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260801-030742/vignette-lora/docs-20260801-030742-vignette-lora/checkpoints
-#>    format kind
-#> 1 mbridge lora
-#>                                                                                 base_checkpoint
-#> 1 /home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7/iter_0000001
-#>                            recipe_revision
-#> 1 e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e
+#>    format method base_checkpoint
+#> 1 mbridge   lora    iter_0000001
 ```
 
 Keep the checkpoint root returned by `checkpoint_path()`, which contains
 `bionemor-checkpoint.json`. A LoRA checkpoint records its dense base checkpoint
-and requires that base to remain available.
+and requires that base to remain available. Pass `fitted` directly to inference
+functions while working in the same R session.
 
 
 ``` r
 probe <- c(probe = sequence_127("ACGTGCAA"))
 
-scores <- evo2_score(
+fitted_scores <- evo2_score(
   fitted,
   probe,
   reduction = "mean",
   strand = "forward"
 )
-scores[c("id", "score", "forward_score")]
+fitted_scores[c("id", "score", "forward_score")]
 #>      id      score forward_score
 #> 1 probe -0.1708792    -0.1708792
 
-generated <- evo2_generate(
+fitted_generation <- evo2_generate(
   fitted,
   probe,
   num_tokens = 8L,
   seed = 17L
 )
-generated[c("input_id", "prompt", "completion", "finish_reason")]
+fitted_generation[c("input_id", "prompt", "completion", "finish_reason")]
 #>   input_id
 #> 1    probe
 #>                                                                                                                            prompt
@@ -391,6 +250,6 @@ generated[c("input_id", "prompt", "completion", "finish_reason")]
 #> 1   AACGTGCA        length
 ```
 
-The smoke check verifies that the adapter and dense base load and return
-well-formed results. It does not require two training steps to improve a score
-or generate exact bases.
+These calls confirm that the adapter and dense base load together and return
+well-formed results. The values only validate the workflow; two toy training
+steps are not evidence of improved biological performance.

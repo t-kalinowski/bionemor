@@ -37,8 +37,7 @@ supported.}
 
 \item{strand}{Score the supplied sequence, its reverse complement, or both.}
 
-\item{batch_size}{Prediction micro-batch size. The inference control's
-\code{micro_batch_size} must remain one.}
+\item{batch_size}{Prediction micro-batch size.}
 
 \item{normalize}{Sequence normalization mode. With \code{normalize = "none"},
 reverse-strand operations require uppercase IUPAC DNA.}

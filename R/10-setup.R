@@ -86,15 +86,6 @@ recipe_image_requires_build <- function(compute) {
       identical(compute@image, compute@recipe@base_image))
 }
 
-install_step <- function(id, purpose, command, expected = list()) {
-  list(
-    id = id,
-    purpose = purpose,
-    command = command,
-    expected = expected
-  )
-}
-
 expected_container_image_labels <- function(
   recipe,
   helper_revision = package_helper_revision(recipe)
@@ -204,299 +195,6 @@ runtime_probe_command <- function(
       args
     ),
     cwd = compute@workspace
-  )
-}
-
-runtime_install_steps <- function(compute, target = "all") {
-  spec <- recipe_install_spec(compute@recipe)
-  capabilities <- install_step(
-    "runtime-capabilities",
-    "verify the helper protocol and current recipe commands",
-    runtime_probe_command(
-      compute,
-      spec$helper,
-      c("describe", "--json"),
-      gpus = TRUE,
-      immutable = FALSE
-    ),
-    list(protocol_version = compute@recipe@bridge_protocol)
-  )
-  probes <- lapply(
-    install_probe_commands(compute@recipe, target),
-    function(executable) {
-      install_step(
-        paste0("probe-", executable),
-        paste("verify", executable),
-        runtime_probe_command(
-          compute,
-          executable,
-          "--help",
-          gpus = compute@engine == "container",
-          immutable = FALSE
-        )
-      )
-    }
-  )
-  c(list(capabilities), probes)
-}
-
-#' Inspect how a BioNeMo recipe runtime will be installed or verified
-#'
-#' `bionemo_install_plan()` constructs the full default installation or
-#' verification plan for `compute`. It does not run its commands, pull or build
-#' an image, probe a GPU, or submit a Slurm job. Use it to review the selected
-#' recipe revision, image inputs, runtime commands, and working directories
-#' before changing the execution environment. [bionemo_install()] follows this
-#' contract but can skip an existing image build or optional pull according to
-#' its arguments and the current image state.
-#'
-#' @section Plans for each execution environment:
-#'
-#' The plan depends on the backend and engine in `compute`:
-#'
-#' - Local/container with the verified package recipe includes steps to fetch
-#'   the exact recipe revision, verify the locked Dockerfile and base-image
-#'   digest, build the deterministic image with the package helper, resolve its
-#'   image ID, and probe the helper and all supported recipe commands.
-#' - Local/container with an explicit prebuilt image includes image-ID and label
-#'   checks followed by the same runtime probes. It does not include a rebuild.
-#' - Local/external and both Slurm engines include verification probes only.
-#'   Those environments are managed outside bionemor. A Slurm/container plan
-#'   assumes an existing Apptainer image.
-#'
-#' The plan describes the complete default installation check: inference,
-#' training, and checkpoint-conversion commands are all included. To diagnose
-#' one operation group after installation, use the `target` argument of
-#' [bionemo_doctor()].
-#'
-#' @section Inspecting a plan:
-#'
-#' Printing a plan lists its ordered step IDs and purposes. `as.data.frame()`
-#' exposes one row per step with these columns:
-#'
-#' - `step`: one-based execution order.
-#' - `id`: stable, machine-readable step name.
-#' - `purpose`: short description of the check or change.
-#' - `command`: rendered shell command with known credentials redacted.
-#' - `cwd`: working directory, also credential-redacted.
-#' - `expected`: list-column of structured values that the step must verify.
-#'
-#' Plan inspection is not a substitute for installation: image digests and
-#' live helper capabilities are resolved by [bionemo_install()] and returned on
-#' its updated compute descriptor.
-#'
-#' @param compute A BioNeMo compute descriptor from [bionemo_compute()].
-#'
-#' @return A `BioNeMoSetupPlan` with `target = "install"`, the original compute
-#'   descriptor, the plan path, ordered command steps, and `executed = FALSE`.
-#'
-#' @examples
-#' # Planning an external runtime is offline; the commands need not yet exist.
-#' compute <- bionemo_compute(
-#'   engine = "external",
-#'   workspace = file.path(tempdir(), "bionemor-plan-example")
-#' )
-#' plan <- bionemo_install_plan(compute)
-#' plan
-#'
-#' steps <- as.data.frame(plan)
-#' steps[c("step", "id", "purpose")]
-#'
-#' @seealso [bionemo_compute()], [bionemo_install()], [bionemo_doctor()]
-#' @export
-bionemo_install_plan <- function(compute) {
-  if (!S7_inherits(compute, BioNeMoCompute)) {
-    stop("compute must be a BioNeMo compute descriptor")
-  }
-  paths <- install_paths(compute)
-  recipe <- compute@recipe
-
-  if (compute@engine == "external") {
-    steps <- runtime_install_steps(compute)
-    return(BioNeMoSetupPlan(
-      target = "install",
-      compute = compute,
-      model = NULL,
-      path = paths$root,
-      steps = steps,
-      executed = FALSE
-    ))
-  }
-
-  if (compute@backend == "slurm") {
-    steps <- runtime_install_steps(compute)
-    return(BioNeMoSetupPlan(
-      target = "install",
-      compute = compute,
-      model = NULL,
-      path = paths$root,
-      steps = steps,
-      executed = FALSE
-    ))
-  }
-
-  container_engine <- compute@config$container_engine %||% "docker"
-  helper_revision <- package_helper_revision(recipe)
-  if (!recipe_image_requires_build(compute)) {
-    steps <- list(
-      install_step(
-        "image-inspect",
-        "resolve the prebuilt recipe image ID",
-        command_spec(
-          container_engine,
-          c("image", "inspect", "--format", "{{.Id}}", compute@image)
-        )
-      ),
-      install_step(
-        "image-labels",
-        "verify the prebuilt recipe image labels",
-        command_spec(
-          container_engine,
-          c(
-            "image",
-            "inspect",
-            "--format",
-            "{{json .Config.Labels}}",
-            compute@image
-          )
-        ),
-        as.list(expected_container_image_labels(recipe, helper_revision))
-      )
-    )
-    steps <- c(steps, runtime_install_steps(compute))
-    return(BioNeMoSetupPlan(
-      target = "install",
-      compute = compute,
-      model = NULL,
-      path = paths$root,
-      steps = steps,
-      executed = FALSE
-    ))
-  }
-
-  lock <- recipe_install_lock(recipe)
-  dockerfile <- file.path(paths$source, recipe@subdirectory, "Dockerfile")
-  steps <- list(
-    install_step(
-      "source-init",
-      "create a content-addressed BioNeMo Recipes checkout",
-      command_spec("git", c("-C", paths$source, "init")),
-      list(repository = recipe@repository)
-    ),
-    install_step(
-      "source-fetch",
-      "fetch the exact locked recipe revision",
-      command_spec(
-        "git",
-        c(
-          "-C",
-          paths$source,
-          "fetch",
-          "--depth",
-          "1",
-          recipe@repository,
-          recipe@revision
-        )
-      ),
-      list(revision = recipe@revision)
-    ),
-    install_step(
-      "source-checkout",
-      "check out the fetched recipe revision",
-      command_spec(
-        "git",
-        c("-C", paths$source, "checkout", "--detach", "FETCH_HEAD")
-      ),
-      list(revision = recipe@revision)
-    ),
-    install_step(
-      "dockerfile-verify",
-      "verify the official locked recipe Dockerfile",
-      command_spec("git", c("-C", paths$source, "hash-object", dockerfile)),
-      list(
-        path = file.path(recipe@subdirectory, "Dockerfile"),
-        blob = lock$dockerfile_blob
-      )
-    ),
-    install_step(
-      "base-image-pull",
-      "pull the official NGC PyTorch base image",
-      command_spec(
-        container_engine,
-        c("pull", recipe_base_image_reference(recipe))
-      ),
-      list(
-        base_image = recipe@base_image,
-        digest = recipe@base_image_digest,
-        reference = recipe_base_image_reference(recipe)
-      )
-    ),
-    install_step(
-      "base-image-verify",
-      "verify the locked base-image digest",
-      command_spec(
-        container_engine,
-        c(
-          "image",
-          "inspect",
-          "--format",
-          "{{json .RepoDigests}}",
-          recipe_base_image_reference(recipe)
-        )
-      ),
-      list(digest = recipe@base_image_digest)
-    ),
-    install_step(
-      "image-build",
-      "build the official recipe with the package helper appended",
-      command_spec(
-        container_engine,
-        c(
-          "build",
-          "--file",
-          file.path(paths$context, "Dockerfile"),
-          "--tag",
-          default_recipe_image(recipe),
-          "--build-arg",
-          paste0("BIONEMOR_RECIPE_REVISION=", recipe@revision),
-          "--build-arg",
-          paste0("BIONEMOR_HELPER_REVISION=", helper_revision),
-          "--build-arg",
-          paste0("BIONEMOR_BASE_IMAGE=", recipe@base_image),
-          "--build-arg",
-          paste0(
-            "BIONEMOR_BASE_IMAGE_DIGEST=",
-            recipe@base_image_digest %||% ""
-          ),
-          paths$context
-        )
-      ),
-      list(
-        official_dockerfile = file.path(recipe@subdirectory, "Dockerfile"),
-        dockerfile_blob = lock$dockerfile_blob,
-        base_image_reference = recipe_base_image_reference(recipe),
-        uv_image_reference = recipe_uv_image_reference(lock),
-        helper_revision = helper_revision,
-        image = default_recipe_image(recipe)
-      )
-    ),
-    install_step(
-      "image-inspect",
-      "resolve the built image ID",
-      command_spec(
-        container_engine,
-        c("image", "inspect", "--format", "{{.Id}}", compute@image)
-      )
-    )
-  )
-  steps <- c(steps, runtime_install_steps(compute))
-  BioNeMoSetupPlan(
-    target = "install",
-    compute = compute,
-    model = NULL,
-    path = paths$root,
-    steps = steps,
-    executed = FALSE
   )
 }
 
@@ -950,14 +648,12 @@ verify_base_image_digest <- function(engine, recipe) {
 #'
 #' @section Setup lifecycle:
 #'
-#' A typical setup has three explicit stages:
+#' A typical setup has two explicit stages:
 #'
 #' 1. Create a descriptor with [bionemo_compute()]. This chooses the backend,
 #'    engine, workspace, recipe, image, and requested resources without probing
 #'    the runtime.
-#' 2. Inspect [bionemo_install_plan()] when the commands and immutable inputs
-#'    should be reviewed before execution.
-#' 3. Call `bionemo_install()` and retain its returned compute descriptor. The
+#' 2. Call `bionemo_install()` and retain its returned compute descriptor. The
 #'    return value contains the resolved image digest when applicable and a
 #'    validated capability report in `compute@config$capabilities`.
 #'
@@ -1014,7 +710,6 @@ verify_base_image_digest <- function(engine, recipe) {
 #'   engine = "container",
 #'   workspace = "~/evo2-work"
 #' )
-#' bionemo_install_plan(compute)
 #' compute <- bionemo_install(compute)
 #'
 #' # The returned descriptor carries immutable image and capability metadata.
@@ -1023,8 +718,7 @@ verify_base_image_digest <- function(engine, recipe) {
 #' bionemo_doctor(compute, target = "inference", verbose = FALSE)
 #' }
 #'
-#' @seealso [bionemo_install_plan()], [bionemo_capabilities()],
-#'   [bionemo_doctor()], [evo2_model()]
+#' @seealso [bionemo_capabilities()], [bionemo_doctor()], [evo2_model()]
 #' @export
 bionemo_install <- function(
   compute,
@@ -1041,7 +735,6 @@ bionemo_install <- function(
     "pull must be TRUE or FALSE" = is_scalar_logical(pull),
     "keep_source must be TRUE or FALSE" = is_scalar_logical(keep_source)
   )
-  plan <- bionemo_install_plan(compute)
   if (compute@engine == "external" || compute@backend == "slurm") {
     if (compute@backend == "slurm" && compute@engine == "container") {
       compute@image_digest <- slurm_image_digest(compute)
@@ -1126,34 +819,7 @@ bionemo_install <- function(
   capabilities <- runtime_capabilities(compute, refresh = TRUE)
   verify_runtime_commands(compute, capabilities, target = "all")
   compute@config$capabilities <- capabilities
-  invisible(plan)
   compute
-}
-
-#' Deprecated alias for installation planning
-#'
-#' `bionemo_setup()` is deprecated in favor of [bionemo_install_plan()]. It
-#' only returns an inspection plan; it does not execute the plan or modify the
-#' recipe runtime. Use [bionemo_install()] when the runtime should be built or
-#' verified.
-#'
-#' @param compute A BioNeMo compute descriptor from [bionemo_compute()].
-#' @param ... Unused.
-#'
-#' @return A `BioNeMoSetupPlan`, as returned by [bionemo_install_plan()].
-#'
-#' @examples
-#' \dontrun{
-#' # Use the replacement directly.
-#' plan <- bionemo_install_plan(compute)
-#' compute <- bionemo_install(compute)
-#' }
-#'
-#' @seealso [bionemo_install_plan()], [bionemo_install()]
-#' @export
-bionemo_setup <- function(compute, ...) {
-  .Deprecated("bionemo_install_plan")
-  bionemo_install_plan(compute)
 }
 
 slurm_probe_record <- function(id) {
@@ -1639,7 +1305,6 @@ doctor_host_tools <- function(compute) {
           workspace = compute@workspace,
           recipe = compute@recipe,
           gpus = compute@gpus,
-          nodes = compute@nodes,
           queue = compute@queue,
           account = compute@account,
           walltime = compute@walltime,
@@ -1962,73 +1627,6 @@ bionemo_doctor <- function(
     ok = !any(checks$status == "fail"),
     checks = checks,
     verbose = verbose
-  )
-}
-
-method(print, BioNeMoSetupPlan) <- function(x, ...) {
-  cat("<BioNeMo install plan>\n", sep = "")
-  cat("Target: ", x@target, "\n", sep = "")
-  cat("Steps:  ", length(x@steps), "\n", sep = "")
-  cat("Status: ", if (x@executed) "executed" else "planned", "\n", sep = "")
-  steps <- as.data.frame(x)
-  cat(
-    sprintf(
-      "%d. %s: %s\n",
-      steps$step,
-      steps$id,
-      steps$purpose
-    ),
-    sep = ""
-  )
-  invisible(x)
-}
-
-method(as.data.frame, BioNeMoSetupPlan) <- function(
-  x,
-  row.names = NULL,
-  optional = FALSE,
-  ...
-) {
-  commands <- lapply(x@steps, `[[`, "command")
-  redactions <- unique(unlist(lapply(
-    commands,
-    function(command) {
-      c(
-        command$redactions,
-        unname(command$env[
-          names(command$env) %in% credential_environment_variables
-        ])
-      )
-    }
-  )))
-  redact <- function(value) {
-    redact_persisted_value(value, redactions)
-  }
-  cwd <- vapply(
-    commands,
-    function(command) command$cwd %||% NA_character_,
-    character(1)
-  )
-  result <- data.frame(
-    step = seq_along(x@steps),
-    id = vapply(x@steps, `[[`, character(1), "id"),
-    purpose = vapply(x@steps, `[[`, character(1), "purpose"),
-    command = vapply(
-      commands,
-      function(command) redact(render_shell_command(command)),
-      character(1)
-    ),
-    cwd = redact(cwd),
-    stringsAsFactors = FALSE
-  )
-  result$expected <- I(lapply(x@steps, function(step) {
-    redact(step$expected)
-  }))
-  base::as.data.frame(
-    result,
-    row.names = row.names,
-    optional = optional,
-    ...
   )
 }
 

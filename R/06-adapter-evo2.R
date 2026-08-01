@@ -621,7 +621,7 @@ resolved_inference_control <- function(
   checkpoint_manifest = NULL
 ) {
   tensor <- control_property(control, "tensor_parallel_size", 1L)
-  pipeline <- control_property(control, "pipeline_parallel_size", 1L)
+  pipeline <- 1L
   context <- control_property(control, "context_parallel_size", 1L)
   precision <- control_property(control, "precision", "auto")
   mixed <- control_property(control, "mixed_precision_recipe", NULL)
@@ -688,9 +688,6 @@ resolved_inference_control <- function(
     precision = precision,
     mixed_precision_recipe = mixed,
     vortex_style_fp8 = vortex,
-    micro_batch_size = as.integer(
-      control_property(control, "micro_batch_size", 1L)
-    ),
     max_sequence_length = control_property(
       control,
       "max_sequence_length",
@@ -769,54 +766,9 @@ prediction_extra_args <- function(extra) {
   )
 }
 
-prediction_ignored_extra_fields <- c(
-  "eden_tokenizer",
-  "hybrid_override_pattern",
-  "num_layers",
-  "seq_len_interpolation_factor"
-)
-
 validate_generation_control <- function(control) {
-  if (!identical(control_property(control, "micro_batch_size", 1L), 1L)) {
-    stop(
-      "control micro_batch_size is unsupported; use max_batch_size for generation"
-    )
-  }
   if (length(control_property(control, "extra", list())) != 0L) {
     stop("inference extra settings are not supported for generation")
-  }
-  invisible(control)
-}
-
-validate_prediction_control <- function(control) {
-  ignored_extra <- intersect(
-    names(control_property(control, "extra", list())),
-    prediction_ignored_extra_fields
-  )
-  if (length(ignored_extra)) {
-    bionemor_abort(
-      "BN_PROTOCOL",
-      paste0(
-        if (length(ignored_extra) > 1L) {
-          "prediction control settings "
-        } else {
-          "prediction control setting "
-        },
-        paste(ignored_extra, collapse = ", "),
-        if (length(ignored_extra) > 1L) {
-          " are not applied by the pinned prediction entry point"
-        } else {
-          " is not applied by the pinned prediction entry point"
-        }
-      ),
-      operation = "prediction",
-      settings = ignored_extra
-    )
-  }
-  if (!identical(control_property(control, "micro_batch_size", 1L), 1L)) {
-    stop(
-      "control micro_batch_size is unsupported; use the task-specific batch_size argument"
-    )
   }
   invisible(control)
 }
@@ -1203,62 +1155,7 @@ bionemor_adapter_evo2_megatron_doctor_model <- function(
   do.call(rbind, rows)
 }
 
-evo2_manifest_resolved_origins <- function(plan, request, request_origins) {
-  resolved <- plan$metadata$resolved_control %||% list()
-  control <- request$control %||% list()
-  if (!is.list(control)) {
-    control <- list()
-  }
-  control_origins <- request_origins$control %||% list()
-  if (!is.list(control_origins)) {
-    control_origins <- list()
-  }
-  origins <- stats::setNames(
-    as.list(rep("adapter_default", length(resolved))),
-    names(resolved)
-  )
-  inherited <- intersect(names(origins), names(control_origins))
-  origins[inherited] <- control_origins[inherited]
-  origins$operation <- "adapter_default"
-  automatic <- intersect(
-    c(
-      "world_size",
-      "processes_per_node",
-      "data_parallel_size",
-      "gradient_accumulation"
-    ),
-    names(origins)
-  )
-  origins[automatic] <- as.list(rep("auto_resolved", length(automatic)))
-  if (
-    "mixed_precision_recipe" %in%
-      names(origins) &&
-      is.null(control$mixed_precision_recipe)
-  ) {
-    origins$mixed_precision_recipe <- "auto_resolved"
-  }
-  if (
-    "vortex_style_fp8" %in%
-      names(origins) &&
-      identical(control$vortex_style_fp8, "auto")
-  ) {
-    origins$vortex_style_fp8 <- "auto_resolved"
-  }
-  if (
-    "cuda_graphs" %in% names(origins) && identical(control$cuda_graphs, "auto")
-  ) {
-    origins$cuda_graphs <- "auto_resolved"
-  }
-  origins
-}
-
-evo2_manifest_precision <- function(
-  plan,
-  request,
-  checkpoint,
-  request_origins,
-  resolved_origins
-) {
+evo2_manifest_precision <- function(plan, request, checkpoint) {
   resolved <- plan$metadata$resolved_control %||% list()
   request_precision <- request$precision_request %||%
     request$precision %||%
@@ -1280,28 +1177,9 @@ evo2_manifest_precision <- function(
   resolved_recipe <- resolved$mixed_precision_recipe %||%
     checkpoint$mixed_precision_recipe %||%
     NULL
-  control_origins <- request_origins$control %||% list()
-  if (!is.list(control_origins)) {
-    control_origins <- list()
-  }
-  semantic_origin <- control_origins$precision %||%
-    request_origins$precision_request %||%
-    request_origins$precision %||%
-    if (is.null(semantic)) NULL else "adapter_default"
-  checkpoint_resolved_origin <- if (!is.null(request$precision_request)) {
-    request_origins$precision %||% NULL
-  } else {
-    NULL
-  }
-  resolved_origin <- resolved_origins$mixed_precision_recipe %||%
-    checkpoint_resolved_origin %||%
-    if (is.null(resolved_recipe)) NULL else "adapter_default"
   list(
     semantic = semantic,
-    resolved_recipe = resolved_recipe,
-    semantic_origin = semantic_origin,
-    resolved_origin = resolved_origin,
-    origin = resolved_origin
+    resolved_recipe = resolved_recipe
   )
 }
 
@@ -1309,17 +1187,15 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
   workflow,
   job,
   request,
-  plan,
-  request_origins
+  plan
 ) {
   stopifnot(
     "workflow must use the Evo 2 Megatron adapter" = identical(
       workflow@adapter,
       "evo2-megatron"
     ),
-    "manifest request, plan, and origins must be lists" = is.list(request) &&
-      is.list(plan) &&
-      is.list(request_origins)
+    "manifest request and plan must be lists" = is.list(request) &&
+      is.list(plan)
   )
   descriptor <- job@expected_result
   candidates <- c(
@@ -1367,11 +1243,6 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
   tokenizer_revision <- metadata$tokenizer_revision %||%
     record$tokenizer_revision %||%
     NULL
-  resolved_origins <- evo2_manifest_resolved_origins(
-    plan,
-    request,
-    request_origins
-  )
   validation <- file.path(job@path, "outputs", "validation.json")
   warnings <- if (file.exists(validation)) {
     read_json_file(validation, simplify = FALSE)$warnings
@@ -1441,11 +1312,8 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
     precision = evo2_manifest_precision(
       plan,
       request,
-      metadata,
-      request_origins,
-      resolved_origins
+      metadata
     ),
-    resolved_origins = resolved_origins,
     warnings = warnings
   )
 }

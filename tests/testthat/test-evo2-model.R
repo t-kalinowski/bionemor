@@ -12,9 +12,6 @@ test_that("evo2_model prepares and reuses the canonical checkpoint", {
     bionemo_install = function(...) {
       stop("evo2_model must not install the runtime")
     },
-    bionemo_install_plan = function(...) {
-      stop("evo2_model must not plan a runtime installation")
-    },
     bionemo_doctor = function(...) {
       stop("evo2_model must not run diagnostics")
     },

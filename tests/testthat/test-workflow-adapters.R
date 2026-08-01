@@ -157,7 +157,7 @@ test_that("every installed Evo 2 workflow reaches its public operation", {
     export = list(
       "export.pt",
       list(format = "unsupported"),
-      "format must be 'vortex'"
+      "unused argument"
     ),
     prepare = list("ACGT", list(path = 1), "path must"),
     `fine-tune` = list("ACGT", list(steps = 0L), "steps must")
@@ -272,10 +272,8 @@ test_that("family wrappers and generic workflows share one public contract", {
   )
   expect_identical(requests[[1L]]$workflow, requests[[2L]]$workflow)
   expect_identical(requests[[1L]]$request, requests[[2L]]$request)
-  expect_identical(
-    requests[[1L]]$request_origins,
-    requests[[2L]]$request_origins
-  )
+  expect_null(requests[[1L]]$request_origins)
+  expect_null(requests[[2L]]$request_origins)
 })
 
 test_that("reopening rejects a changed persisted workflow identity", {

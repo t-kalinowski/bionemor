@@ -3,7 +3,10 @@ test_that("installed metadata and exports describe the Recipes runtime", {
   text <- paste(description[c("Title", "Description")], collapse = "\n")
 
   expect_match(text, "BioNeMo Recipes", fixed = TRUE)
-  expect_match(text, "MBridge", fixed = TRUE)
+  expect_match(text, "Evo 2", fixed = TRUE)
+  expect_match(text, "CUDA-capable NVIDIA GPU", fixed = TRUE)
+  expect_match(text, "no CPU fallback", fixed = TRUE)
+  expect_match(description$SystemRequirements, "NVIDIA GPU", fixed = TRUE)
   expect_true(all(
     c(
       "bionemo_install",
@@ -41,6 +44,11 @@ test_that("runtime assets are pinned to BioNeMo Recipes", {
     "scripts",
     "materialize-evo2.py"
   )))
+  expect_false(any(grepl(
+    "brev-evo2",
+    list.files(file.path(root, "scripts")),
+    fixed = TRUE
+  )))
 })
 
 test_that("public documentation states the current runtime and API contracts", {
@@ -63,18 +71,19 @@ test_that("public documentation states the current runtime and API contracts", {
   }
 
   readme <- read_text("README.md")
-  expect_false(grepl("tested source revision", readme, fixed = TRUE))
   expect_match(
     readme,
     'pak::pak("t-kalinowski/bionemor")',
     fixed = TRUE
   )
-  expect_match(readme, "without leaving R", fixed = TRUE)
-  expect_match(readme, "## Run inference", fixed = TRUE)
-  expect_match(readme, "## Fine-tune", fixed = TRUE)
-  expect_match(readme, "Slurm support is experimental", fixed = TRUE)
-  expect_match(readme, "Authenticate Docker to `nvcr.io`", fixed = TRUE)
-  expect_match(readme, "GPU-backed", fixed = TRUE)
+  expect_match(readme, "CUDA-capable NVIDIA GPU", fixed = TRUE)
+  expect_match(readme, "no CPU fallback", fixed = TRUE)
+  expect_match(readme, "Brev", fixed = TRUE)
+  expect_match(readme, "evo2_model", fixed = TRUE)
+  expect_match(readme, "evo2_profile", fixed = TRUE)
+  expect_match(readme, "evo2_export", fixed = TRUE)
+  expect_no_match(readme, "does more than call", fixed = TRUE)
+  expect_no_match(readme, "another adapter can be added", fixed = TRUE)
 
   package_help <- read_text(
     file.path("man", "bionemor-package.Rd"),
@@ -82,13 +91,15 @@ test_that("public documentation states the current runtime and API contracts", {
   )
   expect_false(grepl("NIM", package_help, fixed = TRUE))
   expect_false(grepl("Python objects", package_help, fixed = TRUE))
+  expect_match(package_help, "CUDA-capable NVIDIA GPU", fixed = TRUE)
+  expect_match(package_help, "no\\s+CPU\\s+fallback")
 
   reexports <- read_text(file.path("man", "reexports.Rd"), "reexports")
   expect_match(reexports, "fit(", fixed = TRUE)
   expect_match(reexports, "object", fixed = TRUE)
   expect_match(
     reexports,
-    'type = c("score", "generate", "embedding", "response", "raw")',
+    'type = c("score", "generate", "embedding")',
     fixed = TRUE
   )
 
@@ -169,6 +180,9 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(checkpoint, "pickle-based", fixed = TRUE)
   expect_match(checkpoint, "source revision", fixed = TRUE)
   expect_match(checkpoint, "checkpoint <- evo2_checkpoint(", fixed = TRUE)
+
+  models <- read_text(file.path("man", "evo2_models.Rd"), "evo2_models")
+  expect_match(models, "does\\s+not\\s+measure\\s+available\\s+GPU\\s+memory")
 
   wait <- read_text(file.path("man", "job_wait.Rd"), "job_wait")
   expect_match(wait, "does\\s+not\\s+cancel")

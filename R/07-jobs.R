@@ -226,6 +226,9 @@ compute_record <- function(compute) {
 }
 
 compute_from_record <- function(value) {
+  if (!identical(as.integer(value$nodes), 1L)) {
+    stop("persisted run must use one compute node")
+  }
   if (
     !is.list(value$recipe) ||
       !all(
@@ -270,7 +273,6 @@ compute_from_record <- function(value) {
     recipe = recipe,
     image = value$image,
     gpus = as.integer(value$gpus),
-    nodes = as.integer(value$nodes),
     queue = value$queue,
     account = value$account,
     walltime = value$walltime,
@@ -385,7 +387,6 @@ create_run <- function(
   kind,
   name = NULL,
   request = list(),
-  request_origins = list(),
   workflow
 ) {
   stopifnot(
@@ -397,7 +398,6 @@ create_run <- function(
     "kind must be one safe name" = is_scalar_string(kind) &&
       grepl("^[A-Za-z0-9_.-]+$", kind),
     "request must be a list" = is.list(request),
-    "request origins must be a list" = is.list(request_origins),
     "workflow must be a complete workflow identity" = is.list(workflow) &&
       all(workflow_identity_fields %in% names(workflow))
   )
@@ -426,7 +426,6 @@ create_run <- function(
       workflow = workflow,
       compute = compute_record(compute),
       request = redact_persisted_value(request),
-      request_origins = request_origins,
       expected_result = NULL,
       timeout = NULL
     ),
@@ -1464,12 +1463,6 @@ bionemo_job <- function(path) {
   compute <- compute_from_record(request$compute)
   plan <- read_command_plan(file.path(path, "plan.json"))
   if (
-    identical(attr(request, "migrated_from_schema", exact = TRUE), 1L) &&
-      is.null(plan$metadata$workflow)
-  ) {
-    plan$metadata$workflow <- request$workflow
-  }
-  if (
     !identical(plan$metadata$workflow, request$workflow) ||
       !identical(compute@recipe@adapter, workflow@adapter) ||
       !is.list(request$expected_result) ||
@@ -2491,15 +2484,11 @@ run_manifest_value <- function(job, result = NULL) {
   workflow <- workflow_from_identity(persisted_request$workflow)
   semantic_request <- persisted_request$request %||% list()
   semantic_request$operation <- semantic_request$operation %||% job@kind
-  request_origins <- persisted_request$request_origins %||% list()
-  request_origins$operation <- request_origins$operation %||%
-    "adapter_default"
   context <- adapter_function(workflow@adapter, "manifest_context")(
     workflow,
     job,
     semantic_request,
-    persisted_plan,
-    request_origins
+    persisted_plan
   )
   provenance <- adapter_function(workflow@adapter, "provenance")(
     workflow,
@@ -2522,10 +2511,6 @@ run_manifest_value <- function(job, result = NULL) {
       version = run_manifest_package_version()
     ),
     request = semantic_request,
-    value_origins = list(
-      request = request_origins,
-      resolved = context$resolved_origins
-    ),
     plan = persisted_plan,
     recipe = provenance$recipe,
     dockerfile = provenance$dockerfile,
@@ -3073,26 +3058,4 @@ method(print, BioNeMoJob) <- function(x, ...) {
   cat("State: ", job_status(x, refresh = FALSE), "\n", sep = "")
   cat("Path: ", x@path, "\n", sep = "")
   invisible(x)
-}
-
-# Compatibility for installation code that still emits one backend script.
-write_job_script <- function(command, compute, name, log, stderr = log) {
-  jobs <- file.path(compute@workspace, ".bionemor", "jobs")
-  dir.create(jobs, recursive = TRUE, showWarnings = FALSE)
-  dir.create(dirname(log), recursive = TRUE, showWarnings = FALSE)
-  path <- file.path(jobs, paste0(name, ".sh"))
-  writeLines(
-    c(
-      "#!/usr/bin/env bash",
-      if (compute@backend == "slurm") {
-        job_directives(compute, name, log, stderr)
-      },
-      "set -euo pipefail",
-      command
-    ),
-    path,
-    useBytes = TRUE
-  )
-  Sys.chmod(path, "0750")
-  path
 }

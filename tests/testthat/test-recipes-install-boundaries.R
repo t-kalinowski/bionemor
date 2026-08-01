@@ -55,39 +55,7 @@ test_that("recipe descriptors retain known base-image digests", {
   expect_true(canonical@verified)
 })
 
-test_that("installation plans verify explicit images without rebuilding them", {
-  workspace <- tempfile("bionemor-explicit-image-install-")
-  recipe <- evo2_recipe(
-    revision = strrep("b", 40L),
-    repository = "https://example.com/custom/bionemo-recipes",
-    base_image = "example.com/custom/pytorch:26.06"
-  )
-  compute <- bionemo_compute(
-    workspace = workspace,
-    recipe = recipe,
-    image = "example.com/custom/evo2:2.4"
-  )
-
-  plan <- bionemo_install_plan(compute)
-  ids <- vapply(plan@steps, `[[`, character(1), "id")
-
-  expect_equal(ids[[1L]], "image-inspect")
-  expect_true("image-labels" %in% ids)
-  expect_false(any(
-    c(
-      "source-init",
-      "source-fetch",
-      "source-checkout",
-      "dockerfile-verify",
-      "base-image-pull",
-      "base-image-verify",
-      "image-build"
-    ) %in%
-      ids
-  ))
-})
-
-test_that("the NGC base image builds a distinct derived recipe image", {
+test_that("the NGC base image selects a distinct derived recipe image", {
   workspace <- tempfile("bionemor-base-image-install-")
   recipe <- evo2_recipe()
   compute <- bionemo_compute(
@@ -100,17 +68,8 @@ test_that("the NGC base image builds a distinct derived recipe image", {
     substr(recipe@revision, 1L, 12L)
   )
 
-  plan <- bionemo_install_plan(compute)
-  ids <- vapply(plan@steps, `[[`, character(1), "id")
-  build <- plan@steps[[match("image-build", ids)]]$command
-  tag <- build$args[[match("--tag", build$args) + 1L]]
-
-  expect_equal(
-    tag,
-    derived
-  )
   expect_equal(compute@image, derived)
-  expect_false(identical(tag, recipe@base_image))
+  expect_false(identical(compute@image, recipe@base_image))
 
   digest_qualified <- bionemo_compute(
     workspace = tempfile("bionemor-base-digest-install-"),

@@ -70,8 +70,7 @@ evo2_recipe_lock <- function() {
 #' recipe <- evo2_recipe()
 #' recipe
 #'
-#' @seealso [bionemo_compute()], [bionemo_install_plan()],
-#'   [bionemo_install()]
+#' @seealso [bionemo_compute()], [bionemo_install()]
 #' @export
 evo2_recipe <- function(
   revision = "recommended",
@@ -315,8 +314,8 @@ slurm_sif_verification_lines <- function(compute) {
 #' @section Resources and site settings:
 #'
 #' `gpus` is the required GPU count used for compatibility checks and Slurm
-#' requests. Local containers expose all available GPUs. `nodes` is currently
-#' restricted to one. `queue`, `account`, and `walltime` become Slurm
+#' requests. Local containers expose all available GPUs. Execution uses one
+#' node. `queue`, `account`, and `walltime` become Slurm
 #' `--partition`, `--account`, and `--time` directives and are ignored by the
 #' local backend.
 #'
@@ -338,8 +337,7 @@ slurm_sif_verification_lines <- function(compute) {
 #'   recipe image. Slurm/container requires a readable SIF on shared storage or
 #'   a digest-qualified image URI. Unverified recipes require an explicit image
 #'   unless `engine = "external"`.
-#' @param gpus,nodes Positive integer resource counts. `nodes` must currently be
-#'   `1`.
+#' @param gpus Positive integer GPU count.
 #' @param queue,account,walltime Optional Slurm partition, account, and time
 #'   limit. These values are passed to `sbatch` without interpretation.
 #' @param config Named list of site-specific settings. Use `container_engine`
@@ -370,8 +368,7 @@ slurm_sif_verification_lines <- function(compute) {
 #' )
 #' }
 #'
-#' @seealso [evo2()], [evo2_model()], [bionemo_install_plan()],
-#'   [bionemo_install()], [bionemo_doctor()]
+#' @seealso [evo2()], [evo2_model()], [bionemo_install()], [bionemo_doctor()]
 #' @export
 bionemo_compute <- function(
   backend = c("local", "slurm"),
@@ -380,7 +377,6 @@ bionemo_compute <- function(
   recipe = evo2_recipe(),
   image = NULL,
   gpus = 1L,
-  nodes = 1L,
   queue = NULL,
   account = NULL,
   walltime = NULL,
@@ -399,12 +395,6 @@ bionemo_compute <- function(
   }
   if (!is_scalar_integerish(gpus, min = 1)) {
     stop("gpus must be a positive integer")
-  }
-  if (!is_scalar_integerish(nodes, min = 1)) {
-    stop("nodes must be a positive integer")
-  }
-  if (nodes != 1) {
-    stop("version 1 supports a single node")
   }
   if (!is.null(queue) && !is_scalar_string(queue)) {
     stop("queue must be NULL or one non-empty string")
@@ -479,7 +469,7 @@ bionemo_compute <- function(
     image = image,
     image_digest = image_digest,
     gpus = as.integer(gpus),
-    nodes = as.integer(nodes),
+    nodes = 1L,
     queue = queue,
     account = account,
     walltime = walltime,

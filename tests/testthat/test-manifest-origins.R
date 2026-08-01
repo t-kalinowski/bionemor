@@ -1,4 +1,4 @@
-test_that("run manifests distinguish request and resolution origins", {
+test_that("run manifests retain exact request and resolved values", {
   workspace <- tempfile("bionemor-manifest-origins-")
   bin <- tempfile("bionemor-bin-")
   log <- tempfile("bionemor-log-")
@@ -59,53 +59,31 @@ test_that("run manifests distinguish request and resolution origins", {
   )
 
   expect_identical(default$request$temperature, explicit$request$temperature)
+  expect_null(default$value_origins)
+  expect_null(explicit$value_origins)
+  expect_null(explicit_recipe$value_origins)
+  expect_identical(default$request$model, "7b")
+  expect_identical(default$request$input_source$source, "memory")
+  expect_identical(default$request$control$precision, "auto")
+  expect_identical(explicit$request$control$precision, "auto")
   expect_identical(
-    default$value_origins$request$temperature,
-    "package_default"
+    explicit_recipe$request$control$mixed_precision_recipe,
+    "bf16_mixed"
   )
   expect_identical(
-    explicit$value_origins$request$temperature,
-    "user_requested"
+    default$plan$metadata$operation,
+    "generation"
   )
   expect_identical(
-    default$value_origins$request$model,
-    "user_requested"
+    default$plan$metadata$resolved_control$mixed_precision_recipe,
+    "bf16_mixed"
   )
-  expect_identical(
-    default$value_origins$request$input_source,
-    "auto_resolved"
-  )
-  expect_identical(
-    default$value_origins$resolved$operation,
-    "adapter_default"
-  )
-  expect_identical(
-    default$value_origins$resolved$mixed_precision_recipe,
-    "auto_resolved"
-  )
-  expect_identical(
-    explicit$precision$semantic_origin,
-    "user_requested"
-  )
-  expect_identical(
-    explicit$precision$resolved_origin,
-    "auto_resolved"
-  )
-  expect_identical(
-    explicit_recipe$value_origins$request$control$mixed_precision_recipe,
-    "user_requested"
-  )
-  expect_identical(
-    explicit_recipe$value_origins$resolved$mixed_precision_recipe,
-    "user_requested"
-  )
-  expect_identical(
-    explicit_recipe$precision$resolved_origin,
-    "user_requested"
-  )
+  expect_identical(default$precision$semantic, "auto")
+  expect_identical(default$precision$resolved_recipe, "bf16_mixed")
+  expect_named(default$precision, c("semantic", "resolved_recipe"))
 })
 
-test_that("checkpoint manifests distinguish precision request and resolution", {
+test_that("checkpoint manifests retain requested and resolved precision", {
   workspace <- tempfile("bionemor-checkpoint-origin-")
   bin <- tempfile("bionemor-bin-")
   dir.create(workspace)
@@ -128,7 +106,13 @@ test_that("checkpoint manifests distinguish precision request and resolution", {
   )
 
   expect_identical(manifest$precision$semantic, "auto")
-  expect_identical(manifest$precision$semantic_origin, "package_default")
   expect_identical(manifest$precision$resolved_recipe, "bf16_mixed")
-  expect_identical(manifest$precision$resolved_origin, "auto_resolved")
+  expect_named(manifest$precision, c("semantic", "resolved_recipe"))
+  request <- jsonlite::read_json(
+    file.path(checkpoint_metadata$provenance$run_path, "request.json"),
+    simplifyVector = FALSE
+  )
+  expect_null(request$request_origins)
+  expect_identical(request$request$precision_request, "auto")
+  expect_identical(request$request$precision, "bf16_mixed")
 })

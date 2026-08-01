@@ -4,31 +4,48 @@
 \name{bionemor-package}
 \alias{bionemor}
 \alias{bionemor-package}
-\title{Run BioNeMo Recipes Evo 2 workflows from R}
+\title{Use BioNeMo Recipes from R}
 \description{
-\code{bionemor} prepares MBridge checkpoints, runs generation, scoring, and
-embeddings, and fine-tunes Evo 2 models with the pinned NVIDIA BioNeMo
-Recipes runtime. Inputs and results are ordinary R vectors, data frames,
-matrices, and S7 objects.
+NVIDIA BioNeMo Recipes provides runnable training and inference workflows for
+biological foundation models. \code{bionemor} controls those workflows from R and
+returns R data frames, matrices, and objects. The current package adapter
+supports the Evo 2 DNA model family.
 }
 \details{
-\code{\link[=evo2_model]{evo2_model()}} is the direct path to a ready model. It prepares or reuses the
-recommended checkpoint and binds the compute descriptor used for later calls
-to \code{\link[=evo2_generate]{evo2_generate()}}, \code{\link[=evo2_score]{evo2_score()}}, \code{\link[=evo2_embed]{evo2_embed()}}, and \code{\link[=evo2_finetune]{evo2_finetune()}}.
-\code{\link[=evo2]{evo2()}} and \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} expose the lower-level workflow for custom
-checkpoint sources and explicit compute overrides.
-
-Runtime operations dispatched through the job runner write a durable run
-directory containing their request, logs, state, and portable result. A
-\link[=bionemo_job]{BioNeMoJob} can be reopened after the R session ends.
-
-Operational failures inherit from \code{bionemor_error} and a stable \verb{BN_*}
-code-specific class. Conditions retain run and model context when available.
-
-Terminal run manifests retain checkpoint trust and input-source metadata.
-Their \code{value_origins} maps distinguish user requests, package defaults,
-adapter defaults, and auto-resolved values.
+Installing the R package and inspecting its model registry do not require a
+GPU. Preparing weights, inference, preprocessing, and fine-tuning require a
+CUDA-capable NVIDIA GPU; there is no CPU fallback. The package-managed local
+runtime also requires Linux, Docker, and NVIDIA Container Toolkit. A remote
+Linux GPU from a provider such as Brev can be used when no local GPU is
+available.
 }
+\section{Start here}{
+
+\itemize{
+\item \code{\link[=bionemo_compute]{bionemo_compute()}} describes the GPU runtime and workspace.
+\item \code{\link[=bionemo_install]{bionemo_install()}} prepares or checks that runtime.
+\item \code{\link[=evo2_models]{evo2_models()}} lists the packaged Evo 2 model registry.
+\item \code{\link[=evo2_model]{evo2_model()}} prepares the recommended checkpoint and binds it to compute.
+}
+}
+
+\section{Use a model}{
+
+\itemize{
+\item \code{\link[=evo2_generate]{evo2_generate()}} extends DNA prompts.
+\item \code{\link[=evo2_score]{evo2_score()}} scores complete sequences.
+\item \code{\link[=evo2_profile]{evo2_profile()}} writes per-position log probabilities.
+\item \code{\link[=evo2_embed]{evo2_embed()}} returns pooled embeddings or writes positional embeddings.
+\item \code{\link[=evo2_dataset]{evo2_dataset()}}, \code{\link[=evo2_prepare]{evo2_prepare()}}, and \code{\link[=evo2_finetune]{evo2_finetune()}} prepare data and
+fine-tune a model.
+\item \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} and \code{\link[=evo2_export]{evo2_export()}} convert and export checkpoints.
+}
+
+Operations write durable requests, logs, state, and portable results below
+the compute workspace. Use \code{\link[=bionemo_job]{bionemo_job()}} to reopen a run after the R session
+ends and \code{\link[=job_result]{job_result()}} to retrieve its result.
+}
+
 \seealso{
 Useful links:
 \itemize{

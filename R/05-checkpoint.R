@@ -913,9 +913,9 @@ assert_vortex_export_layout <- function(path, allow_existing = FALSE) {
 #' Unknown pickle-based sources require `trust = TRUE`; exact sources and
 #' revisions from the package registry are trusted automatically.
 #'
-#' Version 1 uses the pinned recipe's Transformer Engine key mapping for
-#' Savanna conversion. Convert no-TE checkpoints explicitly upstream, then
-#' register the resulting MBridge checkpoint.
+#' Savanna conversion uses the pinned recipe's Transformer Engine key mapping.
+#' Convert no-TE checkpoints explicitly upstream, then register the resulting
+#' MBridge checkpoint.
 #'
 #' @param model An Evo 2 model specification.
 #' @param source `"recommended"`, an `hf://` or `ngc://` URI, an existing local
@@ -966,7 +966,6 @@ evo2_checkpoint <- function(
   trust = FALSE,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   format <- match.arg(format)
   stopifnot(
     "model must be an Evo 2 model specification" = S7_inherits(
@@ -1140,57 +1139,10 @@ evo2_checkpoint <- function(
     precision = precision_recipe,
     overwrite = overwrite
   )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "model",
-      source_request = "source",
-      format_request = "format",
-      revision_request = "revision",
-      trust = "trust",
-      destination = "path",
-      tokenizer_request = "tokenizer",
-      precision_request = "precision",
-      overwrite = "overwrite"
-    ),
-    adapter_defaults = "operation",
-    auto_resolved = c(
-      "model_size",
-      "source_trust",
-      "source_verified"
-    )
-  )
-  request_origins$source <- if (identical(source_request, info$source)) {
-    request_origins$source_request
-  } else {
-    "auto_resolved"
-  }
-  request_origins$source_format <- if (identical(format, "auto")) {
-    "auto_resolved"
-  } else {
-    request_origins$format_request
-  }
-  request_origins$source_revision <- if (identical(revision, "recommended")) {
-    "auto_resolved"
-  } else {
-    request_origins$revision_request
-  }
-  request_origins$tokenizer <- if (identical(tokenizer, "recommended")) {
-    "auto_resolved"
-  } else {
-    request_origins$tokenizer_request
-  }
-  request_origins$precision <- if (identical(precision, "auto")) {
-    "auto_resolved"
-  } else {
-    request_origins$precision_request
-  }
   run_path <- create_run(
     compute,
     kind = "checkpoint",
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/checkpoint"))
   )
   inspection <- file.path(run_path, "outputs", "checkpoint-inspection.json")
@@ -1343,7 +1295,6 @@ evo2_model <- function(size = "7b", compute, path = NULL) {
 #'
 #' @param model An Evo 2 model bound to a dense MBridge checkpoint.
 #' @param path Destination `.pt` path.
-#' @param format Export format. Version 1 supports `"vortex"`.
 #' @param strip_optimizer Whether to create a weights-only MBridge intermediate.
 #' @param compute A compute specification.
 #' @param overwrite Whether to replace an existing export.
@@ -1371,20 +1322,17 @@ evo2_model <- function(size = "7b", compute, path = NULL) {
 evo2_export <- function(
   model,
   path,
-  format = "vortex",
   strip_optimizer = TRUE,
   compute,
   overwrite = FALSE,
   async = FALSE
 ) {
-  invocation <- match.call(expand.dots = FALSE)
   stopifnot(
     "model must be an Evo 2 model specification" = S7_inherits(
       model,
       Evo2Model
     ),
     "path must be one non-empty string" = is_scalar_string(path),
-    "format must be 'vortex'" = identical(format, "vortex"),
     "strip_optimizer must be TRUE or FALSE" = is_scalar_logical(
       strip_optimizer
     ),
@@ -1425,7 +1373,7 @@ evo2_export <- function(
   } else if (!identical(source_inspection$model_size, model@model_size)) {
     "checkpoint model size does not match the requested model"
   } else if (identical(source_inspection$kind, "lora")) {
-    "LoRA checkpoints cannot be exported to Vortex in version 1"
+    "LoRA checkpoints cannot be exported to Vortex"
   } else if (!is_scalar_logical(source_inspection$transformer_engine)) {
     paste(
       "checkpoint inspector did not identify a Transformer Engine key layout;",
@@ -1523,32 +1471,14 @@ evo2_export <- function(
     source_trust = expected$source_trust,
     source_verified = expected$source_verified,
     destination = destination,
-    format = format,
+    format = "vortex",
     strip_optimizer = strip_optimizer,
     overwrite = overwrite
-  )
-  request_origins <- argument_origin_map(
-    request,
-    invocation,
-    argument_map = c(
-      model = "model",
-      destination = "path",
-      format = "format",
-      strip_optimizer = "strip_optimizer",
-      overwrite = "overwrite"
-    ),
-    adapter_defaults = "operation",
-    auto_resolved = c(
-      "source",
-      "source_trust",
-      "source_verified"
-    )
   )
   run_path <- create_run(
     compute,
     kind = "export",
     request = request,
-    request_origins = request_origins,
     workflow = workflow_identity(bionemo_workflow("evo2/export"))
   )
   export_source <- source

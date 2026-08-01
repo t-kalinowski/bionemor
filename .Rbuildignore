@@ -15,3 +15,5 @@
 ^README[.]Rmd$
 ^vignettes-src$
 ^tools/render-gpu-docs[.]R$
+^.*__pycache__$
+^.*[.]py[co]$

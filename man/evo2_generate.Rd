@@ -9,7 +9,6 @@ evo2_generate(
   prompt,
   compute = NULL,
   num_tokens = 100L,
-  n = 1L,
   temperature = 0.7,
   top_k = 3L,
   top_p = 0,
@@ -34,8 +33,6 @@ output IDs.}
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
 \item{num_tokens}{Maximum number of new tokens per prompt.}
-
-\item{n}{Samples per prompt. The pinned recipe currently supports only one.}
 
 \item{temperature, top_k, top_p}{Sampling temperature and top-k or nucleus
 filtering. At most one of \code{top_k} and \code{top_p} may be positive. Set

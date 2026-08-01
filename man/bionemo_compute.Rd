@@ -11,7 +11,6 @@ bionemo_compute(
   recipe = evo2_recipe(),
   image = NULL,
   gpus = 1L,
-  nodes = 1L,
   queue = NULL,
   account = NULL,
   walltime = NULL,
@@ -37,8 +36,7 @@ recipe image. Slurm/container requires a readable SIF on shared storage or
 a digest-qualified image URI. Unverified recipes require an explicit image
 unless \code{engine = "external"}.}
 
-\item{gpus, nodes}{Positive integer resource counts. \code{nodes} must currently be
-\code{1}.}
+\item{gpus}{Positive integer GPU count.}
 
 \item{queue, account, walltime}{Optional Slurm partition, account, and time
 limit. These values are passed to \code{sbatch} without interpretation.}
@@ -122,8 +120,8 @@ runtimes do not use an image property.
 
 
 \code{gpus} is the required GPU count used for compatibility checks and Slurm
-requests. Local containers expose all available GPUs. \code{nodes} is currently
-restricted to one. \code{queue}, \code{account}, and \code{walltime} become Slurm
+requests. Local containers expose all available GPUs. Execution uses one
+node. \code{queue}, \code{account}, and \code{walltime} become Slurm
 \code{--partition}, \code{--account}, and \code{--time} directives and are ignored by the
 local backend.
 
@@ -157,6 +155,5 @@ slurm_compute <- bionemo_compute(
 
 }
 \seealso{
-\code{\link[=evo2]{evo2()}}, \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=bionemo_install_plan]{bionemo_install_plan()}},
-\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}
+\code{\link[=evo2]{evo2()}}, \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_doctor]{bionemo_doctor()}}
 }

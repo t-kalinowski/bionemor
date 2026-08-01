@@ -1,8 +1,8 @@
 ---
-title: "Evo 2 workflows from R"
+title: "Get started with BioNeMo and Evo 2"
 output: rmarkdown::html_vignette
 vignette: |
-  %\VignetteIndexEntry{Evo 2 workflows from R}
+  %\VignetteIndexEntry{Get started with BioNeMo and Evo 2}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -26,20 +26,59 @@ stopifnot(
 )
 ```
 
-`bionemor` prepares Evo 2 models and runs inference with NVIDIA BioNeMo
-Recipes. Inputs are R vectors, data frames, or FASTA files. Results are R data
-frames, matrices, artifacts, or durable job objects.
+`bionemor` lets you run NVIDIA BioNeMo workflows from R. BioNeMo Recipes is
+the Python runtime that supplies the model-specific training and inference
+commands; `bionemor` installs that runtime, prepares inputs, starts jobs, and
+returns their results to R.
+
+The first supported model family is Evo 2, a model for DNA sequences. This
+article shows how to score sequences, generate continuations, and extract
+embeddings. Three terms recur throughout the package:
+
+- A *checkpoint* is a directory containing learned model weights and metadata.
+- A *compute descriptor* tells `bionemor` where to run, which runtime to use,
+  and where to keep checkpoints and job files.
+- An *Evo 2 model* joins a checkpoint to a compute descriptor. Once prepared,
+  it can be passed directly to scoring, generation, embedding, and fine-tuning
+  functions.
 
 The output in this article was captured on `r docs_date` with an `r docs_gpu`
 using package revision `r substr(docs_revision, 1L, 12L)`. The executable source
 is `vignettes-src/bionemor.Rmd`; the package vignette is pre-rendered so it can
 be read without a GPU.
 
-## Set up the runtime once
+## Start with an NVIDIA GPU
 
-The local container path requires Git, `tar`, Docker, and an NVIDIA GPU exposed
-through Docker. Authenticate Docker to `nvcr.io`, then inspect and run the
-installation plan:
+All current `bionemor` workflows require a CUDA-capable NVIDIA GPU.
+There is no CPU fallback.
+
+For local use, run R on a Linux machine with Git, `tar`, Docker, and the NVIDIA
+Container Toolkit. Configure Docker so containers can see the GPU, and
+authenticate Docker to `nvcr.io` before installing the runtime.
+
+If you do not have a suitable machine, Brev is one way to rent one. Review the
+hourly prices shown by `brev search` before creating an instance:
+
+```bash
+brev search --stoppable --min-total-vram 40 --sort price
+brev create bionemor-gpu --stoppable --min-total-vram 40
+brev shell bionemor-gpu
+
+# Run this from your local shell when you finish.
+brev stop bionemor-gpu
+```
+
+Creating the instance starts a billable resource. Stop it when you finish, and
+check Brev's current pricing and storage policy.
+
+Brev supplies the Linux GPU machine; it is not a `bionemo_compute()` backend.
+Run the package with the `local` backend inside the instance.
+
+## Install the runtime
+
+Create a compute descriptor for the machine and workspace, then call
+`bionemo_install()`. The first installation downloads and builds the pinned
+BioNeMo Recipes runtime, so it can take several minutes:
 
 ```{r runtime}
 library(bionemor)
@@ -54,40 +93,27 @@ compute <- bionemo_compute(
   workspace = workspace
 )
 
-bionemo_install_plan(compute)
 compute <- bionemo_install(compute)
-doctor <- bionemo_doctor(compute, target = "inference", verbose = FALSE)
-stopifnot(doctor@ok)
-doctor
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed outside
-the package.
+the package. If setup fails, `bionemo_doctor()` reports detailed runtime and
+GPU checks.
 
 ## Prepare or reuse the model
 
-`evo2_models()` lists the package registry without preparing weights.
-`evo2_model()` prepares the recommended dense MBridge checkpoint and binds the
-compute descriptor to the returned model:
+`evo2_model()` downloads the selected weights when needed, converts them to the
+checkpoint format used by BioNeMo Recipes, and binds the compute descriptor to
+the returned model. Checkpoints are large, but the prepared copy is reused on
+later calls from the same workspace.
 
 ```{r model}
-models <- evo2_models(compute, compatible = TRUE)
-str(models)
-
-checkpoint <- Sys.getenv("BIONEMOR_DOCS_CHECKPOINT")
-stopifnot(dir.exists(checkpoint))
-model <- evo2(
-  "7b",
-  checkpoint = checkpoint,
-  compute = compute
-)
+model <- evo2_model("7b", compute)
 model
 ```
 
-The capture reuses the prepared checkpoint named by
-`BIONEMOR_DOCS_CHECKPOINT`. In a new workspace, replace the `evo2()` call with
-`model <- evo2_model("7b", compute)` to prepare the recommended source. Both
-paths return a compute-bound model, so inference calls do not repeat `compute`.
+`evo2_models()` lists other registered checkpoints and their hardware
+compatibility without downloading them.
 
 ## Score sequences
 
@@ -106,9 +132,10 @@ scores <- evo2_score(
 scores
 ```
 
-The values are reduced token log probabilities. Higher values indicate greater
-model likelihood. With `strand = "both"`, each strand is reduced independently
-and `score` is their arithmetic mean.
+The values are reduced token log probabilities. Higher values mean that the
+model assigns the sequence greater likelihood; they are not calibrated
+measurements of biological function. With `strand = "both"`, each strand is
+reduced independently and `score` is their arithmetic mean.
 
 ## Generate continuations
 
@@ -124,10 +151,9 @@ generated[c(
 )]
 ```
 
-Generation supports one sample per prompt. Set at most one of `top_k` and
-`top_p` to a positive value. The full result also contains token counts,
-optional probability list columns, mechanical sequence summaries, and
-`validation_warnings`.
+Generation continues each DNA prompt. It supports one sample per prompt; set at
+most one of `top_k` and `top_p` to a positive value. Generated sequences are
+model outputs, not validated biological designs.
 
 ## Extract pooled embeddings
 
@@ -144,9 +170,11 @@ str(embeddings)
 round(embeddings[, 1:4, drop = FALSE], 4)
 ```
 
-Pooling excludes padding. With `strand = "both"`, independently pooled forward
-and reverse vectors are averaged. Use `pool = "none"` to write position-level
-embeddings to a Parquet artifact.
+Each row is a numeric representation of one input sequence for downstream
+analysis. Pooling excludes padding. With `strand = "both"`, independently
+pooled forward and reverse vectors are averaged. Use `pool = "none"` to write
+position-level embeddings to a Parquet artifact instead of loading them all
+into memory.
 
 ## Reopen a durable job
 
@@ -172,3 +200,7 @@ result <- job_wait(same_run, timeout = 600)
 
 A `job_wait()` timeout only stops waiting. Call `job_cancel()` to cancel the
 underlying process, container, or Slurm allocation.
+
+To train adapters on your own sequences, continue with
+`vignette("evo2-finetune")`. For a shared GPU cluster, see
+`vignette("slurm")`.

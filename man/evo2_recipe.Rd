@@ -71,6 +71,5 @@ recipe
 
 }
 \seealso{
-\code{\link[=bionemo_compute]{bionemo_compute()}}, \code{\link[=bionemo_install_plan]{bionemo_install_plan()}},
-\code{\link[=bionemo_install]{bionemo_install()}}
+\code{\link[=bionemo_compute]{bionemo_compute()}}, \code{\link[=bionemo_install]{bionemo_install()}}
 }

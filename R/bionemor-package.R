@@ -1,26 +1,37 @@
-#' Run BioNeMo Recipes Evo 2 workflows from R
+#' Use BioNeMo Recipes from R
 #'
-#' `bionemor` prepares MBridge checkpoints, runs generation, scoring, and
-#' embeddings, and fine-tunes Evo 2 models with the pinned NVIDIA BioNeMo
-#' Recipes runtime. Inputs and results are ordinary R vectors, data frames,
-#' matrices, and S7 objects.
+#' NVIDIA BioNeMo Recipes provides runnable training and inference workflows for
+#' biological foundation models. `bionemor` controls those workflows from R and
+#' returns R data frames, matrices, and objects. The current package adapter
+#' supports the Evo 2 DNA model family.
 #'
-#' [evo2_model()] is the direct path to a ready model. It prepares or reuses the
-#' recommended checkpoint and binds the compute descriptor used for later calls
-#' to [evo2_generate()], [evo2_score()], [evo2_embed()], and [evo2_finetune()].
-#' [evo2()] and [evo2_checkpoint()] expose the lower-level workflow for custom
-#' checkpoint sources and explicit compute overrides.
+#' Installing the R package and inspecting its model registry do not require a
+#' GPU. Preparing weights, inference, preprocessing, and fine-tuning require a
+#' CUDA-capable NVIDIA GPU; there is no CPU fallback. The package-managed local
+#' runtime also requires Linux, Docker, and NVIDIA Container Toolkit. A remote
+#' Linux GPU from a provider such as Brev can be used when no local GPU is
+#' available.
 #'
-#' Runtime operations dispatched through the job runner write a durable run
-#' directory containing their request, logs, state, and portable result. A
-#' [BioNeMoJob][bionemo_job()] can be reopened after the R session ends.
+#' @section Start here:
 #'
-#' Operational failures inherit from `bionemor_error` and a stable `BN_*`
-#' code-specific class. Conditions retain run and model context when available.
+#' - [bionemo_compute()] describes the GPU runtime and workspace.
+#' - [bionemo_install()] prepares or checks that runtime.
+#' - [evo2_models()] lists the packaged Evo 2 model registry.
+#' - [evo2_model()] prepares the recommended checkpoint and binds it to compute.
 #'
-#' Terminal run manifests retain checkpoint trust and input-source metadata.
-#' Their `value_origins` maps distinguish user requests, package defaults,
-#' adapter defaults, and auto-resolved values.
+#' @section Use a model:
+#'
+#' - [evo2_generate()] extends DNA prompts.
+#' - [evo2_score()] scores complete sequences.
+#' - [evo2_profile()] writes per-position log probabilities.
+#' - [evo2_embed()] returns pooled embeddings or writes positional embeddings.
+#' - [evo2_dataset()], [evo2_prepare()], and [evo2_finetune()] prepare data and
+#'   fine-tune a model.
+#' - [evo2_checkpoint()] and [evo2_export()] convert and export checkpoints.
+#'
+#' Operations write durable requests, logs, state, and portable results below
+#' the compute workspace. Use [bionemo_job()] to reopen a run after the R session
+#' ends and [job_result()] to retrieve its result.
 #'
 #' @import S7
 #' @importFrom stats predict

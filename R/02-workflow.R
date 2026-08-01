@@ -147,52 +147,11 @@ workflow_from_identity <- function(identity) {
   workflow
 }
 
-upgrade_evo2_request_v1 <- function(request, run_path) {
-  id <- switch(
-    request$kind,
-    generation = "evo2/generate",
-    score = "evo2/score",
-    profile = "evo2/profile",
-    embedding = "evo2/embed",
-    `embedding-pooled` = "evo2/embed",
-    `embedding-unpooled` = "evo2/embed",
-    checkpoint = "evo2/checkpoint",
-    export = "evo2/export",
-    prepare = "evo2/prepare",
-    `fine-tune` = "evo2/fine-tune",
-    fit = "evo2/fine-tune",
-    NULL
-  )
-  if (
-    is.null(id) ||
-      !is.list(request$expected_result) ||
-      identical(request$expected_result$type, "rds")
-  ) {
-    bionemor_abort(
-      "BN_PROTOCOL",
-      "persisted schema 1 run cannot be migrated",
-      run_path = run_path,
-      request_id = request$id %||% basename(run_path),
-      operation = "job-reopen"
-    )
-  }
-  workflow <- bionemo_workflow(id)
-  request$schema_version <- 2L
-  request$workflow <- workflow_identity(workflow)
-  request$compute$recipe$adapter <- workflow@adapter
-  request$expected_result$result_schema <- workflow@result_schema
-  attr(request, "migrated_from_schema") <- 1L
-  request
-}
-
 read_run_request <- function(run_path) {
   request <- read_json_file(
     file.path(run_path, "request.json"),
     simplify = FALSE
   )
-  if (identical(request$schema_version, 1L)) {
-    return(upgrade_evo2_request_v1(request, run_path))
-  }
   if (!identical(request$schema_version, 2L)) {
     bionemor_abort(
       "BN_PROTOCOL",

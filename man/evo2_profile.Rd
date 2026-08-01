@@ -8,7 +8,6 @@ evo2_profile(
   object,
   newdata,
   compute = NULL,
-  metric = c("log_probability"),
   strand = c("forward", "reverse", "both"),
   batch_size = 1L,
   normalize = c("dna", "none"),
@@ -26,13 +25,9 @@ evo2_profile(
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
 attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
 
-\item{metric}{Positional metric. The current recipe supports
-\code{"log_probability"}.}
-
 \item{strand}{Score the supplied sequence, its reverse complement, or both.}
 
-\item{batch_size}{Prediction micro-batch size. The inference control's
-\code{micro_batch_size} must remain one.}
+\item{batch_size}{Prediction micro-batch size.}
 
 \item{normalize}{Sequence normalization mode. With \code{normalize = "none"},
 reverse-strand operations require uppercase IUPAC DNA.}

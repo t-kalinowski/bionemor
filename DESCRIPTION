@@ -3,15 +3,18 @@ Title: Use BioNeMo Recipes Evo 2 from R
 Version: 0.0.0.9000
 Authors@R:
     person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
-Description: Prepare MBridge checkpoints, run generation, scoring, and
-    embeddings, and fine-tune Evo 2 models with the versioned NVIDIA BioNeMo
-    Recipes runtime while working in R. Recipe commands run in external local
-    or container processes and return portable R results. Slurm support is
-    experimental.
+Description: Run generation, sequence scoring, positional profiles,
+    embeddings, checkpoint conversion and export, data preparation, and
+    fine-tuning for Evo 2 through NVIDIA BioNeMo Recipes. Model operations
+    require a CUDA-capable NVIDIA GPU; there is no CPU fallback. Commands run
+    in external local or container processes and return portable R results.
+    Slurm support is experimental.
 License: MIT + file LICENSE
 URL: https://github.com/t-kalinowski/bionemor
 BugReports: https://github.com/t-kalinowski/bionemor/issues
 OS_type: unix
+SystemRequirements: Linux, CUDA-capable NVIDIA GPU, Docker with NVIDIA
+    Container Toolkit (for the package-managed container runtime)
 Depends:
     R (>= 4.2)
 Imports:
@@ -37,8 +40,10 @@ RoxygenNote: 8.0.0
 Collate:
     '00-utils.R'
     '01-classes.R'
-    '02-workflow.R'
     '02-model.R'
+    '02-workflow.R'
+    '06-adapter-evo2-classes.R'
+    '06-adapter-evo2-model.R'
     '03-compute.R'
     '04-control.R'
     '05-checkpoint.R'

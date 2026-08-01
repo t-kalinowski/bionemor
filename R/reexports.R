@@ -15,8 +15,7 @@
 #' @param timeout Complete operation timeout in seconds.
 #' @param async Whether to return a durable job.
 #' @param newdata Sequences or prompts.
-#' @param type Inference operation. `"response"` is a deprecated alias for
-#'   `"generate"`. `"raw"` produces a targeted unsupported-operation error.
+#' @param type Inference operation: `"score"`, `"generate"`, or `"embedding"`.
 #' @param ... Reserved for future compatibility and must be empty for `fit()`;
 #'   passed to the selected task-specific function for `predict()`.
 #'
@@ -41,7 +40,7 @@
 #' predict(
 #'   object,
 #'   newdata,
-#'   type = c("score", "generate", "embedding", "response", "raw"),
+#'   type = c("score", "generate", "embedding"),
 #'   compute = NULL,
 #'   ...
 #' )

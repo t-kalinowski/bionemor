@@ -1,4 +1,4 @@
-test_that("schema 1 Evo 2 runs reopen through the versioned adapter", {
+test_that("unsupported persisted run schemas fail clearly", {
   workspace <- tempfile("bionemor-workflow-v1-")
   bin <- tempfile("bionemor-bin-")
   dir.create(workspace)
@@ -21,9 +21,6 @@ test_that("schema 1 Evo 2 runs reopen through the versioned adapter", {
   request_path <- file.path(job_path(job), "request.json")
   request <- jsonlite::read_json(request_path, simplifyVector = FALSE)
   request$schema_version <- 1L
-  request$workflow <- NULL
-  request$compute$recipe$adapter <- NULL
-  request$expected_result$result_schema <- NULL
   jsonlite::write_json(
     request,
     request_path,
@@ -32,9 +29,9 @@ test_that("schema 1 Evo 2 runs reopen through the versioned adapter", {
     pretty = TRUE
   )
 
-  reopened <- bionemo_job(job_path(job))
-  result <- job_result(reopened)
-  expect_s3_class(result, "evo2_scores")
-  expect_equal(result$id, "reference")
-  expect_equal(result$score, -1)
+  error <- expect_error(
+    bionemo_job(job_path(job)),
+    class = "BN_PROTOCOL"
+  )
+  expect_identical(error$operation, "job-reopen")
 })
