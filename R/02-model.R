@@ -767,7 +767,8 @@ evo2_models <- function(compute = NULL, compatible = FALSE) {
 
 method(print, BioNeMoRecipe) <- function(x, ...) {
   cat("<BioNeMo recipe>\n", sep = "")
-  cat("Recipe:     Evo 2 ", x@recipe_version, "\n", sep = "")
+  cat("Adapter:    ", x@adapter, "\n", sep = "")
+  cat("Version:    ", x@recipe_version, "\n", sep = "")
   cat("Revision:   ", substr(x@revision, 1L, 8L), "\n", sep = "")
   cat("Repository: ", x@repository, "\n", sep = "")
   cat("Verified:   ", if (x@verified) "yes" else "no", "\n", sep = "")

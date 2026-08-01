@@ -123,6 +123,7 @@ evo2_recipe <- function(
     identical(base_image, lock$base_image)
 
   BioNeMoRecipe(
+    adapter = "evo2-megatron",
     repository = repository,
     revision = revision,
     recipe_version = lock$recipe_version,
@@ -145,7 +146,12 @@ recipe_base_image_reference <- function(recipe) {
   paste0(base, "@", recipe@base_image_digest)
 }
 
-recipe_uv_image_reference <- function(lock = evo2_recipe_lock()) {
+recipe_uv_image_reference <- function(lock) {
+  stopifnot(
+    "recipe lock must define the uv image" = is.list(lock) &&
+      is_scalar_string(lock$uv_image) &&
+      is_scalar_string(lock$uv_image_digest)
+  )
   paste0(lock$uv_image, "@", lock$uv_image_digest)
 }
 
@@ -153,7 +159,11 @@ default_recipe_image <- function(recipe) {
   if (!S7_inherits(recipe, BioNeMoRecipe)) {
     stop("recipe must be a BioNeMo recipe")
   }
-  paste0("bionemor/evo2:", substr(recipe@revision, 1L, 12L))
+  paste0(
+    recipe_install_spec(recipe)$image_repository,
+    ":",
+    substr(recipe@revision, 1L, 12L)
+  )
 }
 
 sha256_file_digest <- function(path) {

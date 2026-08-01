@@ -406,7 +406,7 @@ test_that("prediction tensor cleanup failures fail the detached job", {
   )
   expect_match(
     paste(job_logs(job), collapse = "\n"),
-    "failed to remove prediction tensors",
+    "failed to remove workflow temporary files",
     fixed = TRUE
   )
 })

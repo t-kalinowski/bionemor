@@ -38,6 +38,9 @@ test_that("runtime recipe mismatches expose BN_RECIPE_MISMATCH", {
     c(
       "report <- list(",
       "  protocol_version = 1L,",
+      "  driver = 'evo2-megatron',",
+      "  execution_schema_version = 1L,",
+      "  semantic_operations = list('generate'),",
       "  recipe_version = '2.4',",
       paste0("  recipe_revision = '", actual_revision, "'"),
       ")",

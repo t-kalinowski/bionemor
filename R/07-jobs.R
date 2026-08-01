@@ -212,6 +212,7 @@ compute_record <- function(compute) {
     walltime = compute@walltime,
     config = redact_persisted_value(compute@config),
     recipe = list(
+      adapter = recipe@adapter,
       repository = recipe@repository,
       revision = recipe@revision,
       recipe_version = recipe@recipe_version,
@@ -229,6 +230,7 @@ compute_from_record <- function(value) {
     !is.list(value$recipe) ||
       !all(
         c(
+          "adapter",
           "repository",
           "revision",
           "recipe_version",
@@ -251,6 +253,7 @@ compute_from_record <- function(value) {
     stop("persisted run contains an invalid image digest")
   }
   recipe <- BioNeMoRecipe(
+    adapter = value$recipe$adapter,
     repository = value$recipe$repository,
     revision = value$recipe$revision,
     recipe_version = value$recipe$recipe_version,
@@ -382,7 +385,8 @@ create_run <- function(
   kind,
   name = NULL,
   request = list(),
-  request_origins = list()
+  request_origins = list(),
+  workflow
 ) {
   stopifnot(
     "compute must be a BioNeMo compute specification" = S7_inherits(
@@ -393,9 +397,11 @@ create_run <- function(
     "kind must be one safe name" = is_scalar_string(kind) &&
       grepl("^[A-Za-z0-9_.-]+$", kind),
     "request must be a list" = is.list(request),
-    "request origins must be a list" = is.list(request_origins)
+    "request origins must be a list" = is.list(request_origins),
+    "workflow must be a complete workflow identity" = is.list(workflow) &&
+      all(workflow_identity_fields %in% names(workflow))
   )
-  name <- safe_name(name, paste0("evo2-", kind))
+  name <- safe_name(name, paste0(workflow$family, "-", kind))
   path <- file.path(compute@workspace, ".bionemor", "runs", name)
   if (file.exists(path)) {
     stop("run directory already exists")
@@ -414,9 +420,10 @@ create_run <- function(
   )
   atomic_write_json(
     list(
-      schema_version = 1L,
+      schema_version = 2L,
       id = name,
       kind = kind,
+      workflow = workflow,
       compute = compute_record(compute),
       request = redact_persisted_value(request),
       request_origins = request_origins,
@@ -663,26 +670,23 @@ manifest$timing <- list(
 manifest$inputs <- inventory("inputs")
 manifest$upstream <- inventory("upstream")
 manifest$outputs <- inventory("outputs")
-if (
-  identical(manifest$state, "succeeded") &&
-    manifest$kind %in% c(
-      "score",
-      "profile",
-      "embedding",
-      "embedding-pooled",
-      "embedding-unpooled"
-    )
-) {
-  tensors <- list.files(
-    file.path(run_path, "upstream"),
-    pattern = "[.]pt$",
+cleanup <- manifest$plan$metadata$cleanup
+if (identical(manifest$state, "succeeded") && is.list(cleanup)) {
+  stopifnot(
+    cleanup$directory %in% c("inputs", "upstream", "outputs"),
+    is.character(cleanup$suffix),
+    length(cleanup$suffix) == 1L,
+    nzchar(cleanup$suffix),
+    !grepl("[/\\\\]", cleanup$suffix)
+  )
+  temporary <- list.files(
+    file.path(run_path, cleanup$directory),
     recursive = TRUE,
     full.names = TRUE
   )
-  if (length(tensors)) {
-    if (unlink(tensors) != 0L) {
-      stop("failed to remove prediction tensors")
-    }
+  temporary <- temporary[endsWith(temporary, cleanup$suffix)]
+  if (length(temporary) && unlink(temporary) != 0L) {
+    stop("failed to remove workflow temporary files")
   }
 }
 checkpoint_path <- manifest$checkpoint$path
@@ -1143,22 +1147,7 @@ write_plan_script <- function(plan, compute, run_path, kind, timeout = Inf) {
     },
     character(1)
   )
-  step_roles <- vapply(
-    plan$steps,
-    function(step) {
-      if (
-        identical(plan$metadata$operation, "generation") &&
-          identical(basename(step$executable), "bionemor-evo2-helper") &&
-          length(step$args) > 0L &&
-          identical(step$args[[1L]], "validate-generation")
-      ) {
-        "generation-validation"
-      } else {
-        "upstream"
-      }
-    },
-    character(1)
-  )
+  step_roles <- rep("upstream", length(plan$steps))
   step_lines <- unlist(
     Map(
       function(step, role) {
@@ -1290,11 +1279,7 @@ submit_plan <- function(
       read_json_file(file.path(run_path, "request.json"))$kind,
       kind
     ),
-    "expected result must be a list, S7 object, or NULL" = is.null(
-      expected_result
-    ) ||
-      is.list(expected_result) ||
-      inherits(expected_result, "S7_object"),
+    "expected result must be a list" = is.list(expected_result),
     "timeout must be positive or infinite" = identical(timeout, Inf) ||
       is_scalar_number(timeout) && timeout > 0,
     "async must be TRUE or FALSE" = is_scalar_logical(async)
@@ -1303,17 +1288,13 @@ submit_plan <- function(
     file.path(run_path, "request.json"),
     simplify = FALSE
   )
-  persisted_result <- expected_result
-  if (inherits(expected_result, "S7_object")) {
-    expected_path <- file.path(run_path, "expected-result.rds")
-    saveRDS(expected_result, expected_path, version = 3L)
-    persisted_result <- list(
-      type = "rds",
-      path = basename(expected_path),
-      kind = kind
-    )
+  existing <- plan$metadata$workflow %||% request$workflow
+  if (!identical(existing, request$workflow)) {
+    stop("command plan workflow does not match the persisted request")
   }
-  request$expected_result <- redact_persisted_value(persisted_result)
+  plan$metadata$workflow <- request$workflow
+  expected_result$result_schema <- request$workflow$result_schema
+  request$expected_result <- redact_persisted_value(expected_result)
   request$timeout <- if (is.finite(timeout)) as.double(timeout) else NULL
   atomic_write_json(request, file.path(run_path, "request.json"))
   atomic_write_json(
@@ -1449,7 +1430,8 @@ submit_plan <- function(
 #' Pass that job to [job_status()], [job_logs()], [job_wait()], [job_cancel()],
 #' or [job_result()]. `bionemo_job()` reconstructs the same handle from its run
 #' directory, including for a run that is still active or already complete. It
-#' does not resubmit or restart the operation.
+#' does not resubmit or restart the operation. The recorded adapter, protocol,
+#' and schema identity must match the installed workflow registry.
 #'
 #' @param path Path to a run directory created by bionemor. It must contain the
 #'   persisted request, command plan, and state files.
@@ -1477,16 +1459,35 @@ bionemo_job <- function(path) {
   ) {
     stop("path must contain a persisted BioNeMo run")
   }
-  request <- read_json_file(
-    file.path(path, "request.json"),
-    simplify = FALSE
-  )
+  request <- read_run_request(path)
+  workflow <- workflow_from_identity(request$workflow)
   compute <- compute_from_record(request$compute)
   plan <- read_command_plan(file.path(path, "plan.json"))
-  expected_result <- request$expected_result
-  if (identical(expected_result$type, "rds")) {
-    expected_result <- readRDS(file.path(path, expected_result$path))
+  if (
+    identical(attr(request, "migrated_from_schema", exact = TRUE), 1L) &&
+      is.null(plan$metadata$workflow)
+  ) {
+    plan$metadata$workflow <- request$workflow
   }
+  if (
+    !identical(plan$metadata$workflow, request$workflow) ||
+      !identical(compute@recipe@adapter, workflow@adapter) ||
+      !is.list(request$expected_result) ||
+      !identical(
+        request$expected_result$result_schema,
+        workflow@result_schema
+      )
+  ) {
+    bionemor_abort(
+      "BN_PROTOCOL",
+      "persisted run contains inconsistent adapter contracts",
+      run_path = path,
+      request_id = request$id %||% basename(path),
+      operation = "job-reopen",
+      workflow = workflow@id
+    )
+  }
+  expected_result <- request$expected_result
   new_job_object(
     path,
     compute,
@@ -2382,79 +2383,6 @@ job_cancel <- function(x, force = FALSE) {
   invisible(x)
 }
 
-materializer_for <- function(type) {
-  switch(
-    type,
-    generation = "materialize_generation_job",
-    score = "materialize_score_job",
-    profile = "materialize_profile_job",
-    `embedding-pooled` = "materialize_embedding_job",
-    `embedding-unpooled` = "materialize_embedding_job",
-    checkpoint = "materialize_checkpoint_job",
-    export = "materialize_checkpoint_job",
-    prepare = "materialize_prepare_job",
-    `fine-tune` = "materialize_finetune_job",
-    fit = "materialize_finetune_job",
-    NULL
-  )
-}
-
-materialize_s7_job_result <- function(job, result) {
-  if (S7_inherits(result, Evo2Dataset)) {
-    if (!is_scalar_string(result@path) || !dir.exists(result@path)) {
-      stop("prepared dataset output does not exist")
-    }
-    return(result)
-  }
-  if (S7_inherits(result, Evo2Model)) {
-    checkpoint <- result@checkpoint
-    if (!S7_inherits(checkpoint, BioNeMoCheckpoint)) {
-      stop("fine-tune result is missing its checkpoint descriptor")
-    }
-    root <- checkpoint@path
-    latest_file <- file.path(root, "latest_checkpointed_iteration.txt")
-    path <- if (file.exists(latest_file)) {
-      iteration <- trimws(readLines(latest_file, n = 1L, warn = FALSE))
-      if (!grepl("^[0-9]+$", iteration)) {
-        stop("latest checkpoint iteration is invalid")
-      }
-      file.path(root, sprintf("iter_%07d", as.integer(iteration)))
-    } else {
-      candidates <- list.dirs(root, recursive = FALSE, full.names = TRUE)
-      candidates <- candidates[
-        grepl("^iter_[0-9]+$", basename(candidates))
-      ]
-      if (length(candidates) == 0L) {
-        stop("fine-tune did not write a checkpoint iteration")
-      }
-      sort(candidates)[[length(candidates)]]
-    }
-    if (!dir.exists(path)) {
-      stop("fine-tune checkpoint iteration does not exist")
-    }
-    checkpoint@path <- normalizePath(path, mustWork = TRUE)
-    result@checkpoint <- checkpoint
-    return(result)
-  }
-  if (S7_inherits(result, BioNeMoCheckpoint)) {
-    if (!file.exists(result@path)) {
-      stop("checkpoint result does not exist")
-    }
-    return(result)
-  }
-  bionemor_abort(
-    "BN_PROTOCOL",
-    "job has an unsupported S7 result contract",
-    run_path = job@path,
-    request_id = job@id,
-    operation = job@kind,
-    log_paths = file.path(
-      job@path,
-      c("stdout.log", "stderr.log")
-    )
-  )
-}
-
 run_manifest_files <- function(run_path, directory) {
   root <- file.path(run_path, directory)
   if (!dir.exists(root)) {
@@ -2491,15 +2419,12 @@ merge_run_manifest_files <- function(current, previous) {
   unname(by_path[!duplicated(names(by_path), fromLast = TRUE)])
 }
 
-run_manifest_warnings <- function(job, result = NULL) {
-  values <- list()
-  validation <- file.path(job@path, "outputs", "validation.json")
-  if (file.exists(validation)) {
-    values <- c(
-      values,
-      list(read_json_file(validation, simplify = FALSE)$warnings)
-    )
-  }
+run_manifest_warnings <- function(
+  job,
+  result = NULL,
+  adapter_warnings = list()
+) {
+  values <- list(adapter_warnings)
   if (is.data.frame(result) && "validation_warnings" %in% names(result)) {
     values <- c(values, unclass(result$validation_warnings))
   }
@@ -2553,272 +2478,45 @@ run_manifest_timing <- function(state) {
   )
 }
 
-run_manifest_checkpoint_context <- function(job) {
-  descriptor <- job@expected_result
-  if (!is.list(descriptor)) {
-    return(list(
-      checkpoint = list(),
-      model = list(),
-      tokenizer = list()
-    ))
-  }
-  candidates <- c(
-    descriptor$checkpoint %||% character(),
-    descriptor$path %||% character(),
-    descriptor$checkpoint_root %||% character()
-  )
-  candidates <- candidates[
-    vapply(candidates, is_scalar_string, logical(1))
-  ]
-  path <- if (length(candidates)) candidates[[1L]] else NULL
-  path_exists <- !is.null(path) && file.exists(path)
-  if (path_exists) {
-    path <- normalizePath(path, mustWork = TRUE)
-  } else if (!is.null(path)) {
-    path <- normalize_path(path)
-  }
-  manifest_path <- if (path_exists) checkpoint_manifest_path(path) else NULL
-  metadata <- if (!is.null(manifest_path) && file.exists(manifest_path)) {
-    read_checkpoint_manifest(path, manifest_path)
-  } else {
-    list()
-  }
-  expected <- descriptor$expected %||% list()
-  variant <- metadata$variant %||%
-    descriptor$variant %||%
-    expected$variant %||%
-    NULL
-  record <- if (is_scalar_string(variant)) {
-    tryCatch(evo2_model_record(variant), error = function(error) list())
-  } else {
-    list()
-  }
-  checkpoint_digest <- metadata$checkpoint_digest %||%
-    if (path_exists) path_digest(path) else NULL
-  base_path <- metadata$base_checkpoint_path %||%
-    descriptor$base_checkpoint %||%
-    NULL
-  base_digest <- metadata$base_checkpoint_digest %||%
-    if (!is.null(base_path) && file.exists(base_path)) {
-      path_digest(base_path)
-    } else {
-      NULL
-    }
-  tokenizer_revision <- metadata$tokenizer_revision %||%
-    record$tokenizer_revision %||%
-    NULL
-  list(
-    checkpoint = if (is.null(path)) {
-      list()
-    } else {
-      list(
-        path = path,
-        source = metadata$source %||% expected$source %||% NULL,
-        source_trust = metadata$source_trust %||%
-          expected$source_trust %||%
-          NULL,
-        source_verified = metadata$source_verified %||%
-          expected$source_verified %||%
-          NULL,
-        format = metadata$format %||%
-          descriptor$format %||%
-          expected$format %||%
-          "mbridge",
-        kind = metadata$kind %||% descriptor$checkpoint_kind %||% NULL,
-        revision = metadata$source_revision %||%
-          expected$source_revision %||%
-          NULL,
-        digest = if (is.null(checkpoint_digest)) {
-          NULL
-        } else {
-          list(algorithm = "md5", value = checkpoint_digest)
-        },
-        base_checkpoint = list(
-          path = base_path,
-          source = metadata$base_checkpoint_source %||%
-            descriptor$base_checkpoint_source %||%
-            NULL,
-          source_trust = metadata$base_checkpoint_source_trust %||%
-            descriptor$base_checkpoint_source_trust %||%
-            NULL,
-          source_verified = metadata$base_checkpoint_source_verified %||%
-            descriptor$base_checkpoint_source_verified %||%
-            NULL,
-          digest = base_digest
-        )
-      )
-    },
-    model = list(
-      name = variant,
-      model_size = metadata$model_size %||%
-        descriptor$model_size %||%
-        expected$model_size %||%
-        NULL,
-      revision = metadata$source_revision %||%
-        record$source_revision %||%
-        NULL
-    ),
-    tokenizer = list(
-      identity = metadata$tokenizer %||% record$tokenizer %||% NULL,
-      revision = tokenizer_revision,
-      digest = if (is.null(tokenizer_revision)) {
-        NULL
-      } else {
-        list(algorithm = "git-revision", value = tokenizer_revision)
-      }
-    )
-  )
-}
-
-run_manifest_resolved_origins <- function(plan, request, request_origins) {
-  resolved <- plan$metadata$resolved_control %||% list()
-  control <- request$control %||% list()
-  if (!is.list(control)) {
-    control <- list()
-  }
-  control_origins <- request_origins$control %||% list()
-  if (!is.list(control_origins)) {
-    control_origins <- list()
-  }
-  origins <- stats::setNames(
-    as.list(rep("adapter_default", length(resolved))),
-    names(resolved)
-  )
-  inherited <- intersect(names(origins), names(control_origins))
-  origins[inherited] <- control_origins[inherited]
-  origins$operation <- "adapter_default"
-  automatic <- intersect(
-    c(
-      "world_size",
-      "processes_per_node",
-      "data_parallel_size",
-      "gradient_accumulation"
-    ),
-    names(origins)
-  )
-  origins[automatic] <- as.list(rep("auto_resolved", length(automatic)))
-  if (
-    "mixed_precision_recipe" %in%
-      names(origins) &&
-      is.null(control$mixed_precision_recipe)
-  ) {
-    origins$mixed_precision_recipe <- "auto_resolved"
-  }
-  if (
-    "vortex_style_fp8" %in%
-      names(origins) &&
-      identical(control$vortex_style_fp8, "auto")
-  ) {
-    origins$vortex_style_fp8 <- "auto_resolved"
-  }
-  if (
-    "cuda_graphs" %in% names(origins) && identical(control$cuda_graphs, "auto")
-  ) {
-    origins$cuda_graphs <- "auto_resolved"
-  }
-  origins
-}
-
-run_manifest_precision <- function(
-  plan,
-  request,
-  checkpoint,
-  request_origins,
-  resolved_origins
-) {
-  resolved <- plan$metadata$resolved_control %||% list()
-  request_precision <- request$precision_request %||%
-    request$precision %||%
-    NULL
-  request_semantic_precision <- if (is.list(request_precision)) {
-    request_precision$semantic %||% NULL
-  } else {
-    request_precision
-  }
-  request_control <- request$control %||% list()
-  if (!is.list(request_control)) {
-    request_control <- list()
-  }
-  semantic <- resolved$semantic_precision %||%
-    resolved$precision %||%
-    request_control$precision %||%
-    request_semantic_precision %||%
-    NULL
-  resolved_recipe <- resolved$mixed_precision_recipe %||%
-    checkpoint$mixed_precision_recipe %||%
-    NULL
-  control_origins <- request_origins$control %||% list()
-  if (!is.list(control_origins)) {
-    control_origins <- list()
-  }
-  semantic_origin <- control_origins$precision %||%
-    request_origins$precision_request %||%
-    request_origins$precision %||%
-    if (is.null(semantic)) NULL else "adapter_default"
-  checkpoint_resolved_origin <- if (!is.null(request$precision_request)) {
-    request_origins$precision %||% NULL
-  } else {
-    NULL
-  }
-  resolved_origin <- resolved_origins$mixed_precision_recipe %||%
-    checkpoint_resolved_origin %||%
-    if (is.null(resolved_recipe)) NULL else "adapter_default"
-  list(
-    semantic = semantic,
-    resolved_recipe = resolved_recipe,
-    semantic_origin = semantic_origin,
-    resolved_origin = resolved_origin,
-    origin = resolved_origin
-  )
-}
-
 run_manifest_value <- function(job, result = NULL) {
   if (!S7_inherits(job, BioNeMoJob)) {
     stop("job must be a BioNeMo job")
   }
   state <- read_json_file(file.path(job@path, "state.json"))
-  persisted_request <- read_json_file(
-    file.path(job@path, "request.json"),
-    simplify = FALSE
-  )
+  persisted_request <- read_run_request(job@path)
   persisted_plan <- read_json_file(
     file.path(job@path, "plan.json"),
     simplify = FALSE
   )
-  recipe <- job@compute@recipe
-  capabilities <- job@compute@config$capabilities %||% list()
+  workflow <- workflow_from_identity(persisted_request$workflow)
   semantic_request <- persisted_request$request %||% list()
   semantic_request$operation <- semantic_request$operation %||% job@kind
   request_origins <- persisted_request$request_origins %||% list()
   request_origins$operation <- request_origins$operation %||%
     "adapter_default"
-  lock <- evo2_recipe_lock()
+  context <- adapter_function(workflow@adapter, "manifest_context")(
+    workflow,
+    job,
+    semantic_request,
+    persisted_plan,
+    request_origins
+  )
+  provenance <- adapter_function(workflow@adapter, "provenance")(
+    workflow,
+    job
+  )
+  capabilities <- job@compute@config$capabilities %||% list()
   manifest_path <- file.path(job@path, "manifest.json")
   previous_manifest <- if (file.exists(manifest_path)) {
     read_json_file(manifest_path, simplify = FALSE)
   } else {
     list()
   }
-  context <- run_manifest_checkpoint_context(job)
-  checkpoint_metadata <- if (length(context$checkpoint)) {
-    checkpoint_manifest <- checkpoint_manifest_path(context$checkpoint$path)
-    if (file.exists(checkpoint_manifest)) {
-      read_checkpoint_manifest(context$checkpoint$path, checkpoint_manifest)
-    } else {
-      list()
-    }
-  } else {
-    list()
-  }
-  resolved_origins <- run_manifest_resolved_origins(
-    persisted_plan,
-    semantic_request,
-    request_origins
-  )
   manifest <- list(
     schema_version = 1L,
     id = job@id,
     kind = job@kind,
+    workflow = persisted_request$workflow %||% NULL,
     package = list(
       name = "bionemor",
       version = run_manifest_package_version()
@@ -2826,27 +2524,12 @@ run_manifest_value <- function(job, result = NULL) {
     request = semantic_request,
     value_origins = list(
       request = request_origins,
-      resolved = resolved_origins
+      resolved = context$resolved_origins
     ),
     plan = persisted_plan,
-    recipe = list(
-      repository = recipe@repository,
-      revision = recipe@revision,
-      version = recipe@recipe_version,
-      subdirectory = recipe@subdirectory,
-      base_image = recipe@base_image,
-      base_image_digest = recipe@base_image_digest,
-      bridge_protocol = recipe@bridge_protocol,
-      verified = recipe@verified
-    ),
-    dockerfile = list(
-      path = file.path(recipe@subdirectory, "Dockerfile"),
-      git_blob = if (recipe@verified) lock$dockerfile_blob else NULL
-    ),
-    helper = list(
-      version = capabilities$helper_version %||% NULL,
-      sha256 = capabilities$helper_sha256 %||% NULL
-    ),
+    recipe = provenance$recipe,
+    dockerfile = provenance$dockerfile,
+    helper = provenance$helper,
     image = list(
       reference = job@compute@image,
       digest = job@compute@image_digest
@@ -2854,13 +2537,7 @@ run_manifest_value <- function(job, result = NULL) {
     model = context$model,
     checkpoint = context$checkpoint,
     tokenizer = context$tokenizer,
-    precision = run_manifest_precision(
-      persisted_plan,
-      semantic_request,
-      checkpoint_metadata,
-      request_origins,
-      resolved_origins
-    ),
+    precision = context$precision,
     runtime = list(
       backend = job@compute@backend,
       engine = job@compute@engine,
@@ -2893,7 +2570,7 @@ run_manifest_value <- function(job, result = NULL) {
       previous_manifest$upstream %||% list()
     ),
     outputs = run_manifest_files(job@path, "outputs"),
-    warnings = run_manifest_warnings(job, result)
+    warnings = run_manifest_warnings(job, result, context$warnings)
   )
   redact_persisted_value(manifest)
 }
@@ -2904,9 +2581,6 @@ write_run_manifest <- function(job, result = NULL) {
     stop("run manifest requires a terminal job state")
   }
   manifest <- run_manifest_value(job, result)
-  if (state$state == "succeeded" && is.list(job@expected_result)) {
-    cleanup_prediction_tensors(job, job@expected_result)
-  }
   atomic_write_json(
     manifest,
     file.path(job@path, "manifest.json")
@@ -2914,86 +2588,27 @@ write_run_manifest <- function(job, result = NULL) {
   invisible(manifest)
 }
 
-cleanup_prediction_tensors <- function(job, descriptor) {
-  type <- descriptor$type %||% job@kind
-  if (
-    !type %in%
-      c(
-        "score",
-        "profile",
-        "embedding-pooled",
-        "embedding-unpooled"
-      )
-  ) {
-    return(invisible(NULL))
-  }
-  upstream <- normalizePath(descriptor$upstream, mustWork = TRUE)
-  run_upstream <- normalizePath(
-    file.path(job@path, "upstream"),
-    mustWork = TRUE
-  )
-  if (
-    !identical(upstream, run_upstream) &&
-      !startsWith(upstream, paste0(run_upstream, .Platform$file.sep))
-  ) {
-    stop("prediction tensors must be inside the run upstream directory")
-  }
-  tensors <- list.files(
-    upstream,
-    pattern = "[.]pt$",
-    full.names = TRUE,
-    recursive = TRUE
-  )
-  if (length(tensors)) {
-    if (unlink(tensors) != 0L) {
-      stop("failed to remove prediction tensors")
-    }
-  }
-  invisible(NULL)
-}
-
 materialize_job_result <- function(x) {
   descriptor <- x@expected_result
-  if (inherits(descriptor, "S7_object")) {
-    result <- materialize_s7_job_result(x, descriptor)
-    write_run_manifest(x, result)
-    return(result)
-  }
   if (!is.list(descriptor)) {
     stop("job does not contain a persisted result descriptor")
   }
-  type <- descriptor$type %||% x@kind
-  name <- materializer_for(type)
-  if (is.null(name)) {
+  workflow <- job_workflow(x)
+  if (!identical(descriptor$result_schema, workflow@result_schema)) {
     bionemor_abort(
       "BN_PROTOCOL",
-      paste0("job has an unsupported result contract: ", type),
+      "persisted result schema does not match the workflow",
       run_path = x@path,
       request_id = x@id,
-      operation = x@kind,
-      log_paths = file.path(
-        x@path,
-        c("stdout.log", "stderr.log")
-      )
+      operation = "result-materialization",
+      workflow = workflow@id,
+      expected_result_schema = workflow@result_schema,
+      actual_result_schema = descriptor$result_schema %||% NULL
     )
   }
-  materializer <- get0(name, mode = "function", inherits = TRUE)
-  if (is.null(materializer)) {
-    bionemor_abort(
-      "BN_PROTOCOL",
-      paste0("result materializer is unavailable: ", name),
-      run_path = x@path,
-      request_id = x@id,
-      operation = x@kind,
-      log_paths = file.path(
-        x@path,
-        c("stdout.log", "stderr.log")
-      )
-    )
-  }
-  result <- materializer(x, descriptor)
+  materialize <- adapter_function(workflow@adapter, "materialize")
+  result <- materialize(workflow, x, descriptor)
   write_run_manifest(x, result)
-  cleanup_prediction_tensors(x, descriptor)
   result
 }
 
@@ -3234,12 +2849,15 @@ abort_job_state <- function(x, state, message) {
   } else {
     character()
   }
+  plan <- read_json_file(file.path(x@path, "plan.json"), simplify = FALSE)
+  failure_contract <- plan$metadata$failure_contract %||% list()
+  contract_codes <- unlist(failure_contract$exit_codes, use.names = TRUE)
+  contract_stage <- is_scalar_string(failure_contract$active_step) &&
+    identical(active_step, failure_contract$active_step)
   failure_reason <- persisted$failure_reason %||% NULL
   if (state == "failed" && is.null(failure_reason)) {
     scheduler_failure_reason <- slurm_failure_reason(x)
-    logged_failure_reason <- if (
-      !identical(active_step, "generation-validation")
-    ) {
+    logged_failure_reason <- if (!contract_stage) {
       job_log_failure_reason(x)
     } else {
       NULL
@@ -3250,19 +2868,14 @@ abort_job_state <- function(x, state, message) {
       persisted <- read_json_file(file.path(x@path, "state.json"))
     }
   }
-  helper_codes <- c(
-    `65` = "BN_OUTPUT_SCHEMA",
-    `66` = "BN_NONFINITE_OUTPUT",
-    `67` = "BN_INVALID_SEQUENCE"
-  )
   exit_status <- suppressWarnings(as.integer(persisted$exit_status))
   helper_code <- if (
     length(exit_status) == 1L &&
       !is.na(exit_status) &&
-      identical(active_step, "generation-validation") &&
-      as.character(exit_status) %in% names(helper_codes)
+      contract_stage &&
+      as.character(exit_status) %in% names(contract_codes)
   ) {
-    unname(helper_codes[[as.character(exit_status)]])
+    unname(contract_codes[[as.character(exit_status)]])
   } else {
     NULL
   }
@@ -3281,7 +2894,6 @@ abort_job_state <- function(x, state, message) {
     "BN_TIMEOUT"
   } else if (
     state == "failed" &&
-      x@kind == "generation" &&
       !is.null(helper_code)
   ) {
     helper_code

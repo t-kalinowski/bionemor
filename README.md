@@ -2,15 +2,59 @@
 
 # bionemor
 
-`bionemor` prepares Evo 2 models, runs batch inference, and fine-tunes with
-NVIDIA BioNeMo Recipes without leaving R. Inputs and results are R vectors,
-data frames, matrices, and durable job objects.
+`bionemor` prepares models, runs batch inference, and fine-tunes with NVIDIA
+BioNeMo Recipes without leaving R. Inputs and results are R vectors, data
+frames, matrices, and durable job objects.
 
 The main workflow is:
 
 1. Configure and verify a pinned recipe runtime once.
 2. Prepare or reuse the recommended checkpoint with `evo2_model()`.
 3. Generate, score, embed, or fine-tune DNA sequences.
+
+## Package scope and the BioNeMo stack
+
+This release ships one adapter, for the Evo 2 Megatron recipe. It does not yet
+claim support for other BioNeMo model families. The package-level workflow API
+keeps model family, workflow, recipe runtime, and compute separate so another
+adapter can be added to this same `bionemor` package:
+
+```r
+workflows <- bionemo_workflows()
+workflows[c("id", "adapter", "input_schema", "result_schema")]
+#>                id       adapter            input_schema
+#> 1 evo2/checkpoint evo2-megatron    checkpoint/source-v1
+#> 2     evo2/export evo2-megatron     path/destination-v1
+#> 3    evo2/prepare evo2-megatron         sequence/dna-v1
+#> 4  evo2/fine-tune evo2-megatron dataset/evo2-indexed-v1
+#> 5   evo2/generate evo2-megatron         sequence/dna-v1
+#> 6      evo2/score evo2-megatron         sequence/dna-v1
+#> 7    evo2/profile evo2-megatron         sequence/dna-v1
+#> 8      evo2/embed evo2-megatron         sequence/dna-v1
+#>               result_schema
+#> 1     checkpoint/mbridge-v1
+#> 2      checkpoint/vortex-v1
+#> 3   dataset/evo2-indexed-v1
+#> 4             model/evo2-v1
+#> 5  table/evo2-generation-v1
+#> 6      table/evo2-scores-v1
+#> 7  artifact/evo2-profile-v1
+#> 8 result/evo2-embeddings-v1
+```
+
+R owns the user API, input staging, model and checkpoint records, durable job
+state, Docker or Apptainer wrapping, Slurm submission, provenance, and result
+conversion. A versioned adapter owns translation to the pinned recipe commands.
+For generation, it writes a semantic execution request that a small helper
+inside the recipe runtime translates to the Python command. The other current
+Evo 2 workflows use typed argument-vector command plans and the same helper for
+portable outputs. The upstream BioNeMo, Megatron, PyTorch, and CUDA code
+performs the model computation.
+
+The execution boundary is therefore a subprocess, and container or Slurm
+backends add more subprocesses. The package does more than call `system()`: it
+defines the request and result contracts and manages the run before and after
+the upstream process. It does not reimplement the model in R.
 
 The output below was rendered on 2026-07-31 with an NVIDIA L40S using
 package revision df19000ec8ed. See
@@ -144,11 +188,20 @@ weights:
 
 ``` r
 models <- evo2_models(compute, compatible = TRUE)
-models[models$name %in% c("1b-base", "7b"), c(
-  "name", "parameters", "context_length", "compatible", "download_size"
-)]
-#>   name parameters context_length compatible download_size
-#> 2   7b      7e+09        1048576       TRUE      1.58e+10
+str(models)
+#> 'data.frame':    2 obs. of  12 variables:
+#>  $ name                     : chr  "7b-base" "7b"
+#>  $ model_size               : chr  "evo2_7b_base" "evo2_7b"
+#>  $ parameters               : num  7e+09 7e+09
+#>  $ context_length           : int  8192 1048576
+#>  $ source                   : chr  "hf://arcinstitute/savanna_evo2_7b_base" "hf://arcinstitute/savanna_evo2_7b"
+#>  $ source_revision          : chr  "eb0a7478e5f3c291f31e2b3d9ec14fc067f9982a" "9e69aeeaacf4d11fdbabfa73da65a770e5031f02"
+#>  $ source_format            : chr  "savanna" "savanna"
+#>  $ precision_policy         : chr  "bf16-or-fp8" "bf16-or-fp8"
+#>  $ training_precision_policy: chr  "bf16-or-fp8" "bf16-or-fp8"
+#>  $ download_size            : num  1.58e+10 1.58e+10
+#>  $ compatible               : logi  TRUE TRUE
+#>  $ compatibility_note       : chr  "advertised GPUs support the validated BF16 or FP8 policy" "advertised GPUs support the validated BF16 or FP8 policy"
 ```
 
 `evo2_model()` prepares the recommended dense MBridge checkpoint on its first
@@ -218,10 +271,13 @@ scores <- evo2_score(
   reduction = "mean",
   strand = "both"
 )
-scores[c("id", "score", "forward_score", "reverse_score")]
-#>          id     score forward_score reverse_score
-#> 1 reference -1.408769     -1.408769     -1.408769
-#> 2   variant -1.411028     -1.422442     -1.399613
+scores
+#>          id sequence_length tokens_scored     score forward_score
+#> 1 reference              12            11 -1.408769     -1.408769
+#> 2   variant              12            11 -1.411028     -1.422442
+#>   reverse_score reduction strand
+#> 1     -1.408769      mean   both
+#> 2     -1.399613      mean   both
 
 embeddings <- evo2_embed(
   model,
@@ -231,6 +287,11 @@ embeddings <- evo2_embed(
 )
 dim(embeddings)
 #> [1]    2 4096
+str(embeddings)
+#>  num [1:2, 1:4096] 4.10e+10 4.13e+10 -2.55e+10 -2.58e+10 2.56e+10 ...
+#>  - attr(*, "dimnames")=List of 2
+#>   ..$ : chr [1:2] "reference" "variant"
+#>   ..$ : chr [1:4096] "dim_1" "dim_2" "dim_3" "dim_4" ...
 round(embeddings[, 1:4, drop = FALSE], 4)
 #>                 dim_1        dim_2       dim_3       dim_4
 #> reference 41006313472 -25541912576 25635586048 14001286144

@@ -37,6 +37,7 @@ RoxygenNote: 8.0.0
 Collate:
     '00-utils.R'
     '01-classes.R'
+    '02-workflow.R'
     '02-model.R'
     '03-compute.R'
     '04-control.R'

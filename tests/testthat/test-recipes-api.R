@@ -484,7 +484,7 @@ test_that("generation batches prompts and returns portable R results", {
   write_executable(
     helper,
     c(
-      'if [[ "${1:-}" == "validate-generation" ]]; then',
+      'if [[ "${1:-}" == "run" || "${1:-}" == "validate-generation" ]]; then',
       paste("  export PYTHONPATH=", shQuote(python_modules), sep = ""),
       paste("  exec", shQuote(python), shQuote(materializer), '"$@"'),
       "fi",
@@ -539,6 +539,25 @@ test_that("generation batches prompts and returns portable R results", {
   expect_true("--prompt-file" %in% invocations)
   expect_false("--prompt" %in% invocations)
   run_path <- attr(generated, "provenance")$run_path
+  request <- jsonlite::read_json(
+    file.path(run_path, "request.json"),
+    simplifyVector = FALSE
+  )
+  expect_equal(request$execution$schema_version, 1L)
+  expect_equal(request$execution$driver, "evo2-megatron")
+  expect_equal(request$execution$operation, "generate")
+  expect_equal(request$execution$inputs$prompts, "inputs/prompts.jsonl")
+  expect_equal(
+    request$execution$outputs$portable,
+    "outputs/generation.jsonl"
+  )
+  plan <- jsonlite::read_json(
+    file.path(run_path, "plan.json"),
+    simplifyVector = FALSE
+  )
+  expect_length(plan$steps, 1L)
+  expect_equal(basename(plan$steps[[1L]]$executable), "bionemor-evo2-helper")
+  expect_equal(plan$steps[[1L]]$args[[1L]], "run")
   prompts <- jsonlite::stream_in(
     file(file.path(run_path, "inputs", "prompts.jsonl")),
     verbose = FALSE

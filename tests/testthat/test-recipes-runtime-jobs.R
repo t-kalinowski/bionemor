@@ -337,7 +337,7 @@ test_that("container probes use GPUs and mount the workspace", {
       compute@workspace,
       compute@image,
       "bionemor-evo2-helper",
-      "capabilities",
+      "describe",
       "--json"
     ) %in%
       invocation
@@ -349,7 +349,7 @@ test_that("container probes use GPUs and mount the workspace", {
   expect_lt(entrypoint, image)
   expect_equal(
     invocation[seq.int(image + 1L, length(invocation))],
-    c("capabilities", "--json")
+    c("describe", "--json")
   )
 
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))

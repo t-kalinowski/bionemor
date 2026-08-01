@@ -836,6 +836,7 @@ torchrun_command <- function(operation, args, resolved, cwd) {
 }
 
 evo2_generation_plan <- function(
+  run_path,
   checkpoint,
   prompts,
   upstream,
@@ -860,78 +861,78 @@ evo2_generation_plan <- function(
     checkpoint,
     checkpoint_manifest
   )
-  args <- c(
-    "--ckpt-dir",
-    checkpoint,
-    "--prompt-file",
-    prompts,
-    "--max-new-tokens",
-    as.character(num_tokens),
-    "--temperature",
-    format_number(temperature),
-    "--top-k",
-    as.character(top_k),
-    "--top-p",
-    format_number(top_p),
-    "--output-file",
-    upstream,
-    parallel_command_args(resolved),
-    precision_command_args(resolved),
-    if (!is.null(resolved$max_sequence_length)) {
-      c("--max-seq-length", as.character(resolved$max_sequence_length))
-    },
-    "--max-batch-size",
-    as.character(resolved$max_batch_size),
-    "--cuda-graph-impl",
-    resolved$cuda_graphs,
-    if (resolved$subquadratic_ops) "--use-subquadratic-ops",
-    if (resolved$chunked_prefill) "--enable-chunked-prefill",
-    if (!is.null(resolved$dynamic_max_tokens)) {
-      c(
-        "--inference-dynamic-batching-max-tokens",
-        as.character(resolved$dynamic_max_tokens)
+  run_path <- normalizePath(run_path, mustWork = TRUE)
+  relative_path <- function(path) {
+    path <- normalize_path(path)
+    prefix <- paste0(run_path, .Platform$file.sep)
+    stopifnot(
+      "execution paths must be inside the run directory" = startsWith(
+        path,
+        prefix
       )
-    },
-    "--inference-dynamic-batching-block-size",
-    as.character(resolved$dynamic_block_size),
-    if (!is.null(seed)) c("--seed", as.character(seed)),
-    if (return_probabilities) "--return-log-probs"
+    )
+    substring(path, nchar(prefix) + 1L)
+  }
+  execution <- list(
+    schema_version = 1L,
+    driver = "evo2-megatron",
+    operation = "generate",
+    checkpoint = checkpoint,
+    inputs = list(prompts = relative_path(prompts)),
+    outputs = list(
+      upstream = relative_path(upstream),
+      portable = relative_path(portable),
+      fasta = relative_path(fasta),
+      validation = relative_path(validation)
+    ),
+    parameters = list(
+      max_new_tokens = as.integer(num_tokens),
+      temperature = as.double(temperature),
+      top_k = as.integer(top_k),
+      top_p = as.double(top_p),
+      seed = seed,
+      return_probabilities = return_probabilities,
+      validate = validate
+    ),
+    resolved = resolved[c(
+      "processes_per_node",
+      "tensor_parallel_size",
+      "pipeline_parallel_size",
+      "context_parallel_size",
+      "mixed_precision_recipe",
+      "vortex_style_fp8",
+      "max_sequence_length",
+      "max_batch_size",
+      "cuda_graphs",
+      "subquadratic_ops",
+      "chunked_prefill",
+      "dynamic_max_tokens",
+      "dynamic_block_size"
+    )]
   )
-  validation_args <- c(
-    "validate-generation",
-    "--input",
-    upstream,
-    "--prompts",
-    prompts,
-    "--output",
-    portable,
-    "--fasta",
-    fasta,
-    "--validation",
-    validation,
-    "--num-tokens",
-    as.character(num_tokens),
-    "--validate",
-    validate,
-    if (return_probabilities) "--return-probabilities"
-  )
+  request_path <- file.path(run_path, "request.json")
+  request <- read_json_file(request_path, simplify = FALSE)
+  request$execution <- execution
+  atomic_write_json(request, request_path)
   command_plan(
     list(
-      torchrun_command(
-        "infer_evo2",
-        args,
-        resolved,
-        compute@workspace
-      ),
       command_spec(
         "bionemor-evo2-helper",
-        validation_args,
+        c("run", "--request", request_path),
         cwd = compute@workspace
       )
     ),
     metadata = list(
       operation = "generation",
-      resolved_control = resolved
+      resolved_control = resolved,
+      failure_contract = list(
+        active_step = "generation-validation",
+        exit_codes = list(
+          `65` = "BN_OUTPUT_SCHEMA",
+          `66` = "BN_NONFINITE_OUTPUT",
+          `67` = "BN_INVALID_SEQUENCE"
+        )
+      )
     )
   )
 }
@@ -1055,9 +1056,520 @@ evo2_prediction_plan <- function(
     ),
     metadata = list(
       operation = mode,
-      resolved_control = resolved
+      resolved_control = resolved,
+      cleanup = list(directory = "upstream", suffix = ".pt")
     )
   )
+}
+
+evo2_workflow_call <- function(fun, arguments, parameters) {
+  overlap <- intersect(names(arguments), names(parameters))
+  if (length(overlap)) {
+    stop(
+      paste0(
+        "workflow parameters must not replace dispatch argument",
+        if (length(overlap) > 1L) "s" else "",
+        ": ",
+        paste(overlap, collapse = ", ")
+      )
+    )
+  }
+  do.call(fun, c(arguments, parameters))
+}
+
+bionemor_adapter_evo2_megatron_install_spec <- function(recipe) {
+  stopifnot(
+    "recipe must use the Evo 2 Megatron adapter" = S7_inherits(
+      recipe,
+      BioNeMoRecipe
+    ) &&
+      identical(recipe@adapter, "evo2-megatron")
+  )
+  list(
+    lock = evo2_recipe_lock(),
+    helper = "bionemor-evo2-helper",
+    helper_asset = c("scripts", "materialize-evo2.py"),
+    helper_filename = "materialize-evo2.py",
+    semantic_operations = "generate",
+    docker_appendage = c("docker", "evo2-recipes", "Dockerfile.append"),
+    uv_fallback = "#COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/",
+    image_repository = "bionemor/evo2",
+    image_version = paste0("evo2-recipe-", recipe@recipe_version),
+    probes = list(
+      inference = c("infer_evo2", "predict_evo2"),
+      training = c("preprocess_evo2", "train_evo2"),
+      conversion = c(
+        "evo2_convert_savanna_to_mbridge",
+        "evo2_convert_nemo2_to_mbridge",
+        "evo2_export_mbridge_to_vortex",
+        "evo2_remove_optimizer"
+      )
+    ),
+    command_keys = c(
+      evo2_convert_savanna_to_mbridge = "savanna_to_mbridge",
+      evo2_convert_nemo2_to_mbridge = "nemo2_to_mbridge",
+      evo2_export_mbridge_to_vortex = "mbridge_to_vortex",
+      evo2_remove_optimizer = "remove_optimizer"
+    )
+  )
+}
+
+bionemor_adapter_evo2_megatron_doctor_model <- function(
+  compute,
+  model,
+  report
+) {
+  stopifnot(
+    "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
+    "compute must use the Evo 2 Megatron adapter" = identical(
+      compute@recipe@adapter,
+      "evo2-megatron"
+    ),
+    "capability report must be a list" = is.list(report)
+  )
+  compatible_compute <- compute
+  config <- compute@config
+  config$capabilities <- report
+  compatible_compute@config <- config
+  models <- evo2_models(compatible_compute)
+  selected <- models[models$name == model@size, , drop = FALSE]
+  stopifnot(
+    "model must be present in the Evo 2 registry" = nrow(selected) == 1L
+  )
+  rows <- list(doctor_row(
+    "model compatibility",
+    if (isTRUE(selected$compatible[[1L]])) "pass" else "fail",
+    selected$compatibility_note[[1L]]
+  ))
+
+  checkpoint <- model_checkpoint_path(model, base = compute@workspace)
+  present <- is_scalar_string(checkpoint) && dir.exists(checkpoint)
+  record <- evo2_model_record(model@size)
+  rows[[2L]] <- doctor_row(
+    "checkpoint storage",
+    if (present) "pass" else "fail",
+    if (present) {
+      "checkpoint is already present"
+    } else {
+      paste(
+        "checkpoint is unavailable;",
+        format(round(record$download_size / 1024^3, 1), nsmall = 1),
+        "GiB download required"
+      )
+    }
+  )
+  if (!present) {
+    rows[[3L]] <- doctor_row(
+      "model checkpoint",
+      "fail",
+      if (is.null(checkpoint)) {
+        "an explicit MBridge checkpoint is required"
+      } else {
+        paste("checkpoint is not available:", checkpoint)
+      }
+    )
+    return(do.call(rbind, rows))
+  }
+
+  root <- file.path(compute@workspace, ".bionemor", "doctor")
+  dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  output <- tempfile("checkpoint-", tmpdir = root, fileext = ".json")
+  probe <- runtime_probe(
+    compute,
+    recipe_install_spec(compute@recipe)$helper,
+    c("inspect-checkpoint", "--path", checkpoint, "--output", output)
+  )
+  detail <- redact_credentials(trimws(paste(probe$stdout, probe$stderr)))
+  if (probe$status != 0L || !file.exists(output)) {
+    rows[[3L]] <- doctor_row(
+      "model checkpoint",
+      "fail",
+      if (nzchar(detail)) detail else "checkpoint inspection failed",
+      detail
+    )
+    return(do.call(rbind, rows))
+  }
+  inspection <- read_json_file(output)
+  correct <- identical(inspection$model_size, model@model_size)
+  rows[[3L]] <- doctor_row(
+    "model checkpoint",
+    if (correct) "pass" else "fail",
+    if (correct) {
+      paste(inspection$model_size, inspection$kind %||% "unknown")
+    } else {
+      "checkpoint model size does not match the model"
+    }
+  )
+  do.call(rbind, rows)
+}
+
+evo2_manifest_resolved_origins <- function(plan, request, request_origins) {
+  resolved <- plan$metadata$resolved_control %||% list()
+  control <- request$control %||% list()
+  if (!is.list(control)) {
+    control <- list()
+  }
+  control_origins <- request_origins$control %||% list()
+  if (!is.list(control_origins)) {
+    control_origins <- list()
+  }
+  origins <- stats::setNames(
+    as.list(rep("adapter_default", length(resolved))),
+    names(resolved)
+  )
+  inherited <- intersect(names(origins), names(control_origins))
+  origins[inherited] <- control_origins[inherited]
+  origins$operation <- "adapter_default"
+  automatic <- intersect(
+    c(
+      "world_size",
+      "processes_per_node",
+      "data_parallel_size",
+      "gradient_accumulation"
+    ),
+    names(origins)
+  )
+  origins[automatic] <- as.list(rep("auto_resolved", length(automatic)))
+  if (
+    "mixed_precision_recipe" %in%
+      names(origins) &&
+      is.null(control$mixed_precision_recipe)
+  ) {
+    origins$mixed_precision_recipe <- "auto_resolved"
+  }
+  if (
+    "vortex_style_fp8" %in%
+      names(origins) &&
+      identical(control$vortex_style_fp8, "auto")
+  ) {
+    origins$vortex_style_fp8 <- "auto_resolved"
+  }
+  if (
+    "cuda_graphs" %in% names(origins) && identical(control$cuda_graphs, "auto")
+  ) {
+    origins$cuda_graphs <- "auto_resolved"
+  }
+  origins
+}
+
+evo2_manifest_precision <- function(
+  plan,
+  request,
+  checkpoint,
+  request_origins,
+  resolved_origins
+) {
+  resolved <- plan$metadata$resolved_control %||% list()
+  request_precision <- request$precision_request %||%
+    request$precision %||%
+    NULL
+  request_semantic_precision <- if (is.list(request_precision)) {
+    request_precision$semantic %||% NULL
+  } else {
+    request_precision
+  }
+  request_control <- request$control %||% list()
+  if (!is.list(request_control)) {
+    request_control <- list()
+  }
+  semantic <- resolved$semantic_precision %||%
+    resolved$precision %||%
+    request_control$precision %||%
+    request_semantic_precision %||%
+    NULL
+  resolved_recipe <- resolved$mixed_precision_recipe %||%
+    checkpoint$mixed_precision_recipe %||%
+    NULL
+  control_origins <- request_origins$control %||% list()
+  if (!is.list(control_origins)) {
+    control_origins <- list()
+  }
+  semantic_origin <- control_origins$precision %||%
+    request_origins$precision_request %||%
+    request_origins$precision %||%
+    if (is.null(semantic)) NULL else "adapter_default"
+  checkpoint_resolved_origin <- if (!is.null(request$precision_request)) {
+    request_origins$precision %||% NULL
+  } else {
+    NULL
+  }
+  resolved_origin <- resolved_origins$mixed_precision_recipe %||%
+    checkpoint_resolved_origin %||%
+    if (is.null(resolved_recipe)) NULL else "adapter_default"
+  list(
+    semantic = semantic,
+    resolved_recipe = resolved_recipe,
+    semantic_origin = semantic_origin,
+    resolved_origin = resolved_origin,
+    origin = resolved_origin
+  )
+}
+
+bionemor_adapter_evo2_megatron_manifest_context <- function(
+  workflow,
+  job,
+  request,
+  plan,
+  request_origins
+) {
+  stopifnot(
+    "workflow must use the Evo 2 Megatron adapter" = identical(
+      workflow@adapter,
+      "evo2-megatron"
+    ),
+    "manifest request, plan, and origins must be lists" = is.list(request) &&
+      is.list(plan) &&
+      is.list(request_origins)
+  )
+  descriptor <- job@expected_result
+  candidates <- c(
+    descriptor$checkpoint %||% character(),
+    descriptor$path %||% character(),
+    descriptor$checkpoint_root %||% character()
+  )
+  candidates <- candidates[
+    vapply(candidates, is_scalar_string, logical(1))
+  ]
+  path <- if (length(candidates)) candidates[[1L]] else NULL
+  path_exists <- !is.null(path) && file.exists(path)
+  if (path_exists) {
+    path <- normalizePath(path, mustWork = TRUE)
+  } else if (!is.null(path)) {
+    path <- normalize_path(path)
+  }
+  manifest_path <- if (path_exists) checkpoint_manifest_path(path) else NULL
+  metadata <- if (!is.null(manifest_path) && file.exists(manifest_path)) {
+    read_checkpoint_manifest(path, manifest_path)
+  } else {
+    list()
+  }
+  expected <- descriptor$expected %||% list()
+  variant <- metadata$variant %||%
+    descriptor$variant %||%
+    expected$variant %||%
+    NULL
+  record <- if (is_scalar_string(variant)) {
+    tryCatch(evo2_model_record(variant), error = function(error) list())
+  } else {
+    list()
+  }
+  checkpoint_digest <- metadata$checkpoint_digest %||%
+    if (path_exists) path_digest(path) else NULL
+  base_path <- metadata$base_checkpoint_path %||%
+    descriptor$base_checkpoint %||%
+    NULL
+  base_digest <- metadata$base_checkpoint_digest %||%
+    if (!is.null(base_path) && file.exists(base_path)) {
+      path_digest(base_path)
+    } else {
+      NULL
+    }
+  tokenizer_revision <- metadata$tokenizer_revision %||%
+    record$tokenizer_revision %||%
+    NULL
+  resolved_origins <- evo2_manifest_resolved_origins(
+    plan,
+    request,
+    request_origins
+  )
+  validation <- file.path(job@path, "outputs", "validation.json")
+  warnings <- if (file.exists(validation)) {
+    read_json_file(validation, simplify = FALSE)$warnings
+  } else {
+    list()
+  }
+  list(
+    checkpoint = if (is.null(path)) {
+      list()
+    } else {
+      list(
+        path = path,
+        source = metadata$source %||% expected$source %||% NULL,
+        source_trust = metadata$source_trust %||%
+          expected$source_trust %||%
+          NULL,
+        source_verified = metadata$source_verified %||%
+          expected$source_verified %||%
+          NULL,
+        format = metadata$format %||%
+          descriptor$format %||%
+          expected$format %||%
+          "mbridge",
+        kind = metadata$kind %||% descriptor$checkpoint_kind %||% NULL,
+        revision = metadata$source_revision %||%
+          expected$source_revision %||%
+          NULL,
+        digest = if (is.null(checkpoint_digest)) {
+          NULL
+        } else {
+          list(algorithm = "md5", value = checkpoint_digest)
+        },
+        base_checkpoint = list(
+          path = base_path,
+          source = metadata$base_checkpoint_source %||%
+            descriptor$base_checkpoint_source %||%
+            NULL,
+          source_trust = metadata$base_checkpoint_source_trust %||%
+            descriptor$base_checkpoint_source_trust %||%
+            NULL,
+          source_verified = metadata$base_checkpoint_source_verified %||%
+            descriptor$base_checkpoint_source_verified %||%
+            NULL,
+          digest = base_digest
+        )
+      )
+    },
+    model = list(
+      name = variant,
+      model_size = metadata$model_size %||%
+        descriptor$model_size %||%
+        expected$model_size %||%
+        NULL,
+      revision = metadata$source_revision %||%
+        record$source_revision %||%
+        NULL
+    ),
+    tokenizer = list(
+      identity = metadata$tokenizer %||% record$tokenizer %||% NULL,
+      revision = tokenizer_revision,
+      digest = if (is.null(tokenizer_revision)) {
+        NULL
+      } else {
+        list(algorithm = "git-revision", value = tokenizer_revision)
+      }
+    ),
+    precision = evo2_manifest_precision(
+      plan,
+      request,
+      metadata,
+      request_origins,
+      resolved_origins
+    ),
+    resolved_origins = resolved_origins,
+    warnings = warnings
+  )
+}
+
+bionemor_adapter_evo2_megatron_provenance <- function(workflow, job) {
+  recipe <- job@compute@recipe
+  lock <- evo2_recipe_lock()
+  capabilities <- job@compute@config$capabilities %||% list()
+  list(
+    recipe = list(
+      repository = recipe@repository,
+      revision = recipe@revision,
+      version = recipe@recipe_version,
+      subdirectory = recipe@subdirectory,
+      base_image = recipe@base_image,
+      base_image_digest = recipe@base_image_digest,
+      bridge_protocol = recipe@bridge_protocol,
+      verified = recipe@verified
+    ),
+    dockerfile = list(
+      path = file.path(recipe@subdirectory, "Dockerfile"),
+      git_blob = if (recipe@verified) lock$dockerfile_blob else NULL
+    ),
+    helper = list(
+      version = capabilities$helper_version %||% NULL,
+      sha256 = capabilities$helper_sha256 %||% NULL
+    )
+  )
+}
+
+bionemor_adapter_evo2_megatron_materialize <- function(
+  workflow,
+  job,
+  descriptor
+) {
+  stopifnot(
+    "workflow must use the Evo 2 Megatron adapter" = identical(
+      workflow@adapter,
+      "evo2-megatron"
+    ),
+    "job result descriptor must be a list" = is.list(descriptor)
+  )
+  materialize <- switch(
+    workflow@task,
+    generate = materialize_generation_job,
+    score = materialize_score_job,
+    profile = materialize_profile_job,
+    embed = materialize_embedding_job,
+    checkpoint = materialize_checkpoint_job,
+    export = materialize_checkpoint_job,
+    prepare = materialize_prepare_job,
+    `fine-tune` = materialize_finetune_job,
+    NULL
+  )
+  if (is.null(materialize)) {
+    bionemor_abort(
+      "BN_PROTOCOL",
+      paste0("Evo 2 result workflow is unsupported: ", workflow@id),
+      run_path = job@path,
+      request_id = job@id,
+      operation = workflow@task,
+      log_paths = file.path(job@path, c("stdout.log", "stderr.log"))
+    )
+  }
+  materialize(job, descriptor)
+}
+
+bionemor_adapter_evo2_megatron_run <- function(
+  workflow,
+  model,
+  input,
+  compute,
+  parameters,
+  async,
+  name
+) {
+  stopifnot(
+    "workflow must use the Evo 2 Megatron adapter" = identical(
+      workflow@adapter,
+      "evo2-megatron"
+    ),
+    "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
+    "workflow and model families must match" = identical(
+      workflow@family,
+      model@family
+    )
+  )
+  compute <- resolve_model_compute(model, compute)
+  stopifnot(
+    "workflow and compute adapters must match" = identical(
+      workflow@adapter,
+      compute@recipe@adapter
+    )
+  )
+  if (
+    workflow@task %in% c("checkpoint", "export", "prepare") && !is.null(name)
+  ) {
+    stop(paste0("name is not supported for workflow ", workflow@id))
+  }
+  routes <- list(
+    generate = list(evo2_generate, "object", "prompt", TRUE),
+    score = list(evo2_score, "object", "newdata", TRUE),
+    profile = list(evo2_profile, "object", "newdata", TRUE),
+    embed = list(evo2_embed, "object", "newdata", TRUE),
+    prepare = list(evo2_prepare, "model", "data", FALSE),
+    `fine-tune` = list(evo2_finetune, "object", "data", TRUE),
+    checkpoint = list(evo2_checkpoint, "model", "source", FALSE),
+    export = list(evo2_export, "model", "path", FALSE)
+  )
+  route <- routes[[workflow@task]]
+  if (is.null(route)) {
+    bionemor_abort(
+      "BN_WORKFLOW_UNKNOWN",
+      paste0("Evo 2 workflow is unsupported: ", workflow@id),
+      operation = "workflow-dispatch"
+    )
+  }
+  arguments <- list(compute = compute, async = async)
+  arguments[[route[[2L]]]] <- model
+  arguments[[route[[3L]]]] <- input
+  if (isTRUE(route[[4L]])) {
+    arguments$name <- name
+  }
+  evo2_workflow_call(route[[1L]], arguments, parameters)
 }
 
 format_number <- function(x) {

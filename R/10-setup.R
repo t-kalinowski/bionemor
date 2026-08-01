@@ -1,5 +1,32 @@
+recipe_install_spec <- function(recipe) {
+  stopifnot(
+    "recipe must be a BioNeMo recipe" = S7_inherits(recipe, BioNeMoRecipe)
+  )
+  spec <- adapter_function(recipe@adapter, "install_spec")(recipe)
+  stopifnot(
+    "adapter install spec must be a list" = is.list(spec),
+    "adapter install spec is incomplete" = all(
+      c(
+        "lock",
+        "helper",
+        "helper_asset",
+        "helper_filename",
+        "semantic_operations",
+        "docker_appendage",
+        "uv_fallback",
+        "image_repository",
+        "image_version",
+        "probes",
+        "command_keys"
+      ) %in%
+        names(spec)
+    )
+  )
+  spec
+}
+
 recipe_install_lock <- function(recipe) {
-  lock <- evo2_recipe_lock()
+  lock <- recipe_install_spec(recipe)$lock
   if (recipe@verified && !identical(recipe@revision, lock$revision)) {
     bionemor_abort(
       "BN_RECIPE_MISMATCH",
@@ -70,15 +97,13 @@ install_step <- function(id, purpose, command, expected = list()) {
 
 expected_container_image_labels <- function(
   recipe,
-  helper_revision = package_helper_revision()
+  helper_revision = package_helper_revision(recipe)
 ) {
+  spec <- recipe_install_spec(recipe)
   c(
     "org.opencontainers.image.source" = recipe@repository,
     "org.opencontainers.image.revision" = recipe@revision,
-    "org.opencontainers.image.version" = paste0(
-      "evo2-recipe-",
-      recipe@recipe_version
-    ),
+    "org.opencontainers.image.version" = spec$image_version,
     "io.bionemor.helper.revision" = helper_revision,
     "io.bionemor.base.image" = recipe@base_image,
     "io.bionemor.base.digest" = recipe@base_image_digest %||% "",
@@ -86,29 +111,16 @@ expected_container_image_labels <- function(
   )
 }
 
-install_probe_commands <- function(target = "all") {
-  switch(
-    target,
-    inference = c("infer_evo2", "predict_evo2"),
-    training = c("preprocess_evo2", "train_evo2"),
-    conversion = c(
-      "evo2_convert_savanna_to_mbridge",
-      "evo2_convert_nemo2_to_mbridge",
-      "evo2_export_mbridge_to_vortex",
-      "evo2_remove_optimizer"
-    ),
-    all = c(
-      "infer_evo2",
-      "predict_evo2",
-      "preprocess_evo2",
-      "train_evo2",
-      "evo2_convert_savanna_to_mbridge",
-      "evo2_convert_nemo2_to_mbridge",
-      "evo2_export_mbridge_to_vortex",
-      "evo2_remove_optimizer"
-    ),
+install_probe_commands <- function(recipe, target = "all") {
+  probes <- recipe_install_spec(recipe)$probes
+  if (identical(target, "all")) {
+    return(unique(unlist(probes, use.names = FALSE)))
+  }
+  commands <- probes[[target]]
+  if (is.null(commands)) {
     stop("unsupported installation probe target", call. = FALSE)
-  )
+  }
+  commands
 }
 
 runtime_probe_command <- function(
@@ -196,31 +208,35 @@ runtime_probe_command <- function(
 }
 
 runtime_install_steps <- function(compute, target = "all") {
+  spec <- recipe_install_spec(compute@recipe)
   capabilities <- install_step(
     "runtime-capabilities",
     "verify the helper protocol and current recipe commands",
     runtime_probe_command(
       compute,
-      "bionemor-evo2-helper",
-      c("capabilities", "--json"),
+      spec$helper,
+      c("describe", "--json"),
       gpus = TRUE,
       immutable = FALSE
     ),
     list(protocol_version = compute@recipe@bridge_protocol)
   )
-  probes <- lapply(install_probe_commands(target), function(executable) {
-    install_step(
-      paste0("probe-", executable),
-      paste("verify", executable),
-      runtime_probe_command(
-        compute,
-        executable,
-        "--help",
-        gpus = compute@engine == "container",
-        immutable = FALSE
+  probes <- lapply(
+    install_probe_commands(compute@recipe, target),
+    function(executable) {
+      install_step(
+        paste0("probe-", executable),
+        paste("verify", executable),
+        runtime_probe_command(
+          compute,
+          executable,
+          "--help",
+          gpus = compute@engine == "container",
+          immutable = FALSE
+        )
       )
-    )
-  })
+    }
+  )
   c(list(capabilities), probes)
 }
 
@@ -320,7 +336,7 @@ bionemo_install_plan <- function(compute) {
   }
 
   container_engine <- compute@config$container_engine %||% "docker"
-  helper_revision <- package_helper_revision()
+  helper_revision <- package_helper_revision(recipe)
   if (!recipe_image_requires_build(compute)) {
     steps <- list(
       install_step(
@@ -625,6 +641,7 @@ fetch_recipe_source <- function(paths, recipe, lock) {
 }
 
 prepare_recipe_build_context <- function(paths, recipe, lock) {
+  spec <- recipe_install_spec(recipe)
   if (!dir.exists(paths$source)) {
     bionemor_abort(
       "BN_RECIPE_MISSING",
@@ -692,8 +709,8 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
 
   helper_dir <- file.path(paths$context, "bionemor-helper")
   dir.create(helper_dir)
-  helper <- package_asset("scripts", "materialize-evo2.py")
-  if (!file.copy(helper, file.path(helper_dir, "materialize-evo2.py"))) {
+  helper <- do.call(package_asset, as.list(spec$helper_asset))
+  if (!file.copy(helper, file.path(helper_dir, spec$helper_filename))) {
     bionemor_abort(
       "BN_IMAGE_BUILD",
       "failed to copy the package helper into the build context",
@@ -731,8 +748,7 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
     lines[[from]],
     fixed = TRUE
   )
-  uv_fallback <- "#COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/"
-  uv <- which(instructions == uv_fallback)
+  uv <- which(instructions == spec$uv_fallback)
   if (length(uv) != 1L) {
     bionemor_abort(
       "BN_RECIPE_MISMATCH",
@@ -747,11 +763,7 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
     recipe_uv_image_reference(lock),
     " /uv /uvx /bin/"
   )
-  appendage <- package_asset(
-    "docker",
-    "evo2-recipes",
-    "Dockerfile.append"
-  )
+  appendage <- do.call(package_asset, as.list(spec$docker_appendage))
   atomic_write_lines(
     c(
       lines,
@@ -797,10 +809,14 @@ container_image_exists <- function(compute) {
   result$status == 0L
 }
 
-package_helper_revision <- function() {
+package_helper_revision <- function(recipe) {
+  spec <- recipe_install_spec(recipe)
   result <- run_install_command(
     "git",
-    c("hash-object", package_asset("scripts", "materialize-evo2.py")),
+    c(
+      "hash-object",
+      do.call(package_asset, as.list(spec$helper_asset))
+    ),
     error = "failed to hash the package helper"
   )
   revision <- trimws(result$stdout)
@@ -1064,16 +1080,7 @@ bionemo_install <- function(
       )
     }
     verify_base_image_digest(engine, compute@recipe)
-    helper_revision <- run_install_command(
-      "git",
-      c(
-        "hash-object",
-        package_asset("scripts", "materialize-evo2.py")
-      ),
-      error = "failed to hash the package helper",
-      code = "BN_IMAGE_BUILD",
-      recipe_revision = compute@recipe@revision
-    )
+    helper_revision <- package_helper_revision(compute@recipe)
     run_install_command(
       engine,
       c(
@@ -1085,10 +1092,7 @@ bionemo_install <- function(
         "--build-arg",
         paste0("BIONEMOR_RECIPE_REVISION=", compute@recipe@revision),
         "--build-arg",
-        paste0(
-          "BIONEMOR_HELPER_REVISION=",
-          trimws(helper_revision$stdout)
-        ),
+        paste0("BIONEMOR_HELPER_REVISION=", helper_revision),
         "--build-arg",
         paste0("BIONEMOR_BASE_IMAGE=", compute@recipe@base_image),
         "--build-arg",
@@ -1396,10 +1400,11 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
   if (compute@backend == "slurm" && compute@engine == "container") {
     compute@image_digest <- slurm_image_digest(compute)
   }
+  spec <- recipe_install_spec(compute@recipe)
   result <- runtime_probe(
     compute,
-    "bionemor-evo2-helper",
-    c("capabilities", "--json"),
+    spec$helper,
+    c("describe", "--json"),
     gpus = TRUE
   )
   output <- redact_credentials(trimws(paste(result$stdout, result$stderr)))
@@ -1414,7 +1419,7 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
       recipe_revision = compute@recipe@revision,
       request_id = result$request_id %||% NULL,
       log_paths = result$log_paths %||% NULL,
-      command = "bionemor-evo2-helper",
+      command = spec$helper,
       upstream_exit_status = as.integer(result$status),
       hint = "Install or activate the package-pinned Evo 2 recipe runtime."
     )
@@ -1442,6 +1447,22 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
       request_id = result$request_id %||% NULL,
       log_paths = result$log_paths %||% NULL,
       hint = "Verify that bionemor and the recipe helper are from the same release."
+    )
+  }
+  if (
+    !identical(report$driver, compute@recipe@adapter) ||
+      !identical(as.integer(report$execution_schema_version), 1L) ||
+      !is.character(report$semantic_operations) ||
+      !all(spec$semantic_operations %in% report$semantic_operations)
+  ) {
+    bionemor_abort(
+      "BN_PROTOCOL",
+      "BioNeMo helper returned an incompatible driver description",
+      operation = "runtime-capabilities",
+      recipe_revision = compute@recipe@revision,
+      expected_driver = compute@recipe@adapter,
+      actual_driver = report$driver %||% NULL,
+      hint = "Install the recipe helper version pinned by this bionemor release."
     )
   }
   protocol <- suppressWarnings(as.integer(report$protocol_version))
@@ -1484,21 +1505,20 @@ runtime_capabilities <- function(compute, refresh = FALSE) {
   report
 }
 
-runtime_command_key <- function(command) {
-  switch(
-    command,
-    evo2_convert_savanna_to_mbridge = "savanna_to_mbridge",
-    evo2_convert_nemo2_to_mbridge = "nemo2_to_mbridge",
-    evo2_export_mbridge_to_vortex = "mbridge_to_vortex",
-    evo2_remove_optimizer = "remove_optimizer",
-    command
-  )
+runtime_command_key <- function(recipe, command) {
+  mapping <- recipe_install_spec(recipe)$command_keys
+  key <- unname(mapping[command])
+  if (length(key) == 0L || is.na(key)) command else key
 }
 
 verify_runtime_commands <- function(compute, report, target = "all") {
-  commands <- install_probe_commands(target)
+  commands <- install_probe_commands(compute@recipe, target)
   advertised <- report$commands %||% list()
-  keys <- vapply(commands, runtime_command_key, character(1))
+  keys <- vapply(
+    commands,
+    function(command) runtime_command_key(compute@recipe, command),
+    character(1)
+  )
   if (!is.list(advertised)) {
     bionemor_abort(
       "BN_PROTOCOL",
@@ -1566,6 +1586,7 @@ doctor_row <- function(check, status, detail, output = "") {
 }
 
 doctor_backend <- function(compute) {
+  helper <- recipe_install_spec(compute@recipe)$helper
   commands <- if (compute@backend == "slurm") {
     c(
       "sbatch",
@@ -1576,7 +1597,7 @@ doctor_backend <- function(compute) {
   } else if (compute@engine == "container") {
     compute@config$container_engine %||% "docker"
   } else {
-    "bionemor-evo2-helper"
+    helper
   }
   available <- nzchar(Sys.which(commands))
   detail <- if (all(available)) {
@@ -1801,15 +1822,8 @@ doctor_capabilities <- function(compute, target, model = NULL) {
     doctor_runtime_rows(report, compute)
   )
   advertised <- report$commands %||% list()
-  for (command in install_probe_commands(target)) {
-    key <- switch(
-      command,
-      evo2_convert_savanna_to_mbridge = "savanna_to_mbridge",
-      evo2_convert_nemo2_to_mbridge = "nemo2_to_mbridge",
-      evo2_export_mbridge_to_vortex = "mbridge_to_vortex",
-      evo2_remove_optimizer = "remove_optimizer",
-      command
-    )
+  for (command in install_probe_commands(compute@recipe, target)) {
+    key <- runtime_command_key(compute@recipe, command)
     available <- advertised[[key]]
     if (is.null(available) && compute@engine == "external") {
       available <- nzchar(Sys.which(command))
@@ -1821,103 +1835,27 @@ doctor_capabilities <- function(compute, target, model = NULL) {
     )
   }
   if (!is.null(model)) {
-    config <- compute@config
-    config$capabilities <- report
-    compatible_compute <- compute
-    compatible_compute@config <- config
-    models <- evo2_models(compatible_compute)
-    selected <- models[models$name == model@size, , drop = FALSE]
-    if (nrow(selected) != 1L) {
-      stop("model is missing from the compatibility registry")
-    }
-    rows[[length(rows) + 1L]] <- doctor_row(
-      "model compatibility",
-      if (isTRUE(selected$compatible[[1L]])) "pass" else "fail",
-      selected$compatibility_note[[1L]]
+    rows[[length(rows) + 1L]] <- adapter_function(
+      compute@recipe@adapter,
+      "doctor_model"
+    )(
+      compute,
+      model,
+      report
     )
   }
   do.call(rbind, rows)
 }
 
-doctor_checkpoint_storage <- function(compute, model) {
-  if (is.null(model)) {
-    return(NULL)
-  }
-  checkpoint <- model_checkpoint_path(model, base = compute@workspace)
-  present <- is_scalar_string(checkpoint) && dir.exists(checkpoint)
-  record <- evo2_model_record(model@size)
-  doctor_row(
-    "checkpoint storage",
-    if (present) "pass" else "fail",
-    if (present) {
-      "checkpoint is already present"
-    } else {
-      paste(
-        "checkpoint is unavailable;",
-        format(round(record$download_size / 1024^3, 1), nsmall = 1),
-        "GiB download required"
-      )
-    }
-  )
-}
-
-doctor_checkpoint <- function(compute, model) {
-  if (is.null(model)) {
-    return(NULL)
-  }
-  checkpoint <- model_checkpoint_path(model, base = compute@workspace)
-  if (is.null(checkpoint)) {
-    return(doctor_row(
-      "model checkpoint",
-      "fail",
-      "an explicit MBridge checkpoint is required"
-    ))
-  }
-  if (!dir.exists(checkpoint)) {
-    return(doctor_row(
-      "model checkpoint",
-      "fail",
-      paste("checkpoint is not available:", checkpoint)
-    ))
-  }
-  root <- file.path(compute@workspace, ".bionemor", "doctor")
-  dir.create(root, recursive = TRUE, showWarnings = FALSE)
-  output <- tempfile("checkpoint-", tmpdir = root, fileext = ".json")
-  probe <- runtime_probe(
-    compute,
-    "bionemor-evo2-helper",
-    c("inspect-checkpoint", "--path", checkpoint, "--output", output)
-  )
-  detail <- redact_credentials(trimws(paste(probe$stdout, probe$stderr)))
-  if (probe$status != 0L || !file.exists(output)) {
-    return(doctor_row(
-      "model checkpoint",
-      "fail",
-      if (nzchar(detail)) detail else "checkpoint inspection failed",
-      detail
-    ))
-  }
-  inspection <- read_json_file(output)
-  correct <- identical(inspection$model_size, model@model_size)
-  doctor_row(
-    "model checkpoint",
-    if (correct) "pass" else "fail",
-    if (correct) {
-      paste(inspection$model_size, inspection$kind %||% "unknown")
-    } else {
-      "checkpoint model size does not match the model"
-    }
-  )
-}
-
 #' Diagnose a BioNeMo Recipes execution environment
 #'
 #' `bionemo_doctor()` checks whether a compute descriptor is ready for one or
-#' more groups of Evo 2 operations. It performs live runtime probes; it does not
-#' rely on the cached capability report stored by [bionemo_install()]. A model
-#' is optional because the runtime can be diagnosed before weights are prepared.
-#' Supply one to add model compatibility and checkpoint checks. The doctor does
-#' not install software, build containers, or prepare checkpoints.
+#' more groups of operations supplied by its recipe adapter. It performs live
+#' runtime probes; it does not rely on the cached capability report stored by
+#' [bionemo_install()]. A model is optional because the runtime can be
+#' diagnosed before weights are prepared. Supply one to add the adapter's model
+#' compatibility and checkpoint checks. The doctor does not install software,
+#' build containers, or prepare checkpoints.
 #'
 #' @section Targets:
 #'
@@ -1959,8 +1897,8 @@ doctor_checkpoint <- function(compute, model) {
 #'
 #' @param compute A BioNeMo compute descriptor whose runtime has been built or
 #'   selected, usually the value returned by [bionemo_install()].
-#' @param model Optional Evo 2 model. Supplying a model adds compatibility,
-#'   checkpoint-storage, and checkpoint-content checks.
+#' @param model Optional BioNeMo model. Supplying a model adds the checks
+#'   implemented by the compute recipe's adapter.
 #' @param target Operation group to check: `"all"`, `"inference"`,
 #'   `"training"`, or `"conversion"`.
 #' @param verbose Whether printing the result should include complete retained
@@ -2006,8 +1944,8 @@ bionemo_doctor <- function(
   if (!S7_inherits(compute, BioNeMoCompute)) {
     stop("compute must be a BioNeMo compute descriptor")
   }
-  if (!is.null(model) && !S7_inherits(model, Evo2Model)) {
-    stop("model must be NULL or an Evo 2 model")
+  if (!is.null(model) && !S7_inherits(model, BioNeMoModel)) {
+    stop("model must be NULL or a BioNeMo model")
   }
   if (!is_scalar_logical(verbose)) {
     stop("verbose must be TRUE or FALSE")
@@ -2016,9 +1954,7 @@ bionemo_doctor <- function(
     doctor_backend(compute),
     doctor_host_tools(compute),
     doctor_workspace(compute),
-    doctor_capabilities(compute, target, model),
-    doctor_checkpoint_storage(compute, model),
-    doctor_checkpoint(compute, model)
+    doctor_capabilities(compute, target, model)
   )
   rownames(checks) <- NULL
   BioNeMoDoctor(

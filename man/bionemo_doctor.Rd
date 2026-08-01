@@ -15,8 +15,8 @@ bionemo_doctor(
 \item{compute}{A BioNeMo compute descriptor whose runtime has been built or
 selected, usually the value returned by \code{\link[=bionemo_install]{bionemo_install()}}.}
 
-\item{model}{Optional Evo 2 model. Supplying a model adds compatibility,
-checkpoint-storage, and checkpoint-content checks.}
+\item{model}{Optional BioNeMo model. Supplying a model adds the checks
+implemented by the compute recipe's adapter.}
 
 \item{target}{Operation group to check: \code{"all"}, \code{"inference"},
 \code{"training"}, or \code{"conversion"}.}
@@ -32,11 +32,12 @@ the \code{check}, \code{status}, \code{detail}, and \code{output} columns progra
 }
 \description{
 \code{bionemo_doctor()} checks whether a compute descriptor is ready for one or
-more groups of Evo 2 operations. It performs live runtime probes; it does not
-rely on the cached capability report stored by \code{\link[=bionemo_install]{bionemo_install()}}. A model
-is optional because the runtime can be diagnosed before weights are prepared.
-Supply one to add model compatibility and checkpoint checks. The doctor does
-not install software, build containers, or prepare checkpoints.
+more groups of operations supplied by its recipe adapter. It performs live
+runtime probes; it does not rely on the cached capability report stored by
+\code{\link[=bionemo_install]{bionemo_install()}}. A model is optional because the runtime can be
+diagnosed before weights are prepared. Supply one to add the adapter's model
+compatibility and checkpoint checks. The doctor does not install software,
+build containers, or prepare checkpoints.
 }
 \section{Targets}{
 

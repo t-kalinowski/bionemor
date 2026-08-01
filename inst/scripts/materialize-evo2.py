@@ -24,6 +24,8 @@ import torch
 
 PROTOCOL_VERSION = 1
 HELPER_VERSION = "0.1.0"
+EXECUTION_SCHEMA_VERSION = 1
+DRIVER = "evo2-megatron"
 DNA_COMPLEMENT = str.maketrans(
     "ACGTRYSWKMBDHVNacgtryswkmbdhvn",
     "TGCAYRSWMKVHDBNtgcayrswmkvhdbn",
@@ -175,6 +177,15 @@ def capabilities() -> dict[str, Any]:
                 "transformer_engine": import_available("transformer_engine"),
             },
         },
+    }
+
+
+def description() -> dict[str, Any]:
+    return {
+        **capabilities(),
+        "driver": DRIVER,
+        "execution_schema_version": EXECUTION_SCHEMA_VERSION,
+        "semantic_operations": ["generate"],
     }
 
 
@@ -1231,6 +1242,168 @@ def validate_generation(args: argparse.Namespace) -> None:
     )
 
 
+def exact_object(value: Any, fields: str, name: str) -> dict[str, Any]:
+    expected = fields.split()
+    if not isinstance(value, dict) or set(value) != set(expected):
+        raise RuntimeError(f"{name} must contain exactly: {', '.join(expected)}")
+    return value
+
+
+def resolved_path(value: Any, base: Path, name: str, confined: bool) -> Path:
+    if not isinstance(value, str) or not value:
+        raise RuntimeError(f"{name} must be a non-empty path")
+    path = Path(value).expanduser()
+    try:
+        path = (path if path.is_absolute() else base / path).resolve()
+    except OSError as error:
+        raise RuntimeError(f"{name} cannot be resolved: {value}") from error
+    if confined and not path.is_relative_to(base):
+        raise RuntimeError(f"{name} must remain inside the run directory")
+    return path
+
+
+def load_generation_execution(
+    request: Path,
+) -> tuple[Path, dict[str, Any], dict[str, Path]]:
+    try:
+        request = request.expanduser().resolve(strict=True)
+        document = json.loads(request.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise RuntimeError(f"cannot read generation request: {request}") from error
+    if not request.is_file() or not isinstance(document, dict):
+        raise RuntimeError("generation request must be a JSON object file")
+
+    workflow = document.get("workflow")
+    if not isinstance(workflow, dict) or not set(
+        "adapter adapter_version protocol_version task".split()
+    ).issubset(workflow):
+        raise RuntimeError("workflow must be an object")
+    execution = exact_object(
+        document.get("execution"),
+        "schema_version driver operation checkpoint inputs outputs parameters resolved",
+        "execution",
+    )
+    inputs = exact_object(execution["inputs"], "prompts", "execution.inputs")
+    outputs = exact_object(
+        execution["outputs"],
+        "upstream portable fasta validation",
+        "execution.outputs",
+    )
+    exact_object(
+        execution["parameters"],
+        "max_new_tokens temperature top_k top_p seed return_probabilities validate",
+        "execution.parameters",
+    )
+    exact_object(
+        execution["resolved"],
+        "processes_per_node tensor_parallel_size pipeline_parallel_size "
+        "context_parallel_size mixed_precision_recipe vortex_style_fp8 "
+        "max_sequence_length max_batch_size cuda_graphs subquadratic_ops "
+        "chunked_prefill dynamic_max_tokens dynamic_block_size",
+        "execution.resolved",
+    )
+    versions = (
+        execution["schema_version"],
+        workflow["adapter_version"],
+        workflow["protocol_version"],
+    )
+    if (
+        any(type(version) is not int for version in versions)
+        or versions != (EXECUTION_SCHEMA_VERSION, 1, PROTOCOL_VERSION)
+        or (execution["driver"], execution["operation"]) != (DRIVER, "generate")
+        or (workflow["adapter"], workflow["task"])
+        != (DRIVER, execution["operation"])
+    ):
+        raise RuntimeError("workflow and generation execution protocol do not match")
+
+    base = request.parent
+    paths = {
+        "checkpoint": resolved_path(
+            execution["checkpoint"], base, "execution.checkpoint", False),
+        "prompts": resolved_path(
+            inputs["prompts"], base, "execution.inputs.prompts", True),
+        **{
+            name: resolved_path(outputs[name], base, f"execution.outputs.{name}", True)
+            for name in ("upstream", "portable", "fasta", "validation")
+        },
+    }
+    if not paths["checkpoint"].is_dir():
+        raise RuntimeError("execution.checkpoint must be an existing directory")
+    if not paths["prompts"].is_file():
+        raise RuntimeError("execution.inputs.prompts must be an existing file")
+    output_paths = [
+        paths[name] for name in ("upstream", "portable", "fasta", "validation")
+    ]
+    if any(path.is_dir() for path in output_paths):
+        raise RuntimeError("execution outputs must be file paths")
+    if len(set([paths["prompts"], *output_paths])) != 5:
+        raise RuntimeError("execution input and output paths must be distinct")
+    return request, execution, paths
+
+
+def value_argument(flag: str, value: Any) -> list[str]:
+    return [] if value is None else [flag, str(value)]
+
+
+def run_generation(request: Path) -> None:
+    request, execution, paths = load_generation_execution(request)
+    parameters = execution["parameters"]
+    resolved = execution["resolved"]
+    command = [
+        "torchrun", "--nproc-per-node", str(resolved["processes_per_node"]),
+        "--no-python", "infer_evo2",
+        "--ckpt-dir", str(paths["checkpoint"]),
+        "--prompt-file", str(paths["prompts"]),
+        "--max-new-tokens", str(parameters["max_new_tokens"]),
+        "--temperature", str(parameters["temperature"]),
+        "--top-k", str(parameters["top_k"]),
+        "--top-p", str(parameters["top_p"]),
+        "--output-file", str(paths["upstream"]),
+        "--tensor-parallel-size", str(resolved["tensor_parallel_size"]),
+        "--pipeline-model-parallel-size",
+        str(resolved["pipeline_parallel_size"]),
+        "--context-parallel-size", str(resolved["context_parallel_size"]),
+        *value_argument("--mixed-precision-recipe", resolved["mixed_precision_recipe"]),
+        *(["--vortex-style-fp8"] if resolved["vortex_style_fp8"] else []),
+        *value_argument("--max-seq-length", resolved["max_sequence_length"]),
+        "--max-batch-size", str(resolved["max_batch_size"]),
+        "--cuda-graph-impl", str(resolved["cuda_graphs"]),
+        *(["--use-subquadratic-ops"] if resolved["subquadratic_ops"] else []),
+        *(["--enable-chunked-prefill"] if resolved["chunked_prefill"] else []),
+        *value_argument(
+            "--inference-dynamic-batching-max-tokens", resolved["dynamic_max_tokens"]
+        ),
+        "--inference-dynamic-batching-block-size",
+        str(resolved["dynamic_block_size"]),
+        *value_argument("--seed", parameters["seed"]),
+        *(["--return-log-probs"] if parameters["return_probabilities"] else []),
+    ]
+    for name in ("upstream", "portable", "fasta", "validation"):
+        paths[name].parent.mkdir(parents=True, exist_ok=True)
+    try:
+        completed = subprocess.run(command, check=False)
+    except OSError as error:
+        raise RuntimeError(f"failed to run torchrun: {error}") from error
+    if completed.returncode != 0:
+        raise SystemExit(completed.returncode)
+
+    active_step = request.parent / "active-step"
+    atomic_write_text(active_step, "generation-validation\n")
+    validate_generation(
+        argparse.Namespace(
+            input=paths["upstream"],
+            prompts=paths["prompts"],
+            output=paths["portable"],
+            fasta=paths["fasta"],
+            validation=paths["validation"],
+            num_tokens=parameters["max_new_tokens"],
+            validate=parameters["validate"],
+            return_probabilities=parameters["return_probabilities"],
+        )
+    )
+    active_step.unlink(missing_ok=True)
+
+
 def manifest_fragment(path: Path) -> dict[str, Any]:
     path = path.expanduser().resolve(strict=True)
     if path.is_dir():
@@ -1249,6 +1422,12 @@ def parser() -> argparse.ArgumentParser:
 
     capability = subcommands.add_parser("capabilities")
     capability.add_argument("--json", action="store_true")
+
+    describe = subcommands.add_parser("describe")
+    describe.add_argument("--json", action="store_true")
+
+    run = subcommands.add_parser("run")
+    run.add_argument("--request", type=Path, required=True)
 
     inspect = subcommands.add_parser("inspect-checkpoint")
     inspect.add_argument("--path", type=Path, required=True)
@@ -1294,6 +1473,10 @@ def main() -> None:
     args = parser().parse_args()
     if args.command == "capabilities":
         print(json.dumps(capabilities(), sort_keys=True))
+    elif args.command == "describe":
+        print(json.dumps(description(), sort_keys=True))
+    elif args.command == "run":
+        run_generation(args.request)
     elif args.command == "inspect-checkpoint":
         atomic_write_json(args.output, checkpoint_inspection(args.path))
     elif args.command == "materialize-predictions":

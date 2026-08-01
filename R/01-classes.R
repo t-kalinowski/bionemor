@@ -2,6 +2,7 @@ BioNeMoRecipe <- new_class(
   "BioNeMoRecipe",
   package = "bionemor",
   properties = list(
+    adapter = prop_string(),
     repository = prop_string(),
     revision = prop_string(),
     recipe_version = prop_string(),
@@ -117,6 +118,21 @@ BioNeMoArtifact <- new_class(
     schema = new_property(class = class_any, default = NULL),
     metadata = prop_list(),
     provenance = prop_list()
+  )
+)
+
+BioNeMoWorkflow <- new_class(
+  "BioNeMoWorkflow",
+  package = "bionemor",
+  properties = list(
+    id = prop_string(),
+    adapter = prop_string(),
+    adapter_version = prop_integer(min = 1L),
+    family = prop_string(),
+    task = prop_string(),
+    protocol_version = prop_integer(min = 1L),
+    input_schema = prop_string(),
+    result_schema = prop_string()
   )
 )
 

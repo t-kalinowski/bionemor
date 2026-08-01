@@ -393,7 +393,8 @@ evo2_generate <- function(
     "generation",
     name,
     request = request,
-    request_origins = request_origins
+    request_origins = request_origins,
+    workflow = workflow_identity(bionemo_workflow("evo2/generate"))
   )
   input <- prepare_sequence_input(
     prompt,
@@ -425,6 +426,7 @@ evo2_generate <- function(
   fasta <- file.path(run_path, "outputs", "generated.fasta")
   validation_path <- file.path(run_path, "outputs", "validation.json")
   plan <- evo2_generation_plan(
+    run_path = run_path,
     checkpoint = checkpoint,
     prompts = prompt_path,
     upstream = upstream,
@@ -924,7 +926,8 @@ evo2_score <- function(
     "score",
     name,
     request = request,
-    request_origins = request_origins
+    request_origins = request_origins,
+    workflow = workflow_identity(bionemo_workflow("evo2/score"))
   )
   input <- prepare_sequence_input(
     newdata,
@@ -1152,7 +1155,8 @@ evo2_profile <- function(
     "profile",
     name,
     request = request,
-    request_origins = request_origins
+    request_origins = request_origins,
+    workflow = workflow_identity(bionemo_workflow("evo2/profile"))
   )
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
   input_source <- persist_inference_input_source(run_path, input)
@@ -1344,7 +1348,8 @@ evo2_embed <- function(
     "embedding",
     name,
     request = request,
-    request_origins = request_origins
+    request_origins = request_origins,
+    workflow = workflow_identity(bionemo_workflow("evo2/embed"))
   )
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
   input_source <- persist_inference_input_source(run_path, input)
