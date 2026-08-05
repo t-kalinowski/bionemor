@@ -45,7 +45,8 @@ command_spec <- function(
   stdin = NULL,
   stdout = NULL,
   stderr = NULL,
-  timeout = Inf
+  timeout = Inf,
+  role = "upstream"
 ) {
   stopifnot(
     "command executable must be one non-empty string" = is_scalar_string(
@@ -76,7 +77,8 @@ command_spec <- function(
     "command stderr must be NULL or one non-empty string" = is.null(stderr) ||
       is_scalar_string(stderr),
     "command timeout must be positive or infinite" = identical(timeout, Inf) ||
-      is_scalar_number(timeout) && timeout > 0
+      is_scalar_number(timeout) && timeout > 0,
+    "command role must be one non-empty string" = is_scalar_string(role)
   )
   structure(
     list(
@@ -88,7 +90,8 @@ command_spec <- function(
       stdin = stdin,
       stdout = stdout,
       stderr = stderr,
-      timeout = as.double(timeout)
+      timeout = as.double(timeout),
+      role = role
     ),
     class = c("bionemor_command", "list")
   )
@@ -106,7 +109,7 @@ command_plan <- function(steps, metadata = list()) {
   }
   structure(
     list(
-      schema_version = 1L,
+      schema_version = 2L,
       steps = unname(steps),
       metadata = metadata
     ),
@@ -152,7 +155,8 @@ serializable_command <- function(command) {
     stdin = command$stdin,
     stdout = command$stdout,
     stderr = command$stderr,
-    timeout = if (is.finite(command$timeout)) command$timeout else NULL
+    timeout = if (is.finite(command$timeout)) command$timeout else NULL,
+    role = command$role
   )
 }
 
@@ -169,7 +173,7 @@ serializable_plan <- function(plan) {
     }
   )))
   list(
-    schema_version = 1L,
+    schema_version = plan$schema_version,
     steps = lapply(plan$steps, serializable_command),
     metadata = redact_persisted_value(plan$metadata, redactions)
   )
@@ -177,6 +181,24 @@ serializable_plan <- function(plan) {
 
 read_command_plan <- function(path) {
   value <- read_json_file(path, simplify = FALSE)
+  valid <- identical(value$schema_version, 2L) &&
+    is.list(value$steps) &&
+    length(value$steps) > 0L &&
+    all(vapply(
+      value$steps,
+      function(step) is.list(step) && is_scalar_string(step$role),
+      logical(1)
+    ))
+  if (!valid) {
+    run_path <- dirname(path)
+    bionemor_abort(
+      "BN_PROTOCOL",
+      "persisted command plan schema is unsupported",
+      run_path = run_path,
+      request_id = basename(run_path),
+      operation = "job-reopen"
+    )
+  }
   steps <- lapply(value$steps, function(step) {
     env <- unlist(step$env, use.names = TRUE)
     if (is.null(env)) {
@@ -191,7 +213,8 @@ read_command_plan <- function(path) {
       stdin = step$stdin,
       stdout = step$stdout,
       stderr = step$stderr,
-      timeout = step$timeout %||% Inf
+      timeout = step$timeout %||% Inf,
+      role = step$role
     )
   })
   command_plan(steps, metadata = value$metadata %||% list())
@@ -430,7 +453,7 @@ create_run <- function(
     file.path(path, "request.json")
   )
   atomic_write_json(
-    list(schema_version = 1L, steps = list(), metadata = list()),
+    list(schema_version = 2L, steps = list(), metadata = list()),
     file.path(path, "plan.json")
   )
   atomic_write_json(
@@ -1177,7 +1200,7 @@ write_plan_script <- function(plan, compute, run_path, kind, timeout = Inf) {
     },
     character(1)
   )
-  step_roles <- rep("upstream", length(plan$steps))
+  step_roles <- vapply(plan$steps, `[[`, character(1), "role")
   step_lines <- unlist(
     Map(
       function(step, role) {

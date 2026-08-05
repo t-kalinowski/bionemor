@@ -448,7 +448,13 @@ validate_generation_control <- function(control) {
   invisible(control)
 }
 
-torchrun_command <- function(operation, args, resolved, cwd) {
+torchrun_command <- function(
+  operation,
+  args,
+  resolved,
+  cwd,
+  role = "upstream"
+) {
   command_spec(
     executable = "torchrun",
     args = c(
@@ -458,7 +464,8 @@ torchrun_command <- function(operation, args, resolved, cwd) {
       operation,
       args
     ),
-    cwd = cwd
+    cwd = cwd,
+    role = role
   )
 }
 
@@ -488,65 +495,87 @@ evo2_generation_plan <- function(
     checkpoint,
     checkpoint_manifest
   )
-  run_path <- normalizePath(run_path, mustWork = TRUE)
-  relative_path <- function(path) {
-    path <- normalize_path(path)
-    prefix <- paste0(run_path, .Platform$file.sep)
-    stopifnot(
-      "execution paths must be inside the run directory" = startsWith(
-        path,
-        prefix
-      )
-    )
-    substring(path, nchar(prefix) + 1L)
-  }
-  execution <- list(
-    schema_version = 1L,
-    driver = "evo2-megatron",
-    operation = "generate",
-    checkpoint = checkpoint,
-    inputs = list(prompts = relative_path(prompts)),
-    outputs = list(
-      upstream = relative_path(upstream),
-      portable = relative_path(portable),
-      fasta = relative_path(fasta),
-      validation = relative_path(validation)
-    ),
-    parameters = list(
-      max_new_tokens = as.integer(num_tokens),
-      temperature = as.double(temperature),
-      top_k = as.integer(top_k),
-      top_p = as.double(top_p),
-      seed = seed,
-      return_probabilities = return_probabilities,
-      validate = validate
-    ),
-    resolved = resolved[c(
-      "processes_per_node",
-      "tensor_parallel_size",
-      "pipeline_parallel_size",
-      "context_parallel_size",
-      "mixed_precision_recipe",
-      "vortex_style_fp8",
-      "max_sequence_length",
-      "max_batch_size",
-      "cuda_graphs",
-      "subquadratic_ops",
-      "chunked_prefill",
-      "dynamic_max_tokens",
-      "dynamic_block_size"
-    )]
+  run_path <- normalize_path(run_path)
+  run_files <- vapply(
+    c(prompts, upstream, portable, fasta, validation),
+    normalize_path,
+    character(1)
   )
-  request_path <- file.path(run_path, "request.json")
-  request <- read_json_file(request_path, simplify = FALSE)
-  request$execution <- execution
-  atomic_write_json(request, request_path)
+  stopifnot(
+    "generation paths must be inside the run directory" = all(startsWith(
+      run_files,
+      paste0(run_path, .Platform$file.sep)
+    ))
+  )
+  inference_args <- c(
+    "--ckpt-dir",
+    checkpoint,
+    "--prompt-file",
+    prompts,
+    "--max-new-tokens",
+    as.character(num_tokens),
+    "--temperature",
+    format_number(temperature),
+    "--top-k",
+    as.character(top_k),
+    "--top-p",
+    format_number(top_p),
+    "--output-file",
+    upstream,
+    parallel_command_args(resolved),
+    precision_command_args(resolved),
+    if (!is.null(resolved$max_sequence_length)) {
+      c("--max-seq-length", as.character(resolved$max_sequence_length))
+    },
+    "--max-batch-size",
+    as.character(resolved$max_batch_size),
+    "--cuda-graph-impl",
+    resolved$cuda_graphs,
+    if (resolved$subquadratic_ops) "--use-subquadratic-ops",
+    if (resolved$chunked_prefill) "--enable-chunked-prefill",
+    if (!is.null(resolved$dynamic_max_tokens)) {
+      c(
+        "--inference-dynamic-batching-max-tokens",
+        as.character(resolved$dynamic_max_tokens)
+      )
+    },
+    "--inference-dynamic-batching-block-size",
+    as.character(resolved$dynamic_block_size),
+    if (!is.null(seed)) c("--seed", as.character(seed)),
+    if (return_probabilities) "--return-log-probs"
+  )
+  validation_args <- c(
+    "validate-generation",
+    "--input",
+    upstream,
+    "--prompts",
+    prompts,
+    "--output",
+    portable,
+    "--fasta",
+    fasta,
+    "--validation",
+    validation,
+    "--num-tokens",
+    as.character(num_tokens),
+    "--validate",
+    validate,
+    if (return_probabilities) "--return-probabilities"
+  )
   command_plan(
     list(
+      torchrun_command(
+        "infer_evo2",
+        inference_args,
+        resolved,
+        compute@workspace,
+        role = "upstream"
+      ),
       command_spec(
         "bionemor-evo2-helper",
-        c("run", "--request", request_path),
-        cwd = compute@workspace
+        validation_args,
+        cwd = compute@workspace,
+        role = "generation-validation"
       )
     ),
     metadata = list(

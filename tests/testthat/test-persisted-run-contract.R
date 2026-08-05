@@ -38,4 +38,29 @@ test_that("unsupported persisted run schemas fail clearly", {
     class = "BN_PROTOCOL"
   )
   expect_identical(error$operation, "job-reopen")
+
+  request$schema_version <- 3L
+  jsonlite::write_json(
+    request,
+    request_path,
+    auto_unbox = TRUE,
+    null = "null",
+    pretty = TRUE
+  )
+  plan_path <- file.path(job_path(job), "plan.json")
+  plan <- jsonlite::read_json(plan_path, simplifyVector = FALSE)
+  plan$schema_version <- 1L
+  jsonlite::write_json(
+    plan,
+    plan_path,
+    auto_unbox = TRUE,
+    null = "null",
+    pretty = TRUE
+  )
+
+  error <- expect_error(
+    bionemo_job(job_path(job)),
+    class = "BN_PROTOCOL"
+  )
+  expect_identical(error$operation, "job-reopen")
 })
