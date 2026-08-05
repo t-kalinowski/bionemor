@@ -2,6 +2,24 @@
 
 This directory contains maintainer workflows that require billable GPU compute.
 
+## Package tests on an existing GPU instance
+
+The regular test suite uses a small local runtime substitute. To exercise the
+installed Evo 2 helper and its score, profile, pooled embedding, and unpooled
+embedding paths, run the package tests with an existing image and checkpoint:
+
+```bash
+BIONEMOR_TEST_GPU=true \
+BIONEMOR_EVO2_IMAGE=sha256:<image-id> \
+BIONEMOR_EVO2_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
+BIONEMOR_EVO2_CHECKPOINT=/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
+R -q -e 'devtools::test()'
+```
+
+Set `BIONEMOR_EVO2_MODEL` when the checkpoint is not the default `"7b"` model.
+The test does not provision or start an instance. Without
+`BIONEMOR_TEST_GPU=true`, it skips the real runtime and runs the local suite.
+
 ## Acceptance capture
 
 Dated subdirectories are produced by the opt-in
