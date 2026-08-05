@@ -64,7 +64,7 @@ test_that("detached local jobs finalize state, events, and provenance", {
   expect_true(length(manifest$upstream) > 0L)
 })
 
-test_that("credential-bearing public workflows redact raw persisted logs", {
+test_that("credential-bearing operations redact raw persisted logs", {
   workspace <- tempfile("bionemor-credential-log-")
   bin <- tempfile("bionemor-bin-")
   source <- tempfile("bionemor-ngc-source-")
@@ -430,7 +430,7 @@ test_that("prediction tensor cleanup failures fail the detached job", {
   )
   expect_match(
     paste(job_logs(job), collapse = "\n"),
-    "failed to remove workflow temporary files",
+    "failed to remove job temporary files",
     fixed = TRUE
   )
 })

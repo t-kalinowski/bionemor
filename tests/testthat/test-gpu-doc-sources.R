@@ -32,11 +32,21 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("NVIDIA GPU", onboarding, fixed = TRUE)))
   expect_true(all(grepl("no CPU fallback", onboarding, fixed = TRUE)))
   expect_true(all(grepl("BioNeMo Recipes", onboarding, fixed = TRUE)))
-  expect_match(sources[[1L]], "family-specific programs", fixed = TRUE)
+  expect_match(
+    sources[[1L]],
+    "ESM-2 embeddings use a helper supplied by",
+    fixed = TRUE
+  )
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("ESM-2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Brev", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("bionemo_workflows()", onboarding, fixed = TRUE)))
+  expect_true(all(grepl(
+    "Supported models and operations",
+    onboarding,
+    fixed = TRUE
+  )))
+  expect_true(all(grepl("evo2_score()", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("esm2_embed()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = evo2_recipe()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = esm2_recipe()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Megatron Bridge", onboarding, fixed = TRUE)))

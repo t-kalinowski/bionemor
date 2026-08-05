@@ -361,8 +361,7 @@ evo2_generate <- function(
     compute,
     "generation",
     name,
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/generate"))
+    request = request
   )
   input <- prepare_sequence_input(
     prompt,
@@ -861,8 +860,7 @@ evo2_score <- function(
     compute,
     "score",
     name,
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/score"))
+    request = request
   )
   input <- prepare_sequence_input(
     newdata,
@@ -1066,8 +1064,7 @@ evo2_profile <- function(
     compute,
     "profile",
     name,
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/profile"))
+    request = request
   )
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
   input_source <- persist_inference_input_source(run_path, input)
@@ -1239,8 +1236,7 @@ evo2_embed <- function(
     compute,
     "embedding",
     name,
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/embed"))
+    request = request
   )
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
   input_source <- persist_inference_input_source(run_path, input)

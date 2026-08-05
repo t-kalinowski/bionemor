@@ -844,14 +844,13 @@ evo2_manifest_precision <- function(plan, request, checkpoint) {
 }
 
 bionemor_adapter_evo2_megatron_manifest_context <- function(
-  workflow,
   job,
   request,
   plan
 ) {
   stopifnot(
-    "workflow must use the Evo 2 Megatron adapter" = identical(
-      workflow@adapter,
+    "job must use the Evo 2 Megatron adapter" = identical(
+      job@compute@recipe@adapter,
       "evo2-megatron"
     ),
     "manifest request and plan must be lists" = is.list(request) &&
@@ -990,25 +989,24 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
 }
 
 bionemor_adapter_evo2_megatron_materialize <- function(
-  workflow,
   job,
   descriptor
 ) {
   stopifnot(
-    "workflow must use the Evo 2 Megatron adapter" = identical(
-      workflow@adapter,
+    "job must use the Evo 2 Megatron adapter" = identical(
+      job@compute@recipe@adapter,
       "evo2-megatron"
     ),
     "job result descriptor must be a list" = is.list(descriptor)
   )
   materialize <- switch(
-    workflow@task,
-    generate = materialize_generation_job,
+    descriptor$type,
+    generation = materialize_generation_job,
     score = materialize_score_job,
     profile = materialize_profile_job,
-    embed = materialize_embedding_job,
+    `embedding-pooled` = materialize_embedding_job,
+    `embedding-unpooled` = materialize_embedding_job,
     checkpoint = materialize_checkpoint_job,
-    export = materialize_checkpoint_job,
     preprocess = materialize_preprocess_job,
     `fine-tune` = materialize_finetune_job,
     NULL
@@ -1016,73 +1014,14 @@ bionemor_adapter_evo2_megatron_materialize <- function(
   if (is.null(materialize)) {
     bionemor_abort(
       "BN_PROTOCOL",
-      paste0("Evo 2 result workflow is unsupported: ", workflow@id),
+      paste0("Evo 2 result contract is unsupported: ", descriptor$type),
       run_path = job@path,
       request_id = job@id,
-      operation = workflow@task,
+      operation = job@kind,
       log_paths = file.path(job@path, c("stdout.log", "stderr.log"))
     )
   }
   materialize(job, descriptor)
-}
-
-bionemor_adapter_evo2_megatron_run <- function(
-  workflow,
-  model,
-  input,
-  compute,
-  parameters,
-  async,
-  name
-) {
-  stopifnot(
-    "workflow must use the Evo 2 Megatron adapter" = identical(
-      workflow@adapter,
-      "evo2-megatron"
-    ),
-    "model must be an Evo 2 model" = S7_inherits(model, Evo2Model),
-    "workflow and model families must match" = identical(
-      workflow@family,
-      model@family
-    )
-  )
-  compute <- resolve_model_compute(model, compute)
-  stopifnot(
-    "workflow and compute adapters must match" = identical(
-      workflow@adapter,
-      compute@recipe@adapter
-    )
-  )
-  if (
-    workflow@task %in% c("checkpoint", "export", "preprocess") && !is.null(name)
-  ) {
-    stop(paste0("name is not supported for workflow ", workflow@id))
-  }
-  routes <- list(
-    generate = list(evo2_generate, "object", "prompt", TRUE),
-    score = list(evo2_score, "object", "newdata", TRUE),
-    profile = list(evo2_profile, "object", "newdata", TRUE),
-    embed = list(evo2_embed, "object", "newdata", TRUE),
-    preprocess = list(evo2_preprocess, "model", "data", FALSE),
-    `fine-tune` = list(evo2_finetune, "object", "data", TRUE),
-    checkpoint = list(evo2_checkpoint, "model", "source", FALSE),
-    export = list(evo2_export, "model", "path", FALSE)
-  )
-  route <- routes[[workflow@task]]
-  if (is.null(route)) {
-    bionemor_abort(
-      "BN_WORKFLOW_UNKNOWN",
-      paste0("Evo 2 workflow is unsupported: ", workflow@id),
-      operation = "workflow-dispatch"
-    )
-  }
-  arguments <- list(compute = compute, async = async)
-  arguments[[route[[2L]]]] <- model
-  arguments[[route[[3L]]]] <- input
-  if (isTRUE(route[[4L]])) {
-    arguments$name <- name
-  }
-  workflow_call(route[[1L]], arguments, parameters)
 }
 
 format_number <- function(x) {

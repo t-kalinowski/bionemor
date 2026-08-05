@@ -1273,11 +1273,11 @@ def load_generation_execution(
     if not request.is_file() or not isinstance(document, dict):
         raise RuntimeError("generation request must be a JSON object file")
 
-    workflow = document.get("workflow")
-    if not isinstance(workflow, dict) or not set(
-        "adapter adapter_version protocol_version task".split()
-    ).issubset(workflow):
-        raise RuntimeError("workflow must be an object")
+    compute = document.get("compute")
+    recipe = compute.get("recipe") if isinstance(compute, dict) else None
+    result = document.get("expected_result")
+    if not isinstance(recipe, dict) or not isinstance(result, dict):
+        raise RuntimeError("generation request contract is incomplete")
     execution = exact_object(
         document.get("execution"),
         "schema_version driver operation checkpoint inputs outputs parameters resolved",
@@ -1303,18 +1303,19 @@ def load_generation_execution(
         "execution.resolved",
     )
     versions = (
+        document.get("schema_version"),
         execution["schema_version"],
-        workflow["adapter_version"],
-        workflow["protocol_version"],
+        result.get("result_version"),
     )
     if (
         any(type(version) is not int for version in versions)
-        or versions != (EXECUTION_SCHEMA_VERSION, 1, PROTOCOL_VERSION)
+        or versions != (3, EXECUTION_SCHEMA_VERSION, 1)
         or (execution["driver"], execution["operation"]) != (DRIVER, "generate")
-        or (workflow["adapter"], workflow["task"])
-        != (DRIVER, execution["operation"])
+        or recipe.get("adapter") != DRIVER
+        or document.get("kind") != "generation"
+        or result.get("type") != "generation"
     ):
-        raise RuntimeError("workflow and generation execution protocol do not match")
+        raise RuntimeError("generation execution contract does not match")
 
     base = request.parent
     paths = {

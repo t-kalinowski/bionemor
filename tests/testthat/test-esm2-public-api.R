@@ -16,7 +16,7 @@ test_that("compute requires an explicit recipe", {
   expect_identical(compute@recipe, evo2_recipe())
 })
 
-test_that("the public API exposes the ESM-2 embedding workflow", {
+test_that("the public API exposes ESM-2 protein embeddings", {
   functions <- c(
     "esm2_recipe",
     "esm2_models",
@@ -25,29 +25,12 @@ test_that("the public API exposes the ESM-2 embedding workflow", {
     "esm2_embed"
   )
   expect_true(all(functions %in% getNamespaceExports("bionemor")))
-
-  workflows <- bionemo_workflows()
-  record <- workflows[workflows$id == "esm2/embed", , drop = FALSE]
-  expect_equal(nrow(record), 1L)
-  expect_equal(record$family, "esm2")
-  expect_equal(record$task, "embed")
-  expect_equal(record$input_schema, "sequence/protein-v1")
-  expect_equal(record$result_schema, "matrix/esm2-embeddings-v1")
-
-  workflow <- bionemo_workflow("esm2/embed")
-  expect_equal(workflow@id, "esm2/embed")
-  expect_equal(workflow@family, "esm2")
-  expect_equal(workflow@task, "embed")
-  expect_equal(workflow@input_schema, "sequence/protein-v1")
-  expect_equal(workflow@result_schema, "matrix/esm2-embeddings-v1")
-  expect_equal(bionemo_workflows("esm2"), record)
 })
 
 test_that("ESM-2 recipes and model descriptors are available offline", {
   recipe <- esm2_recipe()
-  workflow <- bionemo_workflow("esm2/embed")
   expect_s3_class(recipe, "bionemor::BioNeMoRecipe")
-  expect_equal(recipe@adapter, workflow@adapter)
+  expect_equal(recipe@adapter, "esm2-transformers")
   expect_equal(recipe@recipe_version, "transformers-5.14.1")
   expect_equal(
     recipe@revision,
@@ -129,41 +112,6 @@ test_that("ESM-2 rejects multi-GPU inference before submission", {
   )
 })
 
-test_that("bionemo_run accepts a family-qualified workflow ID", {
-  workspace <- tempfile("bionemor-workflow-id-")
-  bin <- tempfile("bionemor-bin-")
-  log <- tempfile("bionemor-log-")
-  dir.create(workspace)
-  fake_recipes_runtime(bin)
-  withr::local_envvar(
-    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
-    BIONEMOR_FAKE_LOG = log
-  )
-
-  compute <- bionemo_compute(
-    recipe = evo2_recipe(),
-    engine = "external",
-    workspace = workspace
-  )
-  model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
-  result <- bionemo_run(
-    "evo2/score",
-    model = model,
-    input = c(reference = "ACGT", variant = "TGCA"),
-    compute = compute,
-    parameters = list(
-      reduction = "mean",
-      strand = "forward",
-      batch_size = 1L
-    ),
-    name = "workflow-id-score"
-  )
-
-  expect_s3_class(result, "evo2_scores")
-  expect_equal(result$id, c("reference", "variant"))
-  expect_equal(result$score, c(-1, -2))
-})
-
 test_that("predict dispatches ESM-2 embedding through the family API", {
   model <- esm2("8m")
   proteins <- c(reference = "m k t", variant = "Mnt")
@@ -183,7 +131,7 @@ test_that("predict dispatches ESM-2 embedding through the family API", {
   expect_identical(conditionMessage(generic), conditionMessage(direct))
 })
 
-test_that("ESM-2 embeddings use the public durable workflow", {
+test_that("ESM-2 embeddings use durable jobs", {
   workspace <- tempfile("bionemor-esm2-embedding-")
   bin <- tempfile("bionemor-esm2-bin-")
   log <- tempfile("bionemor-esm2-log-")
@@ -234,12 +182,7 @@ test_that("ESM-2 embeddings use the public durable workflow", {
     protein_file
   )
 
-  embeddings <- bionemo_run(
-    "esm2/embed",
-    model = model,
-    input = protein_file,
-    parameters = list()
-  )
+  embeddings <- esm2_embed(model, protein_file)
   expect_s3_class(embeddings, "esm2_embeddings")
   expect_true(is.matrix(embeddings))
   expect_equal(dim(embeddings), c(2L, 320L))

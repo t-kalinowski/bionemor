@@ -150,13 +150,11 @@ esm2_embed <- function(
     source_revision = source_revision,
     pooling = "last-token-l2"
   )
-  workflow <- bionemo_workflow("esm2/embed")
   run_path <- create_run(
     compute,
     "embedding",
     name,
-    request = request,
-    workflow = workflow_identity(workflow)
+    request = request
   )
   input <- prepare_sequence_input(
     newdata,
@@ -381,14 +379,13 @@ bionemor_adapter_esm2_transformers_doctor_model <- function(
 }
 
 bionemor_adapter_esm2_transformers_manifest_context <- function(
-  workflow,
   job,
   request,
   plan
 ) {
   stopifnot(
-    "workflow must use the ESM-2 Transformers adapter" = identical(
-      workflow@adapter,
+    "job must use the ESM-2 Transformers adapter" = identical(
+      job@compute@recipe@adapter,
       "esm2-transformers"
     ),
     "manifest request and plan must be lists" = is.list(request) &&
@@ -435,69 +432,24 @@ bionemor_adapter_esm2_transformers_manifest_context <- function(
 }
 
 bionemor_adapter_esm2_transformers_materialize <- function(
-  workflow,
   job,
   descriptor
 ) {
   stopifnot(
-    "workflow must use the ESM-2 Transformers adapter" = identical(
-      workflow@adapter,
+    "job must use the ESM-2 Transformers adapter" = identical(
+      job@compute@recipe@adapter,
       "esm2-transformers"
     ),
     "job result descriptor must be a list" = is.list(descriptor)
   )
-  if (!identical(workflow@task, "embed")) {
+  if (!identical(descriptor$type, "esm2-pooled")) {
     bionemor_abort(
       "BN_PROTOCOL",
-      paste0("ESM-2 result workflow is unsupported: ", workflow@id),
+      paste0("ESM-2 result contract is unsupported: ", descriptor$type),
       run_path = job@path,
       request_id = job@id,
-      operation = workflow@task
+      operation = job@kind
     )
   }
   esm2_materialize_embedding(job, descriptor)
-}
-
-bionemor_adapter_esm2_transformers_run <- function(
-  workflow,
-  model,
-  input,
-  compute,
-  parameters,
-  async,
-  name
-) {
-  stopifnot(
-    "workflow must use the ESM-2 Transformers adapter" = identical(
-      workflow@adapter,
-      "esm2-transformers"
-    ),
-    "model must be an ESM-2 model" = S7_inherits(model, Esm2Model),
-    "workflow and model families must match" = identical(
-      workflow@family,
-      model@family
-    )
-  )
-  compute <- resolve_model_compute(model, compute)
-  stopifnot(
-    "workflow and compute adapters must match" = identical(
-      workflow@adapter,
-      compute@recipe@adapter
-    )
-  )
-  if (!identical(workflow@task, "embed")) {
-    bionemor_abort(
-      "BN_WORKFLOW_UNKNOWN",
-      paste0("ESM-2 workflow is unsupported: ", workflow@id),
-      operation = "workflow-dispatch"
-    )
-  }
-  arguments <- list(
-    object = model,
-    newdata = input,
-    compute = compute,
-    async = async,
-    name = name
-  )
-  workflow_call(esm2_embed, arguments, parameters)
 }

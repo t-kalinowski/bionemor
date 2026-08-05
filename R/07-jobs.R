@@ -386,8 +386,7 @@ create_run <- function(
   compute,
   kind,
   name = NULL,
-  request = list(),
-  workflow
+  request = list()
 ) {
   stopifnot(
     "compute must be a BioNeMo compute specification" = S7_inherits(
@@ -397,11 +396,11 @@ create_run <- function(
     "compute workspace must exist" = dir.exists(compute@workspace),
     "kind must be one safe name" = is_scalar_string(kind) &&
       grepl("^[A-Za-z0-9_.-]+$", kind),
-    "request must be a list" = is.list(request),
-    "workflow must be a complete workflow identity" = is.list(workflow) &&
-      all(workflow_identity_fields %in% names(workflow))
+    "request must be a list" = is.list(request)
   )
-  name <- safe_name(name, paste0(workflow$family, "-", kind))
+  adapter <- adapter_record(compute@recipe@adapter)
+  operation_record(compute@recipe@adapter, kind)
+  name <- safe_name(name, paste0(adapter$family, "-", kind))
   path <- file.path(compute@workspace, ".bionemor", "runs", name)
   if (file.exists(path)) {
     stop("run directory already exists")
@@ -420,10 +419,9 @@ create_run <- function(
   )
   atomic_write_json(
     list(
-      schema_version = 2L,
+      schema_version = 3L,
       id = name,
       kind = kind,
-      workflow = workflow,
       compute = compute_record(compute),
       request = redact_persisted_value(request),
       expected_result = NULL,
@@ -698,7 +696,7 @@ if (identical(manifest$state, "succeeded") && is.list(cleanup)) {
   )
   temporary <- temporary[endsWith(temporary, cleanup$suffix)]
   if (length(temporary) && unlink(temporary) != 0L) {
-    stop("failed to remove workflow temporary files")
+    stop("failed to remove job temporary files")
   }
 }
 checkpoint_path <- manifest$checkpoint$path
@@ -1320,12 +1318,23 @@ submit_plan <- function(
     file.path(run_path, "request.json"),
     simplify = FALSE
   )
-  existing <- plan$metadata$workflow %||% request$workflow
-  if (!identical(existing, request$workflow)) {
-    stop("command plan workflow does not match the persisted request")
+  if (!identical(request$compute$recipe$adapter, compute@recipe@adapter)) {
+    stop("compute adapter does not match the persisted request")
   }
-  plan$metadata$workflow <- request$workflow
-  expected_result$result_schema <- request$workflow$result_schema
+  versions <- operation_record(compute@recipe@adapter, kind)
+  version <- versions[[expected_result$type]]
+  if (is.null(version)) {
+    stop("result type is unsupported for this operation")
+  }
+  expected_result$result_version <- as.integer(version)
+  validate_result_contract(
+    compute@recipe@adapter,
+    kind,
+    expected_result,
+    run_path,
+    request$id,
+    "job-submission"
+  )
   request$expected_result <- redact_persisted_value(expected_result)
   request$timeout <- if (is.finite(timeout)) as.double(timeout) else NULL
   atomic_write_json(request, file.path(run_path, "request.json"))
@@ -1462,8 +1471,8 @@ submit_plan <- function(
 #' Pass that job to [job_status()], [job_logs()], [job_wait()], [job_cancel()],
 #' or [job_result()]. `bionemo_job()` reconstructs the same handle from its run
 #' directory, including for a run that is still active or already complete. It
-#' does not resubmit or restart the operation. The recorded adapter, protocol,
-#' and schema identity must match the installed workflow registry.
+#' does not resubmit or restart the operation. The recorded operation and result
+#' format must be supported by the installed package.
 #'
 #' @param path Path to a run directory created by bionemor. It must contain the
 #'   persisted request, command plan, and state files.
@@ -1492,25 +1501,27 @@ bionemo_job <- function(path) {
     stop("path must contain a persisted BioNeMo run")
   }
   request <- read_run_request(path)
-  workflow <- workflow_from_identity(request$workflow)
   compute <- compute_from_record(request$compute)
   plan <- read_command_plan(file.path(path, "plan.json"))
+  state <- read_json_file(file.path(path, "state.json"), simplify = FALSE)
+  validate_result_contract(
+    compute@recipe@adapter,
+    request$kind,
+    request$expected_result,
+    path,
+    request$id %||% basename(path),
+    "job-reopen"
+  )
   if (
-    !identical(plan$metadata$workflow, request$workflow) ||
-      !identical(compute@recipe@adapter, workflow@adapter) ||
-      !is.list(request$expected_result) ||
-      !identical(
-        request$expected_result$result_schema,
-        workflow@result_schema
-      )
+    !identical(state$kind, request$kind) ||
+      !identical(state$id, request$id)
   ) {
     bionemor_abort(
       "BN_PROTOCOL",
-      "persisted run contains inconsistent adapter contracts",
+      "persisted run contains inconsistent job identity",
       run_path = path,
       request_id = request$id %||% basename(path),
-      operation = "job-reopen",
-      workflow = workflow@id
+      operation = "job-reopen"
     )
   }
   expected_result <- request$expected_result
@@ -2514,19 +2525,23 @@ run_manifest_value <- function(job, result = NULL) {
     file.path(job@path, "plan.json"),
     simplify = FALSE
   )
-  workflow <- workflow_from_identity(persisted_request$workflow)
+  adapter <- job@compute@recipe@adapter
+  validate_result_contract(
+    adapter,
+    job@kind,
+    job@expected_result,
+    job@path,
+    job@id,
+    "manifest"
+  )
   semantic_request <- persisted_request$request %||% list()
   semantic_request$operation <- semantic_request$operation %||% job@kind
-  context <- adapter_function(workflow@adapter, "manifest_context")(
-    workflow,
+  context <- adapter_function(adapter, "manifest_context")(
     job,
     semantic_request,
     persisted_plan
   )
-  provenance <- adapter_function(workflow@adapter, "provenance")(
-    workflow,
-    job
-  )
+  provenance <- adapter_function(adapter, "provenance")(job)
   capabilities <- job@compute@config$capabilities %||% list()
   manifest_path <- file.path(job@path, "manifest.json")
   previous_manifest <- if (file.exists(manifest_path)) {
@@ -2550,7 +2565,10 @@ run_manifest_value <- function(job, result = NULL) {
     schema_version = 1L,
     id = job@id,
     kind = job@kind,
-    workflow = persisted_request$workflow %||% NULL,
+    result = list(
+      type = job@expected_result$type,
+      version = job@expected_result$result_version
+    ),
     package = list(
       name = "bionemor",
       version = run_manifest_package_version()
@@ -2623,21 +2641,17 @@ materialize_job_result <- function(x) {
   if (!is.list(descriptor)) {
     stop("job does not contain a persisted result descriptor")
   }
-  workflow <- job_workflow(x)
-  if (!identical(descriptor$result_schema, workflow@result_schema)) {
-    bionemor_abort(
-      "BN_PROTOCOL",
-      "persisted result schema does not match the workflow",
-      run_path = x@path,
-      request_id = x@id,
-      operation = "result-materialization",
-      workflow = workflow@id,
-      expected_result_schema = workflow@result_schema,
-      actual_result_schema = descriptor$result_schema %||% NULL
-    )
-  }
-  materialize <- adapter_function(workflow@adapter, "materialize")
-  result <- materialize(workflow, x, descriptor)
+  adapter <- x@compute@recipe@adapter
+  validate_result_contract(
+    adapter,
+    x@kind,
+    descriptor,
+    x@path,
+    x@id,
+    "result-materialization"
+  )
+  materialize <- adapter_function(adapter, "materialize")
+  result <- materialize(x, descriptor)
   write_run_manifest(x, result)
   result
 }

@@ -1,14 +1,14 @@
 Package: bionemor
-Title: Run Biological Foundation-Model Workflows from R
+Title: Run Biological Foundation Models from R
 Version: 0.0.0.9000
 Authors@R:
     person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
-Description: Run selected biological foundation-model assets and runtimes
-    published through NVIDIA BioNeMo Recipes. The package manages GPU runtimes,
-    model sources, durable jobs, and portable R results. It provides R
-    interfaces for Evo 2 DNA workflows and ESM-2 protein embeddings. Model
-    operations require a supported CUDA-capable NVIDIA GPU; no CPU fallback is
-    available.
+Description: Provides R interfaces to selected biological foundation models
+    using version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from
+    NVIDIA BioNeMo Recipes; ESM-2 embeddings use a package-supplied helper built
+    on Transformers and Transformer Engine. The package manages model sources,
+    durable jobs, provenance, and portable R results. Model operations require a
+    supported CUDA-capable NVIDIA GPU; no CPU fallback is available.
 License: MIT + file LICENSE
 URL: https://t-kalinowski.github.io/bionemor/,
     https://github.com/t-kalinowski/bionemor
@@ -44,7 +44,7 @@ Collate:
     '01-classes.R'
     '02-model.R'
     '02-recipe.R'
-    '02-workflow.R'
+    '02-adapter.R'
     '02-sequence.R'
     '06-adapter-evo2-classes.R'
     '06-adapter-evo2-model.R'

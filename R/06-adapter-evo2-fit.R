@@ -460,8 +460,7 @@ evo2_preprocess <- function(
     compute,
     "preprocess",
     name,
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/preprocess"))
+    request = request
   )
   inputs <- file.path(run_path, "inputs")
   partitions <- list(
@@ -1152,8 +1151,7 @@ evo2_finetune <- function(
     compute,
     "fine-tune",
     name,
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/fine-tune"))
+    request = request
   )
   args <- c(
     "--nproc-per-node",

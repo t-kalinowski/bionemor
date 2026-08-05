@@ -89,14 +89,8 @@ recipe_descriptor <- function(
   )
 }
 
-recipe_runtime_provenance <- function(workflow, job) {
+recipe_runtime_provenance <- function(job) {
   recipe <- job@compute@recipe
-  stopifnot(
-    "workflow and recipe adapters must match" = identical(
-      workflow@adapter,
-      recipe@adapter
-    )
-  )
   lock <- recipe_install_spec(recipe)$lock
   capabilities <- job@compute@config$capabilities %||% list()
   list(

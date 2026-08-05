@@ -26,7 +26,7 @@ test_that("checked-in GPU documentation is a successful static capture", {
   expect_true(all(grepl("no CPU fallback", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("ESM-2", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("esm2/embed", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("esm2_embed", onboarding, fixed = TRUE)))
   expect_true(all(grepl(
     "#> \\[1\\][[:space:]]+2[[:space:]]+320",
     onboarding

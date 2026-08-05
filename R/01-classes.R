@@ -97,21 +97,6 @@ BioNeMoArtifact <- new_class(
   )
 )
 
-BioNeMoWorkflow <- new_class(
-  "BioNeMoWorkflow",
-  package = "bionemor",
-  properties = list(
-    id = prop_string(),
-    adapter = prop_string(),
-    adapter_version = prop_integer(min = 1L),
-    family = prop_string(),
-    task = prop_string(),
-    protocol_version = prop_integer(min = 1L),
-    input_schema = prop_string(),
-    result_schema = prop_string()
-  )
-)
-
 BioNeMoDoctor <- new_class(
   "BioNeMoDoctor",
   package = "bionemor",

@@ -4,12 +4,14 @@
 \name{bionemor-package}
 \alias{bionemor}
 \alias{bionemor-package}
-\title{Run biological foundation-model workflows from R}
+\title{Run biological foundation models from R}
 \description{
-\code{bionemor} provides R interfaces to selected biological foundation-model
-assets and runtimes published through NVIDIA BioNeMo Recipes. It supports Evo
-2 DNA workflows and ESM-2 protein embeddings through a shared sequence-input,
-compute, durable-job, provenance, and R-result lifecycle.
+\code{bionemor} provides R interfaces to selected biological foundation models
+using version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from
+NVIDIA BioNeMo Recipes. ESM-2 embeddings use a helper supplied by \code{bionemor}
+and built on Transformers and Transformer Engine. The package supports Evo 2
+operations on DNA and ESM-2 protein embeddings through a shared
+sequence-input, compute, durable-job, provenance, and R-result lifecycle.
 }
 \details{
 Installing the R package and inspecting its model registries do not require a
@@ -27,22 +29,22 @@ A model descriptor identifies a family, variant, configuration, and optional
 checkpoint without loading weights into R. A recipe describes the pinned
 family-specific source, dependencies, and commands. A compute descriptor
 combines that recipe with a workspace, backend, runtime engine, and GPU
-resources; a container is one engine selected by compute. A workflow is one
-operation, and a durable job records its request, state, logs, outputs, and
-provenance so it can be reopened in another R session.
+resources; a container is one engine selected by compute. Family-specific R
+functions request operations, and a durable job records each request, state,
+logs, outputs, and provenance so it can be reopened in another R session.
 }
 
 \section{Start here}{
 
 \itemize{
-\item \code{\link[=bionemo_workflows]{bionemo_workflows()}} lists installed model-family workflows.
+\item \code{\link[=evo2_models]{evo2_models()}} and \code{\link[=esm2_models]{esm2_models()}} list the supported model checkpoints.
 \item \code{\link[=bionemo_compute]{bionemo_compute()}} describes the selected recipe, GPU runtime, and
 workspace.
 \item \code{\link[=bionemo_install]{bionemo_install()}} prepares or checks that runtime.
 }
 }
 
-\section{Evo 2 DNA workflows}{
+\section{Evo 2 DNA operations}{
 
 \itemize{
 \item \code{\link[=evo2_models]{evo2_models()}} lists the packaged model registry, and \code{\link[=evo2_model]{evo2_model()}}
@@ -64,6 +66,10 @@ preprocess training data, then fine-tune a model.
 \item \code{\link[=esm2_model]{esm2_model()}} binds a checkpoint to an ESM-2 recipe runtime.
 \item \code{\link[=esm2_embed]{esm2_embed()}} returns last-token, L2-normalized protein embeddings.
 }
+}
+
+\section{Durable jobs}{
+
 
 Operations write durable requests, logs, state, and portable results below
 the compute workspace. Use \code{\link[=bionemo_job]{bionemo_job()}} to reopen a run after the R session

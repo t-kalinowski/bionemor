@@ -27,8 +27,8 @@ Operations that support \code{async} return their typed result directly when
 Pass that job to \code{\link[=job_status]{job_status()}}, \code{\link[=job_logs]{job_logs()}}, \code{\link[=job_wait]{job_wait()}}, \code{\link[=job_cancel]{job_cancel()}},
 or \code{\link[=job_result]{job_result()}}. \code{bionemo_job()} reconstructs the same handle from its run
 directory, including for a run that is still active or already complete. It
-does not resubmit or restart the operation. The recorded adapter, protocol,
-and schema identity must match the installed workflow registry.
+does not resubmit or restart the operation. The recorded operation and result
+format must be supported by the installed package.
 }
 \examples{
 \dontrun{

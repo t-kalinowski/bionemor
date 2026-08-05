@@ -8,12 +8,6 @@ reference:
   contents:
   - bionemor-package
 
-- title: Discover and run workflows
-  contents:
-  - bionemo_workflows
-  - bionemo_workflow
-  - bionemo_run
-
 - title: Configure compute and runtimes
   contents:
   - bionemo_compute

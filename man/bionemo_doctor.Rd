@@ -16,7 +16,7 @@ bionemo_doctor(
 selected, usually the value returned by \code{\link[=bionemo_install]{bionemo_install()}}.}
 
 \item{model}{Optional BioNeMo model. Supplying a model adds the checks
-implemented by the compute recipe's adapter.}
+implemented by the compute recipe.}
 
 \item{target}{Operation group to check: \code{"all"}, \code{"inference"},
 \code{"training"}, or \code{"conversion"}.}
@@ -32,27 +32,27 @@ the \code{check}, \code{status}, \code{detail}, and \code{output} columns progra
 }
 \description{
 \code{bionemo_doctor()} checks whether a compute descriptor is ready for one or
-more groups of operations supplied by its recipe adapter. It performs live
+more groups of operations supplied by its recipe runtime. It performs live
 runtime probes; it does not rely on the cached capability report stored by
 \code{\link[=bionemo_install]{bionemo_install()}}. A model is optional because the runtime can be
-diagnosed before weights are prepared. Supply one to add the adapter's model
+diagnosed before weights are prepared. Supply one to add the recipe's model
 compatibility and checkpoint checks. The doctor does not install software,
 build containers, or prepare checkpoints.
 }
 \section{Targets}{
 
 
-\code{target} selects a command group declared by the selected recipe adapter.
+\code{target} selects a command group declared by the selected recipe.
 \code{"inference"}, \code{"training"}, and \code{"conversion"} check the commands needed
 for that operation group; \code{"all"} checks every command implemented by the
-adapter. An adapter reports an error when a requested group is unsupported.
+recipe. An error is reported when a requested group is unsupported.
 
 Every target also checks the backend commands, required host tools, writable
 workspace, helper protocol, recipe identity, runtime software versions, GPU
 visibility and count, and image metadata and digest availability. When
 \code{model} is supplied, the doctor also checks registry compatibility,
-model source or checkpoint readiness. These checks do not run a workflow on
-user data.
+model source or checkpoint readiness. These checks do not run a model
+operation on user data.
 
 With a Slurm backend, host and runtime checks submit short synchronous jobs
 so that tools, GPUs, and the runtime are inspected on compute nodes. This can
@@ -102,5 +102,5 @@ bionemo_doctor(compute, model, target = "inference")
 
 }
 \seealso{
-\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}}, \code{\link[=bionemo_workflows]{bionemo_workflows()}}
+\code{\link[=bionemo_install]{bionemo_install()}}, \code{\link[=bionemo_capabilities]{bionemo_capabilities()}}
 }

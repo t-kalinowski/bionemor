@@ -1179,8 +1179,7 @@ evo2_checkpoint <- function(
   run_path <- create_run(
     compute,
     kind = "checkpoint",
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/checkpoint"))
+    request = request
   )
   inspection <- file.path(run_path, "outputs", "checkpoint-inspection.json")
   steps <- list()
@@ -1515,8 +1514,7 @@ evo2_export <- function(
   run_path <- create_run(
     compute,
     kind = "export",
-    request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/export"))
+    request = request
   )
   export_source <- source
   steps <- list()

@@ -115,7 +115,7 @@ install_probe_commands <- function(recipe, target = "all") {
   }
   if (!length(commands)) {
     stop(
-      "recipe adapter does not support the '",
+      "selected recipe does not support the '",
       target,
       "' operation group",
       call. = FALSE
@@ -1574,26 +1574,26 @@ doctor_capabilities <- function(compute, target, model = NULL) {
 #' Diagnose a BioNeMo Recipes execution environment
 #'
 #' `bionemo_doctor()` checks whether a compute descriptor is ready for one or
-#' more groups of operations supplied by its recipe adapter. It performs live
+#' more groups of operations supplied by its recipe runtime. It performs live
 #' runtime probes; it does not rely on the cached capability report stored by
 #' [bionemo_install()]. A model is optional because the runtime can be
-#' diagnosed before weights are prepared. Supply one to add the adapter's model
+#' diagnosed before weights are prepared. Supply one to add the recipe's model
 #' compatibility and checkpoint checks. The doctor does not install software,
 #' build containers, or prepare checkpoints.
 #'
 #' @section Targets:
 #'
-#' `target` selects a command group declared by the selected recipe adapter.
+#' `target` selects a command group declared by the selected recipe.
 #' `"inference"`, `"training"`, and `"conversion"` check the commands needed
 #' for that operation group; `"all"` checks every command implemented by the
-#' adapter. An adapter reports an error when a requested group is unsupported.
+#' recipe. An error is reported when a requested group is unsupported.
 #'
 #' Every target also checks the backend commands, required host tools, writable
 #' workspace, helper protocol, recipe identity, runtime software versions, GPU
 #' visibility and count, and image metadata and digest availability. When
 #' `model` is supplied, the doctor also checks registry compatibility,
-#' model source or checkpoint readiness. These checks do not run a workflow on
-#' user data.
+#' model source or checkpoint readiness. These checks do not run a model
+#' operation on user data.
 #'
 #' With a Slurm backend, host and runtime checks submit short synchronous jobs
 #' so that tools, GPUs, and the runtime are inspected on compute nodes. This can
@@ -1617,7 +1617,7 @@ doctor_capabilities <- function(compute, target, model = NULL) {
 #' @param compute A BioNeMo compute descriptor whose runtime has been built or
 #'   selected, usually the value returned by [bionemo_install()].
 #' @param model Optional BioNeMo model. Supplying a model adds the checks
-#'   implemented by the compute recipe's adapter.
+#'   implemented by the compute recipe.
 #' @param target Operation group to check: `"all"`, `"inference"`,
 #'   `"training"`, or `"conversion"`.
 #' @param verbose Whether printing the result should include complete retained
@@ -1651,7 +1651,7 @@ doctor_capabilities <- function(compute, target, model = NULL) {
 #' bionemo_doctor(compute, model, target = "inference")
 #' }
 #'
-#' @seealso [bionemo_install()], [bionemo_capabilities()], [bionemo_workflows()]
+#' @seealso [bionemo_install()], [bionemo_capabilities()]
 #' @export
 bionemo_doctor <- function(
   compute,

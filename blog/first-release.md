@@ -1,10 +1,10 @@
-# bionemor: biological foundation-model workflows from R
+# bionemor: biological foundation models from R
 
-We are releasing the first version of bionemor, an R package for running biological foundation-model workflows on NVIDIA GPUs. It is intended for bioinformaticians whose sequence data and downstream analysis already live in R, including users of Bioconductor packages such as Biostrings.
+We are releasing the first version of bionemor, an R package for running biological foundation models on NVIDIA GPUs. It is intended for bioinformaticians whose sequence data and downstream analysis already live in R, including users of Bioconductor packages such as Biostrings.
 
-BioNeMo Recipes supplies family-specific programs and the runtime environments needed to run them. bionemor configures those environments, runs the selected program, and returns its results to R.
+Evo 2 operations use programs from NVIDIA BioNeMo Recipes. ESM-2 embeddings use a helper supplied by bionemor and built on Transformers and Transformer Engine. bionemor configures the version-pinned GPU runtime for each model family, runs the selected operation, and returns its results to R.
 
-The first release supports Evo 2 workflows for DNA and ESM-2 protein embeddings. Evo 2 support includes generation, scoring, positional profiles, embeddings, dataset preprocessing, and LoRA or full fine-tuning. ESM-2 support provides pooled protein embeddings for similarity, clustering, and downstream modeling.
+The first release supports Evo 2 operations on DNA and ESM-2 protein embeddings. Evo 2 support includes generation, scoring, positional profiles, embeddings, dataset preprocessing, and LoRA or full fine-tuning. ESM-2 support provides pooled protein embeddings for similarity, clustering, and downstream modeling.
 
 ## A small Evo 2 example
 
@@ -41,7 +41,7 @@ Megatron Bridge is the training and inference stack used by the pinned Evo 2 rec
 
 `evo2_score()` returns a data frame, and the embedding functions return ordinary numeric matrices. These results can move directly into familiar R and Bioconductor analyses. Each operation also records its inputs, logs, outputs, and provenance in a durable run directory.
 
-Model operations require a supported CUDA-capable NVIDIA GPU. The package can still be installed without one to inspect the available workflows, recipes, and model metadata.
+Model operations require a supported CUDA-capable NVIDIA GPU. The package can still be installed without one to inspect recipes and model metadata.
 
 ## Fine-tuning and reuse
 
@@ -91,7 +91,7 @@ The fitted checkpoint can then be passed to the same scoring, generation, and em
 
 ## Protein embeddings with ESM-2
 
-`bionemor` also supports ESM-2, a protein language model used to create numerical representations of protein sequences. It follows the same model-descriptor, compute, workflow, and durable-job interface as the Evo 2 examples:
+`bionemor` also supports ESM-2, a protein language model used to create numerical representations of protein sequences. It follows the same model-descriptor, compute, and durable-job interface as the Evo 2 examples:
 
 ```r
 esm2_compute <- bionemo_compute(
@@ -112,11 +112,11 @@ protein_embeddings <- esm2_embed(protein_model, proteins)
 
 The rows of `protein_embeddings` can be used for sequence similarity, clustering, or as features in downstream R models. They are model representations, not measurements of protein function.
 
-## One R interface for DNA and protein workflows
+## One R interface for DNA and protein models
 
-`bionemor` brings Evo 2 DNA workflows and ESM-2 protein embeddings into one R interface. Both use the same workflow around a model: selecting a pinned runtime, describing compute, staging sequence inputs, running work on a GPU, retaining jobs and checkpoints, and returning portable R results.
+`bionemor` brings Evo 2 DNA operations and ESM-2 protein embeddings into one R package. Both use the same execution lifecycle: select a pinned runtime, describe compute, stage sequence inputs, run work on a GPU, retain jobs and checkpoints, and return portable R results.
 
-Family-specific adapters connect that shared interface to the appropriate model commands and checkpoints. Users get one package and one execution model while task APIs remain explicit through names such as `evo2_score()` and `esm2_embed()`.
+The model-specific functions remain explicit through names such as `evo2_score()` and `esm2_embed()`. The package handles the compute, job, provenance, and result lifecycle shared by both model families.
 
 ## Install bionemor
 

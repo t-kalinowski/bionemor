@@ -5,9 +5,9 @@ esm2_recipe_lock <- function() {
 #' Describe the BioNeMo ESM-2 embedding recipe
 #'
 #' `esm2_recipe()` is an offline descriptor for the package-pinned BioNeMo
-#' Recipes ESM-2 workflow. It does not download source, pull an image, or start
-#' a runtime. Installation uses the recipe's native Transformers and
-#' Transformer Engine runtime.
+#' Recipes environment used for ESM-2 embeddings. It does not download source,
+#' pull an image, or start a runtime. Installation uses native Transformers and
+#' the Transformer Engine runtime.
 #'
 #' @param revision BioNeMo Recipes revision. `"recommended"` uses the exact
 #'   package lock. Otherwise, supply a full commit SHA unless

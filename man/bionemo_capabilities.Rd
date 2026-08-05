@@ -35,7 +35,7 @@ probe does not prepare a model or inspect model weights.
 
 
 The returned named list contains helper, protocol, recipe, command, feature,
-and runtime information, plus adapter-specific entries. \code{runtime} includes
+and runtime information, plus recipe-specific entries. \code{runtime} includes
 software versions, CUDA availability, the GPU count, driver information, and
 per-GPU properties. bionemor adds \code{image}, \code{image_digest}, and the UTC
 \code{probed_at} time so the report records where it came from.

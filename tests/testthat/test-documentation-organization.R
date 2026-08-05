@@ -1,4 +1,4 @@
-test_that("the pkgdown reference index follows the public workflow", {
+test_that("the pkgdown reference index follows the public API", {
   root <- testthat::test_path("..", "..")
   skip_if_not(file.exists(file.path(root, ".git")))
   config_path <- file.path(root, "_pkgdown.yml")
@@ -6,11 +6,6 @@ test_that("the pkgdown reference index follows the public workflow", {
 
   expected <- list(
     "Start here" = "bionemor-package",
-    "Discover and run workflows" = c(
-      "bionemo_workflows",
-      "bionemo_workflow",
-      "bionemo_run"
-    ),
     "Configure compute and runtimes" = c(
       "bionemo_compute",
       "evo2_recipe",

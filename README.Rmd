@@ -20,61 +20,54 @@ stopifnot(
 
 # bionemor
 
-`bionemor` provides R interfaces to selected biological foundation-model assets
-and runtimes published through NVIDIA BioNeMo Recipes. BioNeMo Recipes supplies
-family-specific programs and the runtime environments needed to run them. The
-package supports Evo 2 DNA workflows and ESM-2 protein embeddings through a
-shared R-facing workflow: sequence inputs, compute configuration, durable jobs,
-provenance, and R results.
+`bionemor` provides R interfaces to selected biological foundation models using
+version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from NVIDIA
+BioNeMo Recipes. ESM-2 embeddings use a helper supplied by `bionemor` and built
+on Transformers and Transformer Engine. The package supports Evo 2 operations
+on DNA and ESM-2 protein embeddings through a shared R interface for sequence
+inputs, compute configuration, durable jobs, provenance, and R results.
 
 > Model operations require a supported CUDA-capable NVIDIA GPU. There is no CPU fallback.
-> You can install the package and inspect recipes, workflows, and model metadata
+> You can install the package and inspect recipes and model metadata
 > without a GPU.
 
 ## How the pieces fit together
 
-`bionemor` brings Evo 2 DNA workflows and ESM-2 protein embeddings into one R
-interface. The same model, recipe, compute, workflow, and job concepts apply to
-both.
+`bionemor` brings Evo 2 DNA operations and ESM-2 protein embeddings into one R
+package. Both use the same R concepts for describing a model, selecting its
+runtime, running work on a GPU, and bringing the result back to R.
 
 | Concept | Role in bionemor |
 |---|---|
 | Model descriptor | A lightweight S7 object that identifies a model family, size, configuration, and optional checkpoint. It does not load model weights into the R process. |
 | Checkpoint | Model weights stored outside R. A model descriptor can point to a checkpoint prepared or fitted in an earlier run. |
-| Recipe | A versioned description of the family-specific source, dependencies, and commands used by an adapter. |
+| Recipe | A versioned description of the family-specific source, dependencies, and commands used to build or verify its runtime. |
 | Compute descriptor | The recipe plus the workspace, execution backend, runtime engine, and requested GPU resources. Models retain this descriptor when it is supplied. |
 | Container | One way a compute descriptor supplies the recipe runtime. Local container work uses Docker by default; Slurm container work uses Apptainer. An externally managed runtime is the other engine. |
-| Workflow | One family-specific operation, such as Evo 2 scoring or ESM-2 embedding. |
-| Job | The durable record of one workflow execution, including its request, logs, state, outputs, and provenance. |
+| Operation | A family-specific R function, such as `evo2_score()` or `esm2_embed()`, that requests work from a model. |
+| Job | The durable record of one operation, including its request, logs, state, outputs, and provenance. |
 
-A model, sequence input, and operation define the requested work. The compute
-descriptor says where and how to run it; its recipe supplies the matching
-family-specific runtime. The operation produces a durable job and, when it
-finishes, an ordinary R result.
+A family-specific function combines a model with the relevant input. The
+compute descriptor says where and how to run it; its recipe supplies the
+matching runtime. The operation produces a durable job and, when it finishes,
+an ordinary R result.
 
-## Find a workflow
+## Supported models and operations
 
-Start with `bionemo_workflows()`. It lists the model families and operations in
-the installed package without downloading model weights:
-
-```{r workflows}
+```{r package}
 library(bionemor)
-
-workflows <- bionemo_workflows()
-workflows[c("id", "family", "task")]
 ```
 
-The package currently provides these family-specific R interfaces:
+The function name identifies the model family and the work being requested:
 
-| Model family | Input | Supported workflows | Main functions |
+| Model family | Input | Available operations | Main functions |
 |---|---|---|---|
 | Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_preprocess()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
-The examples below begin with Evo 2 DNA workflows, then show ESM-2 protein
-embeddings through the same compute, workflow, and durable-job interface. The
-lower-level `bionemo_run()` interface also accepts an ID from
-`bionemo_workflows()` when you need to select a workflow programmatically.
+Use these family-specific functions directly. The examples below begin with Evo
+2 DNA, then show ESM-2 protein embeddings through the same compute, durable-job,
+provenance, and result lifecycle.
 
 The captured output below was rendered on `r docs_date` with an `r docs_gpu`
 using package revision `r substr(docs_revision, 1L, 12L)`.
@@ -294,8 +287,8 @@ result <- job_wait(same_run)
 
 ## More guides
 
-- [BioNeMo workflows from R](https://t-kalinowski.github.io/bionemor/articles/bionemor.html)
-  explains the shared API, then walks through Evo 2 and ESM-2 workflows.
+- [Get started with bionemor](https://t-kalinowski.github.io/bionemor/articles/bionemor.html)
+  explains the shared API, then walks through Evo 2 and ESM-2 operations.
 - [Fine-tune Evo 2 and retain the checkpoint](https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html)
   covers preprocessing, LoRA, and fitted inference.
 
