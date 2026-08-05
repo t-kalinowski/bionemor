@@ -44,7 +44,9 @@ reverse-strand operations require uppercase IUPAC DNA.}
 
 \item{control}{Controls from \code{\link[=evo2_inference_control]{evo2_inference_control()}}.}
 
-\item{output}{Optional output file. Required when \code{pool = "none"}.}
+\item{output}{For pooled embeddings, an optional prefix for the compressed
+float32 data (\code{.f32.gz}) and JSON metadata (\code{.json}). For unpooled
+embeddings, a required Parquet output path.}
 
 \item{name}{Optional run name.}
 
@@ -64,6 +66,9 @@ pooling rule, token embeddings are pooled independently for each strand.
 With \code{strand = "both"}, the forward and reverse pooled vectors are then
 averaged. The returned matrix preserves input IDs as row names and names
 its columns \code{dim_1}, \code{dim_2}, and so on.
+
+Pooled embedding files store little-endian, row-major float32 values. R
+reads these values into its native double-precision numeric matrix.
 
 With \code{pool = "none"}, the result is a Parquet artifact with columns \code{id}
 (string), \code{position} (int64), \code{embedding} (list of doubles), and \code{strand}

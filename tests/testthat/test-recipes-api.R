@@ -14,6 +14,7 @@ test_that("the recipe lock drives compute descriptors", {
   expect_equal(recipe@recipe_version, "2.4")
   expect_equal(recipe@subdirectory, "recipes/evo2_megatron")
   expect_equal(recipe@base_image, "nvcr.io/nvidia/pytorch:26.06-py3")
+  expect_identical(recipe@bridge_protocol, 2L)
   expect_equal(
     recipe@base_image_digest,
     "sha256:abd110b23600e877173dafc3078385b7c13ddacd7e0c6a6acb0a864586d59622"

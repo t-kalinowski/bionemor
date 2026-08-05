@@ -10,6 +10,46 @@ write_r_executable <- function(path, lines) {
   path
 }
 
+fake_pooled_embedding_writer <- c(
+  "write_pooled_embeddings <- function(prefix, ids, values, source_dtype) {",
+  "  stopifnot(is.matrix(values), all(is.finite(values)))",
+  "  dir.create(dirname(prefix), recursive = TRUE, showWarnings = FALSE)",
+  "  data <- paste0(prefix, '.f32.gz')",
+  "  connection <- gzfile(data, 'wb', compression = 1L)",
+  "  writeBin(as.double(t(values)), connection, size = 4L, endian = 'little')",
+  "  close(connection)",
+  "  metadata <- list(format = 'bionemor-pooled-embeddings', version = 1L, shape = as.integer(dim(values)), ids = ids, source_dtype = source_dtype, storage_dtype = 'float32', byte_order = 'little', order = 'row-major', compression = 'gzip', compression_level = 1L, uncompressed_bytes = as.double(length(values) * 4), data_md5 = unname(tools::md5sum(data)))",
+  "  jsonlite::write_json(metadata, paste0(prefix, '.json'), auto_unbox = TRUE, pretty = TRUE)",
+  "}"
+)
+
+expect_pooled_embedding_output <- function(prefix, shape, ids, source_dtype) {
+  expect_true(all(file.exists(paste0(prefix, c(".f32.gz", ".json")))))
+  metadata <- jsonlite::read_json(
+    paste0(prefix, ".json"),
+    simplifyVector = TRUE
+  )
+  expected <- list(
+    format = "bionemor-pooled-embeddings",
+    version = 1L,
+    shape = shape,
+    ids = ids,
+    source_dtype = source_dtype,
+    storage_dtype = "float32",
+    byte_order = "little",
+    order = "row-major",
+    compression = "gzip",
+    compression_level = 1L
+  )
+  expect_identical(metadata[names(expected)], expected)
+  expect_equal(metadata$uncompressed_bytes, prod(shape) * 4)
+  expect_identical(
+    metadata$data_md5,
+    unname(tools::md5sum(paste0(prefix, ".f32.gz")))
+  )
+  invisible(metadata)
+}
+
 write_fake_dcp_weights <- function(path) {
   dir.create(path, recursive = TRUE, showWarnings = FALSE)
   writeLines("metadata", file.path(path, ".metadata"))
@@ -193,13 +233,14 @@ fake_recipes_runtime <- function(bin) {
       "args <- commandArgs(TRUE)",
       "command <- args[[1L]]",
       "value <- function(flag) args[[match(flag, args) + 1L]]",
+      fake_pooled_embedding_writer,
       "if (identical(args, c('describe', '--json'))) {",
       "  result <- list(",
-      "    protocol_version = 1L,",
+      "    protocol_version = 2L,",
       "    driver = 'evo2-megatron',",
       "    execution_schema_version = 1L,",
       "    semantic_operations = list('generate'),",
-      "    helper_version = '0.1.0',",
+      "    helper_version = '0.2.0',",
       paste0("    helper_sha256 = '", strrep("d", 64L), "',"),
       "    recipe_version = '2.4',",
       "    recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e',",
@@ -212,7 +253,7 @@ fake_recipes_runtime <- function(bin) {
         "),"
       ),
       "    commands = list(infer_evo2 = TRUE, predict_evo2 = TRUE, train_evo2 = TRUE, preprocess_evo2 = TRUE, savanna_to_mbridge = TRUE, nemo2_to_mbridge = TRUE, mbridge_to_vortex = TRUE, remove_optimizer = TRUE),",
-      "    features = list(generation_jsonl = TRUE, generation_log_probs = TRUE, score_sum = TRUE, score_mean = TRUE, score_per_token = TRUE, embedding_layer = TRUE, lora = TRUE),",
+      "    features = list(generation_jsonl = TRUE, generation_log_probs = TRUE, score_sum = TRUE, score_mean = TRUE, score_per_token = TRUE, embedding_layer = TRUE, pooled_embeddings_f32_gzip = TRUE, lora = TRUE),",
       "    runtime = list(",
       "      python = '3.12.0', pytorch = '2.8.0', cuda = '12.9',",
       "      cuda_available = TRUE, gpu_count = 1L, driver = '575.51',",
@@ -262,13 +303,17 @@ fake_recipes_runtime <- function(bin) {
       "    }))",
       "  } else stop('unsupported fake materialization mode')",
       "  output <- value('--output')",
-      "  jsonlite::stream_out(rows, file(output), verbose = FALSE)",
-      "  summary <- list(rows = nrow(rows), mode = mode)",
-      "  if (mode == 'embedding-unpooled') {",
-      "    summary$shape <- c(nrow(rows), 4L)",
-      "    summary$schema <- list(id = 'string', position = 'int64', embedding = 'list<double>', strand = 'string')",
+      "  if (mode == 'embedding-pooled') {",
+      "    write_pooled_embeddings(output, rows$id, do.call(rbind, rows$embedding), 'bfloat16')",
+      "  } else {",
+      "    jsonlite::stream_out(rows, file(output), verbose = FALSE)",
+      "    summary <- list(rows = nrow(rows), mode = mode)",
+      "    if (mode == 'embedding-unpooled') {",
+      "      summary$shape <- c(nrow(rows), 4L)",
+      "      summary$schema <- list(id = 'string', position = 'int64', embedding = 'list<double>', strand = 'string')",
+      "    }",
+      "    jsonlite::write_json(summary, paste0(output, '.summary.json'), auto_unbox = TRUE, pretty = TRUE)",
       "  }",
-      "  jsonlite::write_json(summary, paste0(output, '.summary.json'), auto_unbox = TRUE, pretty = TRUE)",
       "} else if (command == 'write-manifest-fragment') {",
       "  result <- list(path = normalizePath(value('--path')), kind = 'dense')",
       "  jsonlite::write_json(result, value('--output'), auto_unbox = TRUE, pretty = TRUE)",
@@ -315,9 +360,10 @@ fake_esm2_runtime <- function(
       "args <- commandArgs(TRUE)",
       "if (identical(args[[1L]], '--help')) quit(save = 'no', status = 0L)",
       "value <- function(flag) args[[match(flag, args) + 1L]]",
+      fake_pooled_embedding_writer,
       "if (identical(args[[1L]], 'describe')) {",
       paste0(
-        "  report <- list(protocol_version = 1L, helper_version = '0.2.0', helper_sha256 = paste(rep('e', 64L), collapse = ''), recipe_version = 'transformers-5.14.1', recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e', driver = 'esm2-transformers', execution_schema_version = 1L, semantic_operations = list('embed'), commands = list(embed = TRUE), features = list(pooled_embeddings_jsonl = TRUE), runtime = list(python = '3.12.0', pytorch = '2.8.0', cuda = '12.9', cuda_available = TRUE, gpu_count = 1L, driver = '575.51', transformers = '5.14.1', transformer_engine = '2.16.0', imports = list(torch = TRUE, transformers = TRUE, transformer_engine = TRUE), gpus = list(list(index = 0L, name = 'L40S', total_memory_bytes = 51539607552, compute_capability_major = ",
+        "  report <- list(protocol_version = 2L, helper_version = '0.3.0', helper_sha256 = paste(rep('e', 64L), collapse = ''), recipe_version = 'transformers-5.14.1', recipe_revision = 'e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e', driver = 'esm2-transformers', execution_schema_version = 1L, semantic_operations = list('embed'), commands = list(embed = TRUE), features = list(pooled_embeddings_f32_gzip = TRUE), runtime = list(python = '3.12.0', pytorch = '2.8.0', cuda = '12.9', cuda_available = TRUE, gpu_count = 1L, driver = '575.51', transformers = '5.14.1', transformer_engine = '2.16.0', imports = list(torch = TRUE, transformers = TRUE, transformer_engine = TRUE), gpus = list(list(index = 0L, name = 'L40S', total_memory_bytes = 51539607552, compute_capability_major = ",
         as.integer(compute_capability_major),
         "L, compute_capability_minor = ",
         as.integer(compute_capability_minor),
@@ -330,8 +376,8 @@ fake_esm2_runtime <- function(
       "  lines <- readLines(value('--input'), warn = FALSE)",
       "  headers <- which(startsWith(lines, '>'))",
       "  ids <- substring(lines[headers], 2L)",
-      "  output <- lapply(seq_along(ids), function(index) list(id = ids[[index]], embedding = rep(as.double(index), 320L)))",
-      "  writeLines(vapply(output, jsonlite::toJSON, character(1), auto_unbox = TRUE), value('--output'))",
+      "  embeddings <- matrix(rep(as.double(seq_along(ids)), each = 320L), nrow = length(ids), byrow = TRUE)",
+      "  write_pooled_embeddings(value('--output'), ids, embeddings, 'float32')",
       "} else stop('unsupported fake ESM-2 helper command')"
     )
   )

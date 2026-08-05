@@ -7,7 +7,7 @@ adapter_registry <- function() {
         score = c(score = 1L),
         profile = c(profile = 1L),
         embedding = c(
-          `embedding-pooled` = 1L,
+          `embedding-pooled` = 2L,
           `embedding-unpooled` = 1L
         ),
         checkpoint = c(checkpoint = 1L),
@@ -22,7 +22,7 @@ adapter_registry <- function() {
     ),
     `esm2-transformers` = list(
       family = "esm2",
-      operations = list(embedding = c(`esm2-pooled` = 1L)),
+      operations = list(embedding = c(`esm2-pooled` = 2L)),
       materialize = bionemor_adapter_esm2_transformers_materialize,
       provenance = recipe_runtime_provenance,
       install_spec = bionemor_adapter_esm2_transformers_install_spec,

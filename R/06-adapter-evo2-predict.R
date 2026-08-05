@@ -135,7 +135,11 @@ validate_inference_context <- function(object, compute, control) {
   )
 }
 
-validate_output_path <- function(output, compute) {
+validate_output_path <- function(output, compute, suffixes = character()) {
+  stopifnot(
+    "output suffixes must be character values" = is.character(suffixes) &&
+      !anyNA(suffixes)
+  )
   if (!is.null(output) && !is_scalar_string(output)) {
     stop("output must be NULL or one non-empty string")
   }
@@ -143,7 +147,7 @@ validate_output_path <- function(output, compute) {
     return(NULL)
   }
   output <- normalize_path(output, base = compute@workspace)
-  if (file.exists(output)) {
+  if (any(file.exists(paste0(output, c("", suffixes))))) {
     stop("output path already exists")
   }
   if (compute@engine == "container") {
@@ -177,13 +181,19 @@ copy_output_directory <- function(run_path, output) {
   invisible(output)
 }
 
-copy_output_file <- function(path, output) {
+copy_output_files <- function(path, output, suffixes = "") {
   if (is.null(output)) {
     return(path)
   }
   dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)
-  if (!file.copy(path, output, overwrite = TRUE)) {
-    stop("failed to copy portable output")
+  for (suffix in suffixes) {
+    if (!file.copy(
+      paste0(path, suffix),
+      paste0(output, suffix),
+      overwrite = TRUE
+    )) {
+      stop("failed to copy portable output")
+    }
   }
   normalize_path(output)
 }
@@ -965,7 +975,7 @@ materialize_profile_job <- function(job, operation) {
   if (!file.exists(descriptor$portable)) {
     stop("profile helper did not write its portable output")
   }
-  path <- copy_output_file(descriptor$portable, request$output)
+  path <- copy_output_files(descriptor$portable, request$output)
   BioNeMoArtifact(
     path = path,
     format = "parquet",
@@ -996,13 +1006,18 @@ materialize_profile_job <- function(job, operation) {
 #'   `"max"` aggregate values; `"first"` and `"last"` select an endpoint. With
 #'   `pool = "none"`, `output` is required and `strand = "both"` is not
 #'   supported.
-#' @param output Optional output file. Required when `pool = "none"`.
+#' @param output For pooled embeddings, an optional prefix for the compressed
+#'   float32 data (`.f32.gz`) and JSON metadata (`.json`). For unpooled
+#'   embeddings, a required Parquet output path.
 #'
 #' @details Embeddings currently require `context_parallel_size = 1`. With a
 #'   pooling rule, token embeddings are pooled independently for each strand.
 #'   With `strand = "both"`, the forward and reverse pooled vectors are then
 #'   averaged. The returned matrix preserves input IDs as row names and names
 #'   its columns `dim_1`, `dim_2`, and so on.
+#'
+#'   Pooled embedding files store little-endian, row-major float32 values. R
+#'   reads these values into its native double-precision numeric matrix.
 #'
 #'   With `pool = "none"`, the result is a Parquet artifact with columns `id`
 #'   (string), `position` (int64), `embedding` (list of doubles), and `strand`
@@ -1075,7 +1090,11 @@ evo2_embed <- function(
   checkpoint_root <- context$checkpoint_root
   checkpoint_manifest <- context$checkpoint_manifest
   compute <- context$compute
-  output <- validate_output_path(output, compute)
+  output <- validate_output_path(
+    output,
+    compute,
+    if (pool == "none") character() else c(".f32.gz", ".json")
+  )
   request <- list(
     model = object@size,
     layer = layer,
@@ -1104,7 +1123,7 @@ evo2_embed <- function(
   portable <- file.path(
     run_path,
     "outputs",
-    if (pool == "none") "embeddings.parquet" else "embeddings.jsonl"
+    if (pool == "none") "embeddings.parquet" else "embeddings"
   )
   upstream_layer <- if (identical(layer, "last")) {
     -1L
@@ -1157,10 +1176,10 @@ materialize_embedding_job <- function(job, operation) {
   descriptor <- operation$result
   request <- operation$request
   execution <- operation$execution
-  if (!file.exists(descriptor$portable)) {
-    stop("embedding helper did not write its portable output")
-  }
   if (descriptor$type == "embedding-unpooled") {
+    if (!file.exists(descriptor$portable)) {
+      stop("embedding helper did not write its portable output")
+    }
     summary_path <- paste0(descriptor$portable, ".summary.json")
     if (!file.exists(summary_path)) {
       stop("embedding helper did not write its summary")
@@ -1187,7 +1206,7 @@ materialize_embedding_job <- function(job, operation) {
     if (!identical(schema, expected_schema)) {
       stop("embedding helper summary has an invalid schema")
     }
-    path <- copy_output_file(descriptor$portable, request$output)
+    path <- copy_output_files(descriptor$portable, request$output)
     return(BioNeMoArtifact(
       path = path,
       format = "parquet",
@@ -1220,7 +1239,11 @@ materialize_embedding_job <- function(job, operation) {
     recipe_revision = job@compute@recipe@revision
   )
   if (!is.null(request$output)) {
-    copy_output_file(descriptor$portable, request$output)
+    copy_output_files(
+      descriptor$portable,
+      request$output,
+      c(".f32.gz", ".json")
+    )
   }
   matrix
 }

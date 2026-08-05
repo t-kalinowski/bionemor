@@ -41,7 +41,7 @@ test_that("runtime recipe mismatches expose BN_RECIPE_MISMATCH", {
     file.path(bin, "bionemor-evo2-helper"),
     c(
       "report <- list(",
-      "  protocol_version = 1L,",
+      "  protocol_version = 2L,",
       "  driver = 'evo2-megatron',",
       "  execution_schema_version = 1L,",
       "  semantic_operations = list('generate'),",
@@ -81,7 +81,7 @@ test_that("missing advertised commands expose BN_RUNTIME_MISSING", {
     file.path(bin, "bionemor-evo2-helper"),
     c(
       "report <- list(",
-      "  protocol_version = 1L,",
+      "  protocol_version = 2L,",
       "  driver = 'evo2-megatron',",
       "  execution_schema_version = 1L,",
       "  semantic_operations = list('generate'),",
@@ -119,7 +119,7 @@ test_that("failed advertised runtime imports expose BN_RUNTIME_MISSING", {
   dir.create(workspace)
   dir.create(bin)
   report <- list(
-    protocol_version = 1L,
+    protocol_version = 2L,
     driver = "evo2-megatron",
     execution_schema_version = 1L,
     semantic_operations = list("generate"),
