@@ -20,12 +20,11 @@ checkpoints. The model computation is the same as in the upstream runtime, not
 a simplified R implementation. Evo 2 uses NVIDIA BioNeMo Recipes and Megatron
 Bridge. ESM-2 uses NVIDIA checkpoints with Transformers and Transformer Engine.
 
-`bionemor` adds an R-native orchestration and results layer around those
-runtimes. It configures compute, builds or checks runtimes, stages sequence
-inputs, prepares and reuses checkpoints, runs and monitors jobs, returns
-portable R results, and records how they were produced. This covers the path
-from an R or Bioconductor sequence object to GPU computation and back to an R
-object for analysis.
+From R, you choose a model and pass it DNA or protein sequences. `bionemor`
+prepares the matching runtime and checkpoint, runs the upstream operation on a
+GPU, and returns a data frame or matrix that can go directly into the rest of
+the analysis. Longer runs are saved on disk, so they can be monitored or
+reopened from another R session.
 
 > Model operations require a supported CUDA-capable NVIDIA GPU. There is no CPU fallback.
 > You can install the package and inspect recipes and model metadata
