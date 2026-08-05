@@ -22,12 +22,7 @@ test_that("the installed Evo 2 runtime exercises every prediction result", {
     Sys.getenv("BIONEMOR_EVO2_CHECKPOINT"),
     mustWork = TRUE
   )
-  run_id <- paste0(
-    "test-real-evo2-",
-    Sys.getpid(),
-    "-",
-    format(as.integer(Sys.time()), scientific = FALSE)
-  )
+  run_id <- basename(tempfile("test-real-evo2-", tmpdir = workspace))
   output <- file.path(workspace, "test-outputs", run_id)
   dir.create(output, recursive = TRUE, showWarnings = FALSE)
 
@@ -55,7 +50,8 @@ test_that("the installed Evo 2 runtime exercises every prediction result", {
     name = paste0(run_id, "-generation")
   )
   expect_s3_class(generated, "evo2_generation")
-  expect_equal(generated$id, names(sequence))
+  expect_equal(generated$input_id, names(sequence))
+  expect_equal(generated$id, paste0(names(sequence), "::1"))
   expect_true(all(nzchar(generated$completion)))
   expect_true(all(vapply(
     generated$probabilities,
