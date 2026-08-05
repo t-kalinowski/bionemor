@@ -20,14 +20,14 @@ stopifnot(
 
 # bionemor
 
-Biological foundation models learn from large collections of DNA or protein
+Biological foundation models are trained on large collections of DNA or protein
 sequences. The resulting models can be used across different sequence tasks.
 
 `bionemor` lets bioinformaticians and other researchers use these models on
 NVIDIA GPUs from R. With Evo 2, you can generate and score DNA, calculate
 positional profiles and embeddings, and fine-tune a model on your own sequences.
-With ESM-2, you can create protein embeddings for similarity, clustering, and
-downstream models. Embeddings are numerical representations of sequences.
+With ESM-2, you can create embeddings that represent proteins as numerical
+vectors for similarity, clustering, and downstream models.
 
 Sequence inputs can be character vectors or sequence sets from Biostrings.
 Generation and scoring return data frames, while pooled embeddings return
@@ -63,14 +63,12 @@ The examples below begin with Evo 2 DNA, followed by ESM-2 protein embeddings.
 
 ## Get access to a GPU
 
-For local container execution, run R on a Linux machine with Git, `tar`, Docker,
-and the NVIDIA Container Toolkit. Docker must be configured to expose the GPU
-to containers. GPU requirements vary by model, sequence length, batch size, and
-operation.
+The local setup below runs models in Docker on a Linux machine with an NVIDIA
+GPU. Docker must be configured so containers can use the GPU. GPU requirements
+vary by model, sequence length, batch size, and operation.
 
 If you do not have a suitable local GPU, [NVIDIA Brev](https://brev.nvidia.com/)
-is one way to rent one. Brev instances are billable; review the current hourly
-price and storage terms before creating an instance:
+lets you rent one and manage the instance from its CLI:
 
 ```bash
 brev search --stoppable --gpu-name L40S --min-vram 48 --sort price
@@ -78,11 +76,12 @@ brev create bionemor-gpu --stoppable --gpu-name L40S --min-vram 48
 brev shell bionemor-gpu
 ```
 
-Inside the Brev instance, install R and the required system tools if the
-selected image does not include them, then follow the local setup below.
+`brev create` provisions the GPU machine, and `brev shell` opens a shell on it.
+Install R and `bionemor` there; the setup below builds the model environment in
+Docker from an NVIDIA image.
 
-Leave the remote shell and stop the instance from your local terminal when you
-finish:
+When you finish, leave the remote shell and stop the instance from your local
+terminal:
 
 ```bash
 brev stop bionemor-gpu
@@ -192,10 +191,9 @@ dim(dna_embeddings)
 round(dna_embeddings[, 1:4, drop = FALSE], 4)
 ```
 
-Scores are reduced token log probabilities, not calibrated measurements of
-biological function. Higher values indicate greater model likelihood. Generated
-sequences are model outputs and require downstream biological validation.
-Embedding row names preserve the input IDs.
+Scores are reduced token log probabilities; higher values indicate greater
+model likelihood. Interpreting them in terms of biological function generally
+requires further analysis. Embedding row names preserve the input IDs.
 
 ## ESM-2: embed proteins
 
@@ -234,8 +232,7 @@ round(protein_embeddings[, 1:4, drop = FALSE], 4)
 
 Each row is one last-token, L2-normalized protein embedding. The result is a
 numeric matrix for use with ordinary R tools. Its `provenance` attribute records
-the model, recipe revision, and path where the job was saved. These embeddings
-are model representations, not measurements of protein function.
+the model, recipe revision, and path where the job was saved.
 
 ## Run longer work
 
