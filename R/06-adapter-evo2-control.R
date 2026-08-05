@@ -25,6 +25,34 @@ validate_control_extra <- function(extra, allowed) {
   extra
 }
 
+validate_control_values <- function(values, check, requirement, ...) {
+  valid <- vapply(values, check, logical(1), ...)
+  if (!all(valid)) {
+    stop(names(values)[which(!valid)[1L]], " must be ", requirement)
+  }
+  invisible(NULL)
+}
+
+is_nullable_control_value <- function(x, predicate, ...) {
+  is.null(x) || predicate(x, ...)
+}
+
+construct_control <- function(
+  constructor,
+  values,
+  integer = character(),
+  double = character(),
+  nullable_integer = character()
+) {
+  values[integer] <- lapply(values[integer], as.integer)
+  values[double] <- lapply(values[double], as.double)
+  values[nullable_integer] <- lapply(
+    values[nullable_integer],
+    as_nullable_integer
+  )
+  do.call(constructor, values)
+}
+
 inference_extra_fields <- c(
   "no_sequence_parallel",
   "min_length"
@@ -99,60 +127,50 @@ evo2_inference_control <- function(
   precision <- match.arg(precision)
   vortex_style_fp8 <- match.arg(vortex_style_fp8)
   cuda_graphs <- match.arg(cuda_graphs)
-  stopifnot(
-    "tensor_parallel_size must be a positive integer" = is_scalar_integerish(
-      tensor_parallel_size,
-      min = 1
-    ),
-    "context_parallel_size must be a positive integer" = is_scalar_integerish(
-      context_parallel_size,
-      min = 1
-    ),
-    "max_sequence_length must be NULL or a positive integer" = is.null(
-      max_sequence_length
-    ) ||
-      is_scalar_integerish(max_sequence_length, min = 1),
-    "max_batch_size must be a positive integer" = is_scalar_integerish(
-      max_batch_size,
-      min = 1
-    ),
-    "mixed_precision_recipe must be NULL or one non-empty string" = is.null(
-      mixed_precision_recipe
-    ) ||
-      is_scalar_string(mixed_precision_recipe),
-    "subquadratic_ops must be TRUE or FALSE" = is_scalar_logical(
-      subquadratic_ops
-    ),
-    "chunked_prefill must be TRUE or FALSE" = is_scalar_logical(
-      chunked_prefill
-    ),
-    "dynamic_max_tokens must be NULL or a positive integer" = is.null(
-      dynamic_max_tokens
-    ) ||
-      is_scalar_integerish(dynamic_max_tokens, min = 1),
-    "dynamic_block_size must be a positive integer" = is_scalar_integerish(
-      dynamic_block_size,
-      min = 1
-    ),
-    "subquadratic_ops and local CUDA graphs are incompatible" = !subquadratic_ops ||
-      cuda_graphs != "local"
+  validate_control_values(
+    mget(c(
+      "tensor_parallel_size",
+      "context_parallel_size",
+      "max_batch_size",
+      "dynamic_block_size"
+    )),
+    is_scalar_integerish,
+    "a positive integer",
+    min = 1
   )
+  validate_control_values(
+    mget(c("max_sequence_length", "dynamic_max_tokens")),
+    is_nullable_control_value,
+    "NULL or a positive integer",
+    predicate = is_scalar_integerish,
+    min = 1
+  )
+  validate_control_values(
+    list(mixed_precision_recipe = mixed_precision_recipe),
+    is_nullable_control_value,
+    "NULL or one non-empty string",
+    predicate = is_scalar_string
+  )
+  validate_control_values(
+    mget(c("subquadratic_ops", "chunked_prefill")),
+    is_scalar_logical,
+    "TRUE or FALSE"
+  )
+  if (subquadratic_ops && cuda_graphs == "local") {
+    stop("subquadratic_ops and local CUDA graphs are incompatible")
+  }
   extra <- validate_control_extra(extra, inference_extra_fields)
 
-  Evo2InferenceControl(
-    tensor_parallel_size = as.integer(tensor_parallel_size),
-    context_parallel_size = as.integer(context_parallel_size),
-    max_sequence_length = as_nullable_integer(max_sequence_length),
-    max_batch_size = as.integer(max_batch_size),
-    precision = precision,
-    mixed_precision_recipe = mixed_precision_recipe,
-    vortex_style_fp8 = vortex_style_fp8,
-    cuda_graphs = cuda_graphs,
-    subquadratic_ops = subquadratic_ops,
-    chunked_prefill = chunked_prefill,
-    dynamic_max_tokens = as_nullable_integer(dynamic_max_tokens),
-    dynamic_block_size = as.integer(dynamic_block_size),
-    extra = extra
+  construct_control(
+    Evo2InferenceControl,
+    mget(names(formals(evo2_inference_control))),
+    integer = c(
+      "tensor_parallel_size",
+      "context_parallel_size",
+      "max_batch_size",
+      "dynamic_block_size"
+    ),
+    nullable_integer = c("max_sequence_length", "dynamic_max_tokens")
   )
 }
 
@@ -224,71 +242,62 @@ evo2_preprocess_control <- function(
   seed = 1L
 ) {
   transcribe <- match.arg(transcribe)
-  stopifnot(
-    "uppercase must be TRUE or FALSE" = is_scalar_logical(uppercase),
-    "embed_reverse_complement must be TRUE or FALSE" = is_scalar_logical(
-      embed_reverse_complement
-    ),
-    "random_reverse_complement must be between zero and one" = is_scalar_number(
-      random_reverse_complement
-    ) &&
-      random_reverse_complement >= 0 &&
-      random_reverse_complement <= 1,
-    "random_lineage_dropout must be between zero and one" = is_scalar_number(
-      random_lineage_dropout
-    ) &&
-      random_lineage_dropout >= 0 &&
-      random_lineage_dropout <= 1,
-    "append_eod must be TRUE or FALSE" = is_scalar_logical(append_eod),
-    "sample_length must be NULL or a positive integer" = is.null(
-      sample_length
-    ) ||
-      is_scalar_integerish(sample_length, min = 1),
-    "drop_empty_sequences must be TRUE or FALSE" = is_scalar_logical(
-      drop_empty_sequences
-    ),
-    "filter_nnn must be TRUE or FALSE" = is_scalar_logical(filter_nnn),
-    "taxonomy must be NULL, one path, a data frame, or a list" = is.null(
-      taxonomy
-    ) ||
-      is_scalar_string(taxonomy) ||
-      is.data.frame(taxonomy) ||
-      is.list(taxonomy),
-    "prompt_spacer_length must be a non-negative integer" = is_scalar_integerish(
-      prompt_spacer_length,
-      min = 0
-    ),
-    "workers must be a positive integer" = is_scalar_integerish(
-      workers,
-      min = 1
-    ),
-    "concurrency must be a positive integer" = is_scalar_integerish(
-      concurrency,
-      min = 1
-    ),
-    "chunk_size must be a positive integer" = is_scalar_integerish(
-      chunk_size,
-      min = 1
-    ),
-    "seed must be a non-negative integer" = is_scalar_integerish(seed, min = 0)
+  validate_control_values(
+    mget(c(
+      "uppercase",
+      "embed_reverse_complement",
+      "append_eod",
+      "drop_empty_sequences",
+      "filter_nnn"
+    )),
+    is_scalar_logical,
+    "TRUE or FALSE"
+  )
+  validate_control_values(
+    mget(c("random_reverse_complement", "random_lineage_dropout")),
+    function(x) is_scalar_number(x) && x >= 0 && x <= 1,
+    "between zero and one"
+  )
+  validate_control_values(
+    list(sample_length = sample_length),
+    is_nullable_control_value,
+    "NULL or a positive integer",
+    predicate = is_scalar_integerish,
+    min = 1
+  )
+  if (
+    !is.null(taxonomy) &&
+      !is_scalar_string(taxonomy) &&
+      !is.data.frame(taxonomy) &&
+      !is.list(taxonomy)
+  ) {
+    stop("taxonomy must be NULL, one path, a data frame, or a list")
+  }
+  validate_control_values(
+    mget(c("prompt_spacer_length", "seed")),
+    is_scalar_integerish,
+    "a non-negative integer",
+    min = 0
+  )
+  validate_control_values(
+    mget(c("workers", "concurrency", "chunk_size")),
+    is_scalar_integerish,
+    "a positive integer",
+    min = 1
   )
 
-  Evo2PreprocessControl(
-    uppercase = uppercase,
-    embed_reverse_complement = embed_reverse_complement,
-    random_reverse_complement = as.double(random_reverse_complement),
-    random_lineage_dropout = as.double(random_lineage_dropout),
-    transcribe = transcribe,
-    append_eod = append_eod,
-    sample_length = as_nullable_integer(sample_length),
-    drop_empty_sequences = drop_empty_sequences,
-    filter_nnn = filter_nnn,
-    taxonomy = taxonomy,
-    prompt_spacer_length = as.integer(prompt_spacer_length),
-    workers = as.integer(workers),
-    concurrency = as.integer(concurrency),
-    chunk_size = as.integer(chunk_size),
-    seed = as.integer(seed)
+  construct_control(
+    Evo2PreprocessControl,
+    mget(names(formals(evo2_preprocess_control))),
+    integer = c(
+      "prompt_spacer_length",
+      "workers",
+      "concurrency",
+      "chunk_size",
+      "seed"
+    ),
+    double = c("random_reverse_complement", "random_lineage_dropout"),
+    nullable_integer = "sample_length"
   )
 }
 
@@ -389,13 +398,11 @@ evo2_lora <- function(
     )
   }
 
-  Evo2LoRA(
-    kind = "lora",
-    rank = as.integer(rank),
-    alpha = as.double(alpha),
-    dropout = as.double(dropout),
-    targets = targets,
-    fully_trainable = fully_trainable
+  construct_control(
+    Evo2LoRA,
+    c(list(kind = "lora"), mget(names(formals(evo2_lora)))),
+    integer = "rank",
+    double = c("alpha", "dropout")
   )
 }
 
@@ -541,21 +548,31 @@ evo2_fit_control <- function(
 ) {
   precision <- match.arg(precision)
   activation_checkpointing <- match.arg(activation_checkpointing)
-  if (!is_scalar_integerish(sequence_length, min = 1)) {
-    stop("sequence_length must be a positive integer")
-  }
-  if (!is_scalar_integerish(global_batch_size, min = 1)) {
-    stop("global_batch_size must be a positive integer")
-  }
-  if (!is_scalar_integerish(micro_batch_size, min = 1)) {
-    stop("micro_batch_size must be a positive integer")
-  }
+  validate_control_values(
+    mget(c(
+      "sequence_length",
+      "global_batch_size",
+      "micro_batch_size",
+      "eval_interval",
+      "eval_iters",
+      "log_interval",
+      "tensor_parallel_size",
+      "pipeline_parallel_size",
+      "context_parallel_size",
+      "workers"
+    )),
+    is_scalar_integerish,
+    "a positive integer",
+    min = 1
+  )
   if (global_batch_size %% micro_batch_size != 0) {
     stop("global_batch_size must be divisible by micro_batch_size")
   }
-  if (!is_scalar_number(learning_rate) || learning_rate <= 0) {
-    stop("learning_rate must be positive")
-  }
+  validate_control_values(
+    list(learning_rate = learning_rate),
+    function(x) is_scalar_number(x) && x > 0,
+    "positive"
+  )
   if (
     !is_scalar_number(minimum_learning_rate) ||
       minimum_learning_rate < 0 ||
@@ -565,64 +582,55 @@ evo2_fit_control <- function(
       "minimum_learning_rate must be non-negative and no greater than learning_rate"
     )
   }
-  if (!is_scalar_integerish(warmup_steps, min = 0)) {
-    stop("warmup_steps must be a non-negative integer")
-  }
-  if (!is.null(decay_steps) && !is_scalar_integerish(decay_steps, min = 1)) {
-    stop("decay_steps must be NULL or a positive integer")
-  }
-  if (!is_scalar_integerish(constant_steps, min = 0)) {
-    stop("constant_steps must be a non-negative integer")
-  }
-  if (!is_scalar_number(weight_decay) || weight_decay < 0) {
-    stop("weight_decay must be non-negative")
-  }
-  if (!is_scalar_integerish(eval_interval, min = 1)) {
-    stop("eval_interval must be a positive integer")
-  }
-  if (!is_scalar_integerish(eval_iters, min = 1)) {
-    stop("eval_iters must be a positive integer")
-  }
-  if (!is_scalar_integerish(log_interval, min = 1)) {
-    stop("log_interval must be a positive integer")
-  }
-  if (!is_scalar_integerish(tensor_parallel_size, min = 1)) {
-    stop("tensor_parallel_size must be a positive integer")
-  }
-  if (!is_scalar_integerish(pipeline_parallel_size, min = 1)) {
-    stop("pipeline_parallel_size must be a positive integer")
-  }
-  if (!is_scalar_integerish(context_parallel_size, min = 1)) {
-    stop("context_parallel_size must be a positive integer")
-  }
-  if (
-    !is.null(mixed_precision_recipe) &&
-      !is_scalar_string(mixed_precision_recipe)
-  ) {
-    stop("mixed_precision_recipe must be NULL or one non-empty string")
-  }
+  validate_control_values(
+    mget(c("warmup_steps", "constant_steps", "seed")),
+    is_scalar_integerish,
+    "a non-negative integer",
+    min = 0
+  )
+  validate_control_values(
+    mget(c("decay_steps", "activation_checkpoint_layers")),
+    is_nullable_control_value,
+    "NULL or a positive integer",
+    predicate = is_scalar_integerish,
+    min = 1
+  )
+  validate_control_values(
+    mget(c("weight_decay", "clip_gradient")),
+    function(x) is_scalar_number(x) && x >= 0,
+    "non-negative"
+  )
+  validate_control_values(
+    mget(c("hidden_dropout", "attention_dropout")),
+    function(x) is_scalar_number(x) && x >= 0 && x < 1,
+    "between zero and one"
+  )
+  validate_control_values(
+    list(mixed_precision_recipe = mixed_precision_recipe),
+    is_nullable_control_value,
+    "NULL or one non-empty string",
+    predicate = is_scalar_string
+  )
   if (
     identical(mixed_precision_recipe, "bf16_with_fp8_delayed_scaling_mixed")
   ) {
     stop("FP8 delayed scaling is not working in the pinned Evo 2 recipe")
   }
-  if (!is_scalar_logical(precision_aware_optimizer)) {
-    stop("precision_aware_optimizer must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(bf16_main_gradients)) {
-    stop("bf16_main_gradients must be TRUE or FALSE")
-  }
+  validate_control_values(
+    mget(c(
+      "precision_aware_optimizer",
+      "bf16_main_gradients",
+      "gradient_reduce_fp32",
+      "overlap_parameter_gather",
+      "overlap_gradient_reduce",
+      "subquadratic_ops",
+      "checkpoint_async"
+    )),
+    is_scalar_logical,
+    "TRUE or FALSE"
+  )
   if (bf16_main_gradients && !precision_aware_optimizer) {
     stop("bf16_main_gradients requires precision_aware_optimizer")
-  }
-  if (!is_scalar_logical(gradient_reduce_fp32)) {
-    stop("gradient_reduce_fp32 must be TRUE or FALSE")
-  }
-  if (
-    !is.null(activation_checkpoint_layers) &&
-      !is_scalar_integerish(activation_checkpoint_layers, min = 1)
-  ) {
-    stop("activation_checkpoint_layers must be NULL or a positive integer")
   }
   if (
     !is.null(activation_checkpoint_layers) &&
@@ -632,88 +640,52 @@ evo2_fit_control <- function(
       "activation_checkpoint_layers cannot be used when checkpointing is none"
     )
   }
-  if (!is_scalar_logical(overlap_parameter_gather)) {
-    stop("overlap_parameter_gather must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(overlap_gradient_reduce)) {
-    stop("overlap_gradient_reduce must be TRUE or FALSE")
-  }
-  if (!is_scalar_logical(subquadratic_ops)) {
-    stop("subquadratic_ops must be TRUE or FALSE")
-  }
-  if (!is_scalar_number(clip_gradient) || clip_gradient < 0) {
-    stop("clip_gradient must be non-negative")
-  }
-  if (
-    !is_scalar_number(hidden_dropout) ||
-      hidden_dropout < 0 ||
-      hidden_dropout >= 1
-  ) {
-    stop("hidden_dropout must be between zero and one")
-  }
-  if (
-    !is_scalar_number(attention_dropout) ||
-      attention_dropout < 0 ||
-      attention_dropout >= 1
-  ) {
-    stop("attention_dropout must be between zero and one")
-  }
-  if (!is_scalar_logical(checkpoint_async)) {
-    stop("checkpoint_async must be TRUE or FALSE")
-  }
   if (
     !is_scalar_integerish(keep_checkpoints) ||
       keep_checkpoints != -1 && keep_checkpoints < 1
   ) {
     stop("keep_checkpoints must be -1 or a positive integer")
   }
-  if (!is_scalar_integerish(workers, min = 1)) {
-    stop("workers must be a positive integer")
-  }
-  if (!is_scalar_integerish(seed, min = 0)) {
-    stop("seed must be a non-negative integer")
-  }
-  if (!is.null(dataset_seed) && !is_scalar_integerish(dataset_seed, min = 0)) {
-    stop("dataset_seed must be NULL or a non-negative integer")
-  }
+  validate_control_values(
+    list(dataset_seed = dataset_seed),
+    is_nullable_control_value,
+    "NULL or a non-negative integer",
+    predicate = is_scalar_integerish,
+    min = 0
+  )
   extra <- validate_control_extra(extra, fit_extra_fields)
 
-  Evo2FitControl(
-    sequence_length = as.integer(sequence_length),
-    global_batch_size = as.integer(global_batch_size),
-    micro_batch_size = as.integer(micro_batch_size),
-    learning_rate = as.double(learning_rate),
-    minimum_learning_rate = as.double(minimum_learning_rate),
-    warmup_steps = as.integer(warmup_steps),
-    decay_steps = as_nullable_integer(decay_steps),
-    constant_steps = as.integer(constant_steps),
-    weight_decay = as.double(weight_decay),
-    eval_interval = as.integer(eval_interval),
-    eval_iters = as.integer(eval_iters),
-    log_interval = as.integer(log_interval),
-    tensor_parallel_size = as.integer(tensor_parallel_size),
-    pipeline_parallel_size = as.integer(pipeline_parallel_size),
-    context_parallel_size = as.integer(context_parallel_size),
-    precision = precision,
-    mixed_precision_recipe = mixed_precision_recipe,
-    precision_aware_optimizer = precision_aware_optimizer,
-    bf16_main_gradients = bf16_main_gradients,
-    gradient_reduce_fp32 = gradient_reduce_fp32,
-    activation_checkpointing = activation_checkpointing,
-    activation_checkpoint_layers = as_nullable_integer(
-      activation_checkpoint_layers
+  construct_control(
+    Evo2FitControl,
+    mget(names(formals(evo2_fit_control))),
+    integer = c(
+      "sequence_length",
+      "global_batch_size",
+      "micro_batch_size",
+      "warmup_steps",
+      "constant_steps",
+      "eval_interval",
+      "eval_iters",
+      "log_interval",
+      "tensor_parallel_size",
+      "pipeline_parallel_size",
+      "context_parallel_size",
+      "keep_checkpoints",
+      "workers",
+      "seed"
     ),
-    overlap_parameter_gather = overlap_parameter_gather,
-    overlap_gradient_reduce = overlap_gradient_reduce,
-    subquadratic_ops = subquadratic_ops,
-    clip_gradient = as.double(clip_gradient),
-    hidden_dropout = as.double(hidden_dropout),
-    attention_dropout = as.double(attention_dropout),
-    checkpoint_async = checkpoint_async,
-    keep_checkpoints = as.integer(keep_checkpoints),
-    workers = as.integer(workers),
-    seed = as.integer(seed),
-    dataset_seed = as_nullable_integer(dataset_seed),
-    extra = extra
+    double = c(
+      "learning_rate",
+      "minimum_learning_rate",
+      "weight_decay",
+      "clip_gradient",
+      "hidden_dropout",
+      "attention_dropout"
+    ),
+    nullable_integer = c(
+      "decay_steps",
+      "activation_checkpoint_layers",
+      "dataset_seed"
+    )
   )
 }
