@@ -181,6 +181,7 @@ test_that("Slurm installation probes the runtime inside allocations", {
   runtime <- tempfile("bionemor-runtime-")
   bin <- tempfile("bionemor-bin-")
   log <- tempfile("bionemor-slurm-log-")
+  accounted <- tempfile("bionemor-slurm-accounted-")
   dir.create(workspace)
   fake_recipes_runtime(runtime)
   suppressWarnings(fake_bionemo_runtime(runtime))
@@ -212,6 +213,32 @@ test_that("Slurm installation probes the runtime inside allocations", {
     )]
   )
   expect_true(all(startsWith(scripts, compute@workspace)))
+
+  write_executable(
+    file.path(bin, "sacct"),
+    c(
+      "if [[ ! -f \"$BIONEMOR_PROBE_ACCOUNTED\" ]]; then",
+      "  : > \"$BIONEMOR_PROBE_ACCOUNTED\"",
+      "  printf '123|%s|9:0\\n' \"$BIONEMOR_PROBE_STATE\"",
+      "else",
+      "  printf '123|COMPLETED|0:0\\n'",
+      "fi"
+    )
+  )
+  for (scheduler_state in c("PREEMPTED", "BOOT_FAIL", "DEADLINE")) {
+    unlink(accounted)
+    error <- withr::with_envvar(
+      c(
+        BIONEMOR_PROBE_STATE = scheduler_state,
+        BIONEMOR_PROBE_ACCOUNTED = accounted
+      ),
+      expect_error(
+        bionemo_capabilities(compute, refresh = TRUE),
+        class = "BN_RUNTIME_MISSING"
+      )
+    )
+    expect_identical(error$upstream_exit_status, 9L)
+  }
 })
 
 test_that("Slurm installation records a local SIF SHA-256 digest", {
@@ -958,7 +985,7 @@ test_that("Slurm failure manifests retain the scheduler exit status", {
   expect_error(job_result(job), class = "BN_UPSTREAM")
 })
 
-test_that("Slurm accounting lag preserves the submitted state", {
+test_that("Slurm accounting lag and duplicate records are explicit", {
   workspace <- tempfile("bionemor-slurm-accounting-lag-")
   bin <- tempfile("bionemor-bin-")
   dir.create(workspace)
@@ -998,6 +1025,17 @@ test_that("Slurm accounting lag preserves the submitted state", {
     "timed out waiting",
     fixed = TRUE
   )
+  write_executable(
+    file.path(bin, "sacct"),
+    c(
+      "printf '123|RUNNING|0:0\\n'",
+      "printf '123|RUNNING|0:0\\n'"
+    )
+  )
+
+  error <- expect_error(job_status(job), class = "BN_PROTOCOL")
+  expect_identical(error$request_id, "slurm-accounting-lag")
+  expect_identical(error$backend_id, "123")
 })
 
 test_that("Slurm jobs use one quoted script and scheduler cancellation", {

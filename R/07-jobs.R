@@ -36,6 +36,85 @@ local_container_user_args <- function() {
   c("--user", local_container_user(), "-e", "HOME=/tmp/bionemor")
 }
 
+resolved_container_image <- function(compute) {
+  if (
+    compute@backend == "local" &&
+      !grepl("@sha256:[0-9a-fA-F]{64}$", compute@image)
+  ) {
+    compute@image_digest
+  } else {
+    compute@image
+  }
+}
+
+containerize_command <- function(
+  command,
+  compute,
+  gpus,
+  name = NULL,
+  entrypoint = FALSE
+) {
+  image <- resolved_container_image(compute)
+  stopifnot(
+    "command must be a command specification" = inherits(
+      command,
+      "bionemor_command"
+    ),
+    "container image must be one non-empty string" = is_scalar_string(image)
+  )
+  executable <- command$executable
+  cwd <- command$cwd %||% compute@workspace
+  if (compute@backend == "local") {
+    env_args <- unlist(
+      Map(
+        function(name, value) {
+          if (name %in% credential_environment_variables) {
+            c("-e", name)
+          } else {
+            c("-e", paste0(name, "=", value))
+          }
+        },
+        names(command$env),
+        unname(command$env)
+      ),
+      use.names = FALSE
+    )
+    command$executable <- compute@config$container_engine %||% "docker"
+    command$args <- c(
+      "run",
+      "--rm",
+      if (gpus) c("--gpus", "all"),
+      if (!is.null(name)) c("--ipc=host", "--name", name),
+      local_container_user_args(),
+      if (entrypoint) c("--entrypoint", executable),
+      "-v",
+      paste0(compute@workspace, ":", compute@workspace),
+      "-w",
+      cwd,
+      env_args,
+      image,
+      if (!entrypoint) executable,
+      command$args
+    )
+    command$env <- character()
+  } else {
+    command$executable <- "apptainer"
+    command$args <- c(
+      "exec",
+      if (gpus) "--nv",
+      "--bind",
+      paste0(compute@workspace, ":", compute@workspace),
+      "--pwd",
+      cwd,
+      image,
+      executable,
+      command$args
+    )
+  }
+  command$cwd <- compute@workspace
+  command
+}
+
 command_spec <- function(
   executable,
   args = character(),
@@ -659,83 +738,14 @@ wrap_backend_command <- function(command, compute, run_id) {
   if (is.null(compute@image)) {
     stop("container execution requires an image")
   }
-  environment <- command$env
-  if (compute@backend == "local") {
-    image <- if (grepl("@sha256:[0-9a-fA-F]{64}$", compute@image)) {
-      compute@image
-    } else {
-      compute@image_digest
-    }
-    if (!is_scalar_string(image)) {
-      stop("container execution requires a resolved image digest")
-    }
-    container_name <- paste0("bionemor-", run_id)
-    env_args <- unlist(
-      Map(
-        function(name, value) {
-          if (name %in% credential_environment_variables) {
-            c("-e", name)
-          } else {
-            c("-e", paste0(name, "=", value))
-          }
-        },
-        names(environment),
-        unname(environment)
-      ),
-      use.names = FALSE
-    )
-    return(command_spec(
-      compute@config$container_engine %||% "docker",
-      c(
-        "run",
-        "--rm",
-        "--gpus",
-        "all",
-        "--ipc=host",
-        local_container_user_args(),
-        "--name",
-        container_name,
-        "-v",
-        paste0(compute@workspace, ":", compute@workspace),
-        "-w",
-        command$cwd %||% compute@workspace,
-        env_args,
-        image,
-        command$executable,
-        command$args
-      ),
-      cwd = compute@workspace,
-      redactions = command$redactions,
-      stdin = command$stdin,
-      stdout = command$stdout,
-      stderr = command$stderr,
-      timeout = command$timeout,
-      role = command$role,
-      failure_codes = command$failure_codes
-    ))
+  if (!is_scalar_string(resolved_container_image(compute))) {
+    stop("container execution requires a resolved image digest")
   }
-  command_spec(
-    "apptainer",
-    c(
-      "exec",
-      "--nv",
-      "--bind",
-      paste0(compute@workspace, ":", compute@workspace),
-      "--pwd",
-      command$cwd %||% compute@workspace,
-      compute@image,
-      command$executable,
-      command$args
-    ),
-    env = environment,
-    cwd = compute@workspace,
-    redactions = command$redactions,
-    stdin = command$stdin,
-    stdout = command$stdout,
-    stderr = command$stderr,
-    timeout = command$timeout,
-    role = command$role,
-    failure_codes = command$failure_codes
+  containerize_command(
+    command,
+    compute,
+    gpus = TRUE,
+    name = paste0("bionemor-", run_id)
   )
 }
 
@@ -1724,6 +1734,84 @@ wait_for_process_group <- function(pid, timeout) {
   !process_group_is_alive(pid)
 }
 
+slurm_failure_states <- c(
+  "FAILED",
+  "TIMEOUT",
+  "OUT_OF_MEMORY",
+  "NODE_FAIL",
+  "PREEMPTED",
+  "BOOT_FAIL",
+  "DEADLINE"
+)
+
+slurm_accounting_record <- function(id, operation, request_id = id, ...) {
+  stopifnot(
+    "Slurm job ID must be one non-empty string" = is_scalar_string(id),
+    "Slurm operation must be one non-empty string" = is_scalar_string(
+      operation
+    )
+  )
+  result <- command_probe(
+    "sacct",
+    c("-X", "-n", "-P", "-j", id, "--format=JobIDRaw,State,ExitCode")
+  )
+  if (result$status != 0L) {
+    detail <- redact_credentials(trimws(result$stderr))
+    bionemor_abort(
+      "BN_UPSTREAM",
+      paste0(
+        "failed to query Slurm accounting",
+        if (nzchar(detail)) paste0(": ", detail) else ""
+      ),
+      operation = operation,
+      request_id = request_id,
+      backend_id = id,
+      ...,
+      command = "sacct",
+      upstream_exit_status = as.integer(result$status),
+      hint = "Inspect the Slurm accounting service."
+    )
+  }
+  lines <- strsplit(trimws(result$stdout), "\n", fixed = TRUE)[[1L]]
+  records <- lapply(
+    lines[nzchar(lines)],
+    function(line) strsplit(line, "|", fixed = TRUE)[[1L]]
+  )
+  records <- Filter(
+    function(record) length(record) == 3L && identical(record[[1L]], id),
+    records
+  )
+  if (length(records) > 1L) {
+    bionemor_abort(
+      "BN_PROTOCOL",
+      "sacct returned more than one allocation record",
+      operation = operation,
+      request_id = request_id,
+      backend_id = id,
+      ...,
+      hint = "Inspect the Slurm accounting output for this allocation."
+    )
+  }
+  if (length(records)) records[[1L]] else NULL
+}
+
+slurm_scheduler_state <- function(state) {
+  sub("[+ ].*$", "", toupper(trimws(state)))
+}
+
+slurm_mapped_state <- function(scheduler, exit_code) {
+  switch(
+    scheduler,
+    PENDING = "submitted",
+    CONFIGURING = "starting",
+    RUNNING = "running",
+    COMPLETING = "running",
+    COMPLETED = if (exit_code == "0:0") "succeeded" else "failed",
+    CANCELLED = "cancelled",
+    if (scheduler %in% slurm_failure_states) "failed" else "unknown"
+  )
+}
+
 slurm_exit_status <- function(exit_code, state) {
   fields <- strsplit(exit_code, ":", fixed = TRUE)[[1L]]
   parsed <- suppressWarnings(as.integer(fields))
@@ -1770,33 +1858,14 @@ slurm_job_status <- function(job) {
   if (!command_available("sacct")) {
     stop("sacct is not available")
   }
-  result <- command_probe(
-    "sacct",
-    c("-X", "-n", "-P", "-j", id, "--format=JobIDRaw,State,ExitCode")
+  record <- slurm_accounting_record(
+    id,
+    operation = job@kind,
+    request_id = job@id,
+    run_path = job@path,
+    log_paths = file.path(job@path, c("stdout.log", "stderr.log"))
   )
-  if (result$status != 0L) {
-    bionemor_abort(
-      "BN_UPSTREAM",
-      trimws(result$stderr),
-      run_path = job@path,
-      request_id = job@id,
-      operation = job@kind,
-      log_paths = file.path(
-        job@path,
-        c("stdout.log", "stderr.log")
-      ),
-      upstream_exit_status = result$status
-    )
-  }
-  lines <- strsplit(trimws(result$stdout), "\n", fixed = TRUE)[[1L]]
-  fields <- lapply(lines[nzchar(lines)], strsplit, split = "|", fixed = TRUE)
-  fields <- lapply(fields, `[[`, 1L)
-  matching <- vapply(
-    fields,
-    function(x) length(x) == 3L && x[[1L]] == id,
-    logical(1)
-  )
-  if (sum(matching) == 0L) {
+  if (is.null(record)) {
     latest <- read_json_file(file.path(job@path, "state.json"))
     return(
       if (latest$state %in% terminal_job_states) {
@@ -1806,37 +1875,9 @@ slurm_job_status <- function(job) {
       }
     )
   }
-  if (sum(matching) != 1L) {
-    latest <- read_json_file(file.path(job@path, "state.json"))
-    return(
-      if (latest$state %in% terminal_job_states) {
-        latest$state
-      } else {
-        slurm_nonterminal_state(persisted_state, latest$state)
-      }
-    )
-  }
-  record <- fields[[which(matching)]]
-  original <- trimws(record[[2L]])
-  scheduler <- sub("[+ ].*$", "", toupper(original))
+  scheduler <- slurm_scheduler_state(record[[2L]])
   exit_code <- trimws(record[[3L]])
-  mapped <- switch(
-    scheduler,
-    PENDING = "submitted",
-    CONFIGURING = "starting",
-    RUNNING = "running",
-    COMPLETING = "running",
-    COMPLETED = if (exit_code == "0:0") "succeeded" else "failed",
-    CANCELLED = "cancelled",
-    FAILED = "failed",
-    TIMEOUT = "failed",
-    OUT_OF_MEMORY = "failed",
-    NODE_FAIL = "failed",
-    PREEMPTED = "failed",
-    BOOT_FAIL = "failed",
-    DEADLINE = "failed",
-    "unknown"
-  )
+  mapped <- slurm_mapped_state(scheduler, exit_code)
   latest <- read_json_file(file.path(job@path, "state.json"))
   if (latest$state %in% terminal_job_states) {
     return(latest$state)
@@ -2824,41 +2865,18 @@ slurm_failure_reason <- function(x) {
   if (is.null(id)) {
     return(NULL)
   }
-  result <- command_probe(
-    "sacct",
-    c("-X", "-n", "-P", "-j", id, "--format=JobIDRaw,State,ExitCode")
+  record <- slurm_accounting_record(
+    id,
+    operation = x@kind,
+    request_id = x@id,
+    run_path = x@path,
+    log_paths = file.path(x@path, c("stdout.log", "stderr.log"))
   )
-  if (result$status != 0L) {
+  if (is.null(record)) {
     return(NULL)
   }
-  lines <- strsplit(trimws(result$stdout), "\n", fixed = TRUE)[[1L]]
-  fields <- lapply(lines[nzchar(lines)], strsplit, split = "|", fixed = TRUE)
-  fields <- lapply(fields, `[[`, 1L)
-  matching <- vapply(
-    fields,
-    function(record) length(record) == 3L && record[[1L]] == id,
-    logical(1)
-  )
-  if (sum(matching) != 1L) {
-    return(NULL)
-  }
-  scheduler <- sub(
-    "[+ ].*$",
-    "",
-    toupper(trimws(fields[[which(matching)]][[2L]]))
-  )
-  if (
-    scheduler %in%
-      c(
-        "FAILED",
-        "TIMEOUT",
-        "OUT_OF_MEMORY",
-        "NODE_FAIL",
-        "PREEMPTED",
-        "BOOT_FAIL",
-        "DEADLINE"
-      )
-  ) {
+  scheduler <- slurm_scheduler_state(record[[2L]])
+  if (scheduler %in% slurm_failure_states) {
     scheduler
   } else {
     NULL

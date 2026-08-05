@@ -128,8 +128,7 @@ runtime_probe_command <- function(
   compute,
   executable,
   args = character(),
-  gpus = FALSE,
-  immutable = TRUE
+  gpus = FALSE
 ) {
   stopifnot(
     "compute must be a BioNeMo compute descriptor" = S7_inherits(
@@ -139,8 +138,7 @@ runtime_probe_command <- function(
     "probe executable must be one command name" = is_scalar_string(executable),
     "probe arguments must be a character vector" = is.character(args) &&
       !anyNA(args),
-    "gpus must be TRUE or FALSE" = is_scalar_logical(gpus),
-    "immutable must be TRUE or FALSE" = is_scalar_logical(immutable)
+    "gpus must be TRUE or FALSE" = is_scalar_logical(gpus)
   )
   if (compute@engine == "external") {
     return(command_spec(
@@ -149,20 +147,12 @@ runtime_probe_command <- function(
       cwd = compute@workspace
     ))
   }
+  image <- resolved_container_image(compute)
   if (compute@backend == "local") {
-    engine <- compute@config$container_engine %||% "docker"
-    image <- if (grepl("@sha256:[0-9a-fA-F]{64}$", compute@image)) {
-      compute@image
-    } else if (!immutable) {
-      compute@image
-    } else {
-      compute@image_digest
-    }
     if (
       !is_scalar_string(image) ||
-        (immutable &&
-          !grepl("^sha256:[0-9a-fA-F]{64}$", image) &&
-          !grepl("@sha256:[0-9a-fA-F]{64}$", image))
+        !grepl("^sha256:[0-9a-fA-F]{64}$", image) &&
+        !grepl("@sha256:[0-9a-fA-F]{64}$", image)
     ) {
       bionemor_abort(
         "BN_RUNTIME_MISSING",
@@ -172,39 +162,17 @@ runtime_probe_command <- function(
         hint = "Run bionemo_install() before probing the container runtime."
       )
     }
-    return(command_spec(
-      engine,
-      c(
-        "run",
-        "--rm",
-        if (gpus) c("--gpus", "all"),
-        local_container_user_args(),
-        "--entrypoint",
-        executable,
-        "-v",
-        paste0(compute@workspace, ":", compute@workspace),
-        "-w",
-        compute@workspace,
-        image,
-        args
-      ),
-      cwd = compute@workspace
-    ))
   }
-  command_spec(
-    "apptainer",
-    c(
-      "exec",
-      if (gpus) "--nv",
-      "--bind",
-      paste0(compute@workspace, ":", compute@workspace),
-      "--pwd",
-      compute@workspace,
-      compute@image,
-      executable,
-      args
-    ),
+  command <- command_spec(
+    executable,
+    args,
     cwd = compute@workspace
+  )
+  containerize_command(
+    command,
+    compute,
+    gpus = gpus,
+    entrypoint = compute@backend == "local"
   )
 }
 
@@ -836,52 +804,6 @@ bionemo_install <- function(
   compute
 }
 
-slurm_probe_record <- function(id) {
-  result <- processx::run(
-    "sacct",
-    c("-X", "-n", "-P", "-j", id, "--format=JobIDRaw,State,ExitCode"),
-    error_on_status = FALSE,
-    echo = FALSE,
-    env = process_environment()
-  )
-  if (result$status != 0L) {
-    detail <- redact_credentials(trimws(result$stderr))
-    bionemor_abort(
-      "BN_UPSTREAM",
-      paste0(
-        "failed to query Slurm runtime probe",
-        if (nzchar(detail)) paste0(": ", detail) else ""
-      ),
-      operation = "runtime-probe",
-      request_id = id,
-      command = "sacct",
-      upstream_exit_status = as.integer(result$status),
-      hint = "Inspect the Slurm accounting service."
-    )
-  }
-  lines <- strsplit(trimws(result$stdout), "\n", fixed = TRUE)[[1L]]
-  fields <- lapply(lines[nzchar(lines)], strsplit, split = "|", fixed = TRUE)
-  fields <- lapply(fields, `[[`, 1L)
-  matching <- vapply(
-    fields,
-    function(x) length(x) == 3L && identical(x[[1L]], id),
-    logical(1)
-  )
-  if (sum(matching) == 0L) {
-    return(NULL)
-  }
-  if (sum(matching) != 1L) {
-    bionemor_abort(
-      "BN_PROTOCOL",
-      "sacct returned more than one allocation record for the runtime probe",
-      operation = "runtime-probe",
-      request_id = id,
-      hint = "Inspect the Slurm accounting output for this allocation."
-    )
-  }
-  fields[[which(matching)]]
-}
-
 slurm_runtime_probe <- function(
   compute,
   executable,
@@ -978,20 +900,16 @@ slurm_runtime_probe <- function(
 
   deadline <- Sys.time() + 600
   repeat {
-    record <- slurm_probe_record(id)
+    record <- slurm_accounting_record(
+      id,
+      operation = "runtime-probe",
+      recipe_revision = compute@recipe@revision,
+      log_paths = c(stdout = stdout, stderr = stderr)
+    )
     if (!is.null(record)) {
-      state <- sub("[+ ].*$", "", toupper(trimws(record[[2L]])))
-      if (
-        state %in%
-          c(
-            "COMPLETED",
-            "CANCELLED",
-            "FAILED",
-            "TIMEOUT",
-            "OUT_OF_MEMORY",
-            "NODE_FAIL"
-          )
-      ) {
+      scheduler <- slurm_scheduler_state(record[[2L]])
+      state <- slurm_mapped_state(scheduler, trimws(record[[3L]]))
+      if (state %in% terminal_job_states) {
         break
       }
     }
@@ -1023,10 +941,7 @@ slurm_runtime_probe <- function(
     paste(readLines(file, warn = FALSE), collapse = "\n")
   }
   exit_code <- trimws(record[[3L]])
-  status <- suppressWarnings(as.integer(sub(":.*$", "", exit_code)))
-  if (!identical(state, "COMPLETED") || is.na(status)) {
-    status <- 1L
-  }
+  status <- slurm_exit_status(exit_code, state)
   list(
     status = status,
     stdout = output(stdout),
