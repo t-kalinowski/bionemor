@@ -26,14 +26,14 @@ or score sequences, create numerical representations called embeddings for
 similarity, clustering, or downstream models, and be adapted to a particular
 collection of sequences through fine-tuning.
 
-`bionemor` lets bioinformaticians run these workflows from R on NVIDIA GPUs. It
+`bionemor` lets bioinformaticians run these operations from R on NVIDIA GPUs. It
 is intended for people whose sequence data and downstream analysis already live
 in R, including users of Bioconductor packages such as Biostrings. The package
 currently supports Evo 2 for DNA generation, scoring, positional profiles,
 embeddings, preprocessing, and LoRA or full fine-tuning. It also supports ESM-2
 for pooled protein embeddings.
 
-For each workflow it exposes, `bionemor` runs the pinned upstream model code and
+For each operation it exposes, `bionemor` runs the pinned upstream model code and
 checkpoints. The model computation is the same as in the upstream runtime, not
 a simplified R implementation. Evo 2 uses NVIDIA BioNeMo Recipes and Megatron
 Bridge. ESM-2 uses NVIDIA checkpoints with Transformers and Transformer Engine.
