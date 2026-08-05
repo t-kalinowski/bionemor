@@ -755,14 +755,15 @@ bionemor_adapter_evo2_megatron_doctor_model <- function(
     return(do.call(rbind, rows))
   }
   inspection <- read_json_file(output)
-  correct <- identical(inspection$model_size, model@model_size)
+  correct <- is_scalar_string(inspection$path) &&
+    identical(normalize_path(inspection$path), normalize_path(checkpoint))
   rows[[3L]] <- doctor_row(
     "model checkpoint",
     if (correct) "pass" else "fail",
     if (correct) {
-      paste(inspection$model_size, inspection$kind %||% "unknown")
+      paste(model@model_size, model@checkpoint@kind)
     } else {
-      "checkpoint model size does not match the model"
+      "checkpoint inspector did not resolve the requested checkpoint"
     }
   )
   do.call(rbind, rows)

@@ -1307,13 +1307,7 @@ materialize_finetune_job <- function(job, operation) {
   if (!is_scalar_string(inspection$path) || !dir.exists(inspection$path)) {
     stop("fine-tuning inspector did not resolve an MBridge checkpoint")
   }
-  if (!identical(inspection$model_size, context$model$model_size)) {
-    stop("fine-tuning checkpoint has the wrong model size")
-  }
-  if (
-    identical(descriptor$kind, "lora") &&
-      !identical(inspection$kind, "lora")
-  ) {
+  if (!identical(descriptor$kind, context$checkpoint$kind)) {
     stop("fine-tuning checkpoint kind does not match the requested method")
   }
   root <- descriptor$checkpoint_root

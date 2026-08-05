@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import math
 import os
@@ -53,7 +52,6 @@ class MaliciousMetadataValue:
         return os.system, (f"touch {shlex.quote(str(self.sentinel))}",)
 
 
-@unittest.skipUnless(importlib.util.find_spec("yaml"), "PyYAML is required")
 class CheckpointInspectionTest(unittest.TestCase):
     def test_reports_transformer_engine_key_layout(self) -> None:
         layouts = {
@@ -169,58 +167,6 @@ class CheckpointInspectionTest(unittest.TestCase):
             inspection = json.loads(output.read_text(encoding="utf-8"))
             self.assertIs(inspection["transformer_engine"], True)
             self.assertFalse(sentinel.exists())
-
-    def test_nested_20b_lora_checkpoint(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            checkpoint = root / "checkpoint"
-            checkpoint.mkdir()
-            base = root / "base"
-            base.mkdir()
-            (checkpoint / ".metadata").write_bytes(b"metadata")
-            (checkpoint / "__0_0.distcp").write_bytes(b"weights")
-            (checkpoint / "run_config.yaml").write_text(
-                "\n".join(
-                    (
-                        "model:",
-                        "  _target_: bionemo.evo2.models.evo2_provider.Hyena20bARCModelProvider",
-                        "  num_layers: 24",
-                        "  hidden_size: 8192",
-                        "  seq_length: 1048576",
-                        "peft:",
-                        "  _target_: bionemo.evo2.models.evo2_provider.Evo2LoRA",
-                        "checkpoint:",
-                        f"  pretrained_checkpoint: {base}",
-                        "",
-                    )
-                ),
-                encoding="utf-8",
-            )
-            output = root / "inspection.json"
-            stubs = root / "stubs"
-            stubs.mkdir()
-            (stubs / "torch.py").write_text("", encoding="utf-8")
-            environment = os.environ.copy()
-            environment["PYTHONPATH"] = str(stubs)
-
-            subprocess.run(
-                (
-                    sys.executable,
-                    str(HELPER),
-                    "inspect-checkpoint",
-                    "--path",
-                    str(checkpoint),
-                    "--output",
-                    str(output),
-                ),
-                check=True,
-                env=environment,
-            )
-
-            inspection = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(inspection["model_size"], "evo2_20b")
-            self.assertEqual(inspection["kind"], "lora")
-            self.assertEqual(inspection["base_checkpoint"], str(base))
 
     def test_metadata_only_checkpoint_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

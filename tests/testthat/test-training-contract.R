@@ -370,6 +370,32 @@ test_that("Vortex export resolves the checkpoint Transformer Engine layout", {
   log <- tempfile("bionemor-log-")
   dir.create(workspace)
   fake_recipes_runtime(bin)
+  helper <- file.path(bin, "bionemor-evo2-helper")
+  default_helper <- file.path(bin, "bionemor-evo2-helper-default")
+  materializer <- testthat::test_path(
+    "..",
+    "..",
+    "inst",
+    "scripts",
+    "materialize-evo2.py"
+  )
+  materializer <- normalizePath(materializer, mustWork = TRUE)
+  python <- Sys.which("python3")
+  stopifnot(
+    file.rename(helper, default_helper),
+    file.exists(materializer),
+    nzchar(python)
+  )
+  write_executable(
+    helper,
+    c(
+      'if [[ "${1:-}" == "inspect-checkpoint" ]]; then',
+      paste0("  export PYTHONPATH=", shQuote(file.path(bin, "python-modules"))),
+      paste("  exec", shQuote(python), "-S", shQuote(materializer), '"$@"'),
+      "fi",
+      paste("exec", shQuote(default_helper), '"$@"')
+    )
+  )
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
     BIONEMOR_FAKE_LOG = log
@@ -378,6 +404,19 @@ test_that("Vortex export resolves the checkpoint Transformer Engine layout", {
     workspace,
     transformer_engine = FALSE
   )
+  pickle_script <- tempfile("bionemor-metadata-", fileext = ".py")
+  writeLines(
+    c(
+      "import pickle, sys",
+      "with open(sys.argv[1], 'wb') as stream:",
+      "    pickle.dump({'decoder.layers.0.pre_mlp_layernorm.weight': None}, stream)"
+    ),
+    pickle_script
+  )
+  stopifnot(system2(
+    python,
+    c(pickle_script, file.path(checkpoint, ".metadata"))
+  ) == 0L)
   model <- evo2("7b", checkpoint = checkpoint)
   compute <- bionemo_compute(
     recipe = evo2_recipe(),

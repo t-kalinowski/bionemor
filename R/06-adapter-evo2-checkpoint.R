@@ -772,19 +772,12 @@ materialize_checkpoint_job <- function(job, operation) {
   }
   inspection <- read_json_file(descriptor$inspection)
   if (descriptor$format == "mbridge") {
-    schema_message <- if (!is_scalar_string(inspection$path)) {
-      "checkpoint inspector did not report an MBridge path"
-    } else if (!is_scalar_string(inspection$model_size)) {
-      "checkpoint inspector did not report the model size"
-    } else if (
-      !identical(
-        inspection$model_size,
-        context$model$model_size
-      )
+    schema_message <- if (
+      !is_scalar_string(inspection$path) || !dir.exists(inspection$path)
     ) {
-      "checkpoint model size does not match the requested model"
-    } else if (!inspection$kind %in% c("dense", "lora")) {
-      "checkpoint inspector did not report dense or LoRA weights"
+      "checkpoint inspector did not report an MBridge path"
+    } else if (!checkpoint_context$kind %in% c("dense", "lora")) {
+      "checkpoint operation did not record dense or LoRA weights"
     } else {
       NULL
     }
@@ -812,12 +805,12 @@ materialize_checkpoint_job <- function(job, operation) {
   }
 
   kind <- if (descriptor$format == "mbridge") {
-    inspection$kind
+    checkpoint_context$kind
   } else {
     "dense"
   }
   base_checkpoint <- if (identical(kind, "lora")) {
-    inspection$base_checkpoint
+    checkpoint_context$base_checkpoint$path
   } else {
     NULL
   }
@@ -827,7 +820,7 @@ materialize_checkpoint_job <- function(job, operation) {
       bionemor_abort(
         "BN_BASE_CHECKPOINT_MISSING",
         if (!is_scalar_string(base_checkpoint)) {
-          "LoRA checkpoint inspector did not report its base checkpoint"
+          "LoRA checkpoint operation did not record its base checkpoint"
         } else {
           "LoRA base checkpoint is not available"
         },
@@ -1112,6 +1105,42 @@ evo2_checkpoint <- function(
 
   record <- info$record
   model_size <- evo2_checkpoint_model_size(model, record)
+  source_manifest <- if (S7_inherits(source, BioNeMoCheckpoint)) {
+    checkpoint_manifest(source)
+  } else {
+    NULL
+  }
+  source_inspection <- if (
+    identical(info$format, "mbridge") && is.null(source_manifest)
+  ) {
+    inspect_model_checkpoint(info$source, model_size)
+  } else {
+    NULL
+  }
+  source_details <- source_manifest %||% source_inspection %||% list()
+  checkpoint_kind <- if (identical(source_details$kind, "lora")) {
+    "lora"
+  } else {
+    "dense"
+  }
+  base_checkpoint_path <- if (identical(checkpoint_kind, "lora")) {
+    source_details$base_checkpoint_path %||% source_details$base_checkpoint
+  } else {
+    NULL
+  }
+  base_checkpoint_digest <- if (identical(checkpoint_kind, "lora")) {
+    source_details$base_checkpoint_digest
+  } else {
+    NULL
+  }
+  if (
+    is.null(base_checkpoint_digest) &&
+      is_scalar_string(base_checkpoint_path) &&
+      file.exists(base_checkpoint_path)
+  ) {
+    base_checkpoint_path <- normalizePath(base_checkpoint_path, mustWork = TRUE)
+    base_checkpoint_digest <- path_digest(base_checkpoint_path)
+  }
   sequence_length <- evo2_checkpoint_context_length(model, record)
   tokenizer_path <- evo2_checkpoint_tokenizer(tokenizer, record, compute)
   tokenizer_provenance <- evo2_checkpoint_tokenizer_provenance(
@@ -1234,15 +1263,15 @@ evo2_checkpoint <- function(
         source_trust = info$source_trust,
         source_verified = info$source_verified,
         format = "mbridge",
-        kind = NULL,
+        kind = checkpoint_kind,
         revision = info$revision,
         digest = NULL,
         base_checkpoint = list(
-          path = NULL,
-          source = NULL,
-          source_trust = NULL,
-          source_verified = NULL,
-          digest = NULL
+          path = base_checkpoint_path,
+          source = source_details$base_checkpoint_source,
+          source_trust = source_details$base_checkpoint_source_trust,
+          source_verified = source_details$base_checkpoint_source_verified,
+          digest = base_checkpoint_digest
         )
       ),
       tokenizer = list(
@@ -1415,12 +1444,13 @@ evo2_export <- function(
     )
   }
   source <- checkpoint_path(checkpoint)
+  source_manifest <- checkpoint_manifest(checkpoint)
   source_inspection <- inspect_checkpoint_for_export(source, compute)
-  inspection_message <- if (!is_scalar_string(source_inspection$model_size)) {
-    "checkpoint inspector did not report the model size"
-  } else if (!identical(source_inspection$model_size, model@model_size)) {
+  inspection_message <- if (
+    !identical(source_manifest$model_size, model@model_size)
+  ) {
     "checkpoint model size does not match the requested model"
-  } else if (identical(source_inspection$kind, "lora")) {
+  } else if (identical(source_manifest$kind, "lora")) {
     "LoRA checkpoints cannot be exported to Vortex"
   } else if (!is_scalar_logical(source_inspection$transformer_engine)) {
     paste(
@@ -1457,7 +1487,6 @@ evo2_export <- function(
   }
   record <- evo2_checkpoint_model_record(model)
   model_size <- evo2_checkpoint_model_size(model, record)
-  source_manifest <- checkpoint_manifest(checkpoint)
   source_revision <- source_manifest$source_revision
   source_trust <- source_manifest$source_trust
   source_verified <- source_manifest$source_verified

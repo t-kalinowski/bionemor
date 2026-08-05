@@ -226,59 +226,6 @@ def resolve_checkpoint(path: Path) -> tuple[Path, Path]:
     )
 
 
-def nested_find(value: Any, names: set[str]) -> Any:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            normalized = str(key).lower().replace("-", "_")
-            if normalized in names and item is not None:
-                return item
-        for item in value.values():
-            found = nested_find(item, names)
-            if found is not None:
-                return found
-    elif isinstance(value, list):
-        for item in value:
-            found = nested_find(item, names)
-            if found is not None:
-                return found
-    return None
-
-
-def infer_model_size(config: dict[str, Any]) -> str | None:
-    explicit = nested_find(config, {"model_size", "model_name"})
-    if isinstance(explicit, str):
-        return explicit
-    model = config.get("model", config)
-    provider = nested_find(model, {"_target_", "target"})
-    if isinstance(provider, str):
-        providers = {
-            "Hyena1bModelProvider": "evo2_1b_base",
-            "Hyena7bModelProvider": "evo2_7b_base",
-            "Hyena7bARCLongContextModelProvider": "evo2_7b",
-            "Hyena20bARCModelProvider": "evo2_20b",
-            "Hyena40bModelProvider": "evo2_40b_base",
-            "Hyena40bARCLongContextModelProvider": "evo2_40b",
-        }
-        model_size = providers.get(provider.rsplit(".", maxsplit=1)[-1])
-        if model_size is not None:
-            return model_size
-    layers = nested_find(model, {"num_layers"})
-    hidden = nested_find(model, {"hidden_size"})
-    sequence = nested_find(model, {"seq_length", "sequence_length"})
-    if not isinstance(layers, int) or not isinstance(hidden, int):
-        return None
-    known = {
-        (25, 1920): ("evo2_1b_base", "evo2_1b"),
-        (32, 4096): ("evo2_7b_base", "evo2_7b"),
-        (24, 8192): ("evo2_20b", "evo2_20b"),
-        (50, 8192): ("evo2_40b_base", "evo2_40b"),
-    }
-    choices = known.get((layers, hidden))
-    if choices is None:
-        return None
-    return choices[1] if isinstance(sequence, int) and sequence > 8192 else choices[0]
-
-
 def checkpoint_transformer_engine(path: Path) -> bool | None:
     string_opcodes = {
         "UNICODE",
@@ -321,13 +268,6 @@ def checkpoint_transformer_engine(path: Path) -> bool | None:
 
 
 def checkpoint_inspection(path: Path) -> dict[str, Any]:
-    try:
-        import yaml
-    except ImportError as error:
-        raise RuntimeError(
-            "PyYAML is required to inspect MBridge checkpoints"
-        ) from error
-
     root, selected = resolve_checkpoint(path)
     metadata = selected / ".metadata"
     shards = sorted(
@@ -344,62 +284,11 @@ def checkpoint_inspection(path: Path) -> dict[str, Any]:
             f"MBridge checkpoint has no distributed checkpoint weight shard: {selected}"
         )
     transformer_engine = checkpoint_transformer_engine(selected)
-    config_path = selected / "run_config.yaml"
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    if not isinstance(config, dict):
-        raise RuntimeError(f"run_config.yaml must contain a mapping: {config_path}")
-    model_size = infer_model_size(config)
-    if not isinstance(model_size, str):
-        raise RuntimeError("run_config.yaml does not identify a supported model size")
-
-    peft = config.get("peft")
-    explicit_kind = nested_find(config, {"kind", "checkpoint_kind"})
-    kind = "lora" if peft not in (None, False, {}) else "dense"
-    if explicit_kind in {"dense", "lora"}:
-        kind = explicit_kind
-    tokenizer = selected / "tokenizer"
-    tokenizer_value = (
-        str(tokenizer)
-        if tokenizer.is_dir()
-        else nested_find(
-            config,
-            {
-                "hf_tokenizer_model_path",
-                "hf_tokenizer_model_or_path",
-                "tokenizer_path",
-            },
-        )
-    )
-    precision = nested_find(
-        config,
-        {"mixed_precision_recipe", "precision_config", "mixed_precision"},
-    )
-    if isinstance(precision, dict):
-        precision = precision.get("_target_") or precision.get("name")
-    base_checkpoint = nested_find(
-        config,
-        {"pretrained_checkpoint", "base_checkpoint", "base_checkpoint_path"},
-    )
-    provider = nested_find(config.get("model", {}), {"_target_", "target"})
-    vortex_style_fp8 = nested_find(
-        config.get("model", {}),
-        {"vortex_style_fp8"},
-    )
-    if not isinstance(vortex_style_fp8, bool):
-        vortex_style_fp8 = False
 
     return {
         "path": str(root),
         "resolved_path": str(selected),
-        "run_config": str(config_path),
-        "model_provider": provider,
-        "model_size": model_size,
-        "kind": kind,
-        "vortex_style_fp8": vortex_style_fp8,
         "transformer_engine": transformer_engine,
-        "tokenizer": tokenizer_value,
-        "mixed_precision_recipe": precision,
-        "base_checkpoint": base_checkpoint,
         "distributed_checkpoint": {
             "metadata": str(metadata),
             "weight_shards": [str(shard) for shard in shards],
