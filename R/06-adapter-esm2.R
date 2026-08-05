@@ -86,7 +86,9 @@ esm2_embedding_plan <- function(
 #' @param async Whether to return a `BioNeMoJob` before completion.
 #'
 #' @return A numeric matrix with class `esm2_embeddings`, or a `BioNeMoJob`
-#'   when `async = TRUE`.
+#'   when `async = TRUE`. The matrix keeps ordinary matrix behavior. Its
+#'   `provenance` attribute records the model, source and recipe revisions,
+#'   pooling method, and durable run path.
 #' @examples
 #' \dontrun{
 #' compute <- bionemo_compute(

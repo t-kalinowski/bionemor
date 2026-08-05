@@ -241,11 +241,47 @@ test_that("ESM-2 embeddings use the public durable workflow", {
     parameters = list()
   )
   expect_s3_class(embeddings, "esm2_embeddings")
+  expect_true(is.matrix(embeddings))
   expect_equal(dim(embeddings), c(2L, 320L))
   expect_equal(rownames(embeddings), names(proteins))
   expect_equal(embeddings[, 1L], c(reference = 1, variant = 2))
+
+  provenance <- attr(embeddings, "provenance", exact = TRUE)
+  expect_identical(class(provenance), "list")
+  expect_identical(
+    names(provenance),
+    c(
+      "run_path",
+      "model",
+      "source",
+      "source_revision",
+      "pooling",
+      "recipe_revision"
+    )
+  )
+  expect_true(dir.exists(provenance$run_path))
+  expect_identical(provenance$model, "8m")
+  expect_identical(provenance$source, "nvidia/esm2_t6_8M_UR50D")
+  expect_identical(
+    provenance$source_revision,
+    "3674a6acb6c217bbeff709d182a11b196125dfc3"
+  )
+  expect_identical(provenance$pooling, "last-token-l2")
+  expect_identical(provenance$recipe_revision, esm2_recipe()@revision)
+
   predicted <- predict(model, proteins, type = "embedding")
-  expect_equal(predicted, embeddings, ignore_attr = TRUE)
+  expect_true(is.matrix(predicted))
+  expect_identical(dim(predicted), dim(embeddings))
+  expect_identical(dimnames(predicted), dimnames(embeddings))
+  expect_identical(as.double(predicted), as.double(embeddings))
+  predicted_provenance <- attr(predicted, "provenance", exact = TRUE)
+  expect_identical(class(predicted_provenance), "list")
+  expect_identical(names(predicted_provenance), names(provenance))
+  expect_identical(
+    predicted_provenance[setdiff(names(provenance), "run_path")],
+    provenance[setdiff(names(provenance), "run_path")]
+  )
+  expect_false(identical(predicted_provenance$run_path, provenance$run_path))
 
   arguments <- readLines(log, warn = FALSE)
   expect_true(all(

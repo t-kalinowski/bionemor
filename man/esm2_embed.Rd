@@ -32,7 +32,9 @@ must be inside the compute workspace.}
 }
 \value{
 A numeric matrix with class \code{esm2_embeddings}, or a \code{BioNeMoJob}
-when \code{async = TRUE}.
+when \code{async = TRUE}. The matrix keeps ordinary matrix behavior. Its
+\code{provenance} attribute records the model, source and recipe revisions,
+pooling method, and durable run path.
 }
 \description{
 \code{esm2_embed()} runs the ESM-2 model through the package-pinned native

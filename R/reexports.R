@@ -1,12 +1,14 @@
-#' Evo 2 compatibility generics
+#' Model compatibility generics
 #'
-#' `fit()` delegates to [evo2_finetune()]. `predict()` delegates to
-#' [evo2_score()], [evo2_generate()], or [evo2_embed()] according to `type`.
+#' `fit()` delegates Evo 2 models to [evo2_finetune()]. `predict()` provides
+#' cross-family inference. For Evo 2, it delegates to [evo2_score()],
+#' [evo2_generate()], or [evo2_embed()] according to `type`. For ESM-2, it
+#' delegates to [esm2_embed()]; only `type = "embedding"` is supported.
 #'
-#' @param object An Evo 2 model.
+#' @param object An Evo 2 or ESM-2 model. `fit()` supports only Evo 2.
 #' @param data An `Evo2Dataset` or accepted raw sequence input.
 #' @param compute A BioNeMo compute descriptor. `NULL` uses the descriptor
-#'   attached by [evo2_model()] or a previous fine-tuning run.
+#'   attached by [evo2_model()], [esm2_model()], or a previous fine-tuning run.
 #' @param steps Positive training steps.
 #' @param control Fine-tuning controls.
 #' @param method A LoRA or full fine-tuning descriptor.
@@ -14,8 +16,10 @@
 #' @param output Optional result path.
 #' @param timeout Complete operation timeout in seconds.
 #' @param async Whether to return a durable job.
-#' @param newdata Sequences or prompts.
-#' @param type Inference operation: `"score"`, `"generate"`, or `"embedding"`.
+#' @param newdata DNA sequences or prompts for Evo 2, or protein sequences for
+#'   ESM-2.
+#' @param type Inference operation. Evo 2 supports `"score"`, `"generate"`, and
+#'   `"embedding"`; ESM-2 supports `"embedding"`.
 #' @param ... Reserved for future compatibility and must be empty for `fit()`;
 #'   passed to the selected task-specific function for `predict()`.
 #'

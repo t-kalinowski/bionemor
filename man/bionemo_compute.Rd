@@ -76,7 +76,8 @@ compatible environment.
 \itemize{
 \item \code{"local"} launches them from the current machine.
 \item \code{"slurm"} writes a job script, submits it with \code{sbatch}, reads its state
-with \code{sacct}, and cancels it with \code{scancel}.
+with \code{sacct}, and cancels it with \code{scancel}. Slurm support is experimental;
+please report problems at the package's issue tracker.
 }
 
 \code{engine} selects how the recipe runtime is provided:
@@ -85,6 +86,8 @@ with \code{sacct}, and cancels it with \code{scancel}.
 default; set \code{config = list(container_engine = "podman")} to use another
 Docker-compatible command. Slurm execution uses Apptainer and requires an
 existing SIF path or digest-qualified image URI.
+Apptainer support is experimental; please report problems through the
+package issue tracker.
 \item \code{"external"} runs the recipe commands and package helper directly in an
 environment managed outside bionemor. Those commands must be on the
 execution environment's \code{PATH}. \code{image} must be \code{NULL}.

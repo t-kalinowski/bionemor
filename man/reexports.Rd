@@ -4,7 +4,7 @@
 \alias{reexports}
 \alias{fit}
 \alias{predict}
-\title{Evo 2 compatibility generics}
+\title{Model compatibility generics}
 \usage{
 fit(
   object,
@@ -29,12 +29,12 @@ predict(
 )
 }
 \arguments{
-\item{object}{An Evo 2 model.}
+\item{object}{An Evo 2 or ESM-2 model. \code{fit()} supports only Evo 2.}
 
 \item{data}{An \code{Evo2Dataset} or accepted raw sequence input.}
 
 \item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
-attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning run.}
+attached by \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=esm2_model]{esm2_model()}}, or a previous fine-tuning run.}
 
 \item{steps}{Positive training steps.}
 
@@ -50,9 +50,11 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 
 \item{async}{Whether to return a durable job.}
 
-\item{newdata}{Sequences or prompts.}
+\item{newdata}{DNA sequences or prompts for Evo 2, or protein sequences for
+ESM-2.}
 
-\item{type}{Inference operation: \code{"score"}, \code{"generate"}, or \code{"embedding"}.}
+\item{type}{Inference operation. Evo 2 supports \code{"score"}, \code{"generate"}, and
+\code{"embedding"}; ESM-2 supports \code{"embedding"}.}
 
 \item{...}{Reserved for future compatibility and must be empty for \code{fit()};
 passed to the selected task-specific function for \code{predict()}.}
@@ -62,6 +64,8 @@ passed to the selected task-specific function for \code{predict()}.}
 the selected task-specific result.
 }
 \description{
-\code{fit()} delegates to \code{\link[=evo2_finetune]{evo2_finetune()}}. \code{predict()} delegates to
-\code{\link[=evo2_score]{evo2_score()}}, \code{\link[=evo2_generate]{evo2_generate()}}, or \code{\link[=evo2_embed]{evo2_embed()}} according to \code{type}.
+\code{fit()} delegates Evo 2 models to \code{\link[=evo2_finetune]{evo2_finetune()}}. \code{predict()} provides
+cross-family inference. For Evo 2, it delegates to \code{\link[=evo2_score]{evo2_score()}},
+\code{\link[=evo2_generate]{evo2_generate()}}, or \code{\link[=evo2_embed]{evo2_embed()}} according to \code{type}. For ESM-2, it
+delegates to \code{\link[=esm2_embed]{esm2_embed()}}; only \code{type = "embedding"} is supported.
 }

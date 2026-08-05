@@ -354,13 +354,24 @@ preprocess_record <- function(
   record
 }
 
-#' Prepare indexed data for Evo 2 fine-tuning
+#' Preprocess training data for Evo 2 fine-tuning
 #'
-#' `evo2_prepare()` writes each dataset partition as FASTA, calls the pinned
-#' `preprocess_evo2` entry point, and returns an `Evo2Dataset` that points to
-#' the resulting indexed files. Its manifest records input digests, model size,
-#' tokenizer and recipe revisions, preprocessing controls, and output digests.
-#' [evo2_finetune()] checks those fields before training.
+#' `evo2_prepare()` is a training-data preprocessing step. It writes each
+#' dataset partition as FASTA, calls the pinned `preprocess_evo2` entry point,
+#' and returns an `Evo2Dataset` that points to the resulting indexed files. It
+#' does not prepare model weights, fit the model, or run inference. The model
+#' argument supplies the model size and compatible tokenizer configuration; its
+#' checkpoint weights are not read.
+#'
+#' Most users can pass raw data directly to [evo2_finetune()].
+#' `evo2_finetune()` performs this step automatically with default controls.
+#' Call `evo2_prepare()` first when preprocessing must be customized or when the
+#' same indexed data will be reused across fitting runs. Its manifest records
+#' input digests, model size, tokenizer and recipe revisions, preprocessing
+#' controls, and output digests.
+#' Before training, `evo2_finetune()` checks that the prepared path and manifest
+#' exist and verifies the recorded model size, tokenizer, tokenizer revision,
+#' and recipe revision.
 #'
 #' @param data An [evo2_dataset()] result or any input accepted by its `train`
 #'   argument.

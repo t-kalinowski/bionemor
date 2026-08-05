@@ -1,0 +1,129 @@
+# bionemor: biological foundation-model workflows from R
+
+We are releasing the first version of bionemor, an R package for running biological foundation-model workflows on NVIDIA GPUs. It is intended for bioinformaticians whose sequence data and downstream analysis already live in R, including users of Bioconductor packages such as Biostrings.
+
+BioNeMo Recipes supplies family-specific programs and the runtime environments needed to run them. bionemor configures those environments, runs the selected program, and returns its results to R.
+
+The first release supports Evo 2 workflows for DNA and pooled ESM-2 embeddings for proteins. Evo 2 support includes generation, scoring, positional profiles, embeddings, dataset preprocessing, and LoRA or full fine-tuning. ESM-2 support currently focuses on protein embeddings.
+
+## A small Evo 2 example
+
+The package separates the model from the environment where it runs. A recipe selects a pinned model-specific runtime. A compute descriptor combines that recipe with a workspace and execution settings. The model descriptor identifies the architecture and checkpoint; it does not load the weights into the R process. For local container execution, bionemor uses Docker by default.
+
+```r
+library(bionemor)
+
+compute <- bionemo_compute(
+  recipe = evo2_recipe(),
+  backend = "local",
+  engine = "container",
+  workspace = "~/bionemor-work"
+)
+compute <- bionemo_install(compute)
+
+model <- evo2_model("7b", compute)
+
+dna <- Biostrings::DNAStringSet(c(
+  reference = "ACGTACGTACGT",
+  variant = "ACGTACGTTCGT"
+))
+
+scores <- evo2_score(
+  model,
+  dna,
+  reduction = "mean",
+  strand = "both"
+)
+scores
+```
+
+Megatron Bridge is the training and inference stack used by the pinned Evo 2 recipe. MBridge is its checkpoint format. `evo2_model()` downloads the registered weights when needed, converts them in the selected runtime, stores the checkpoint in the compute workspace, and returns an R model descriptor that points to it.
+
+`evo2_score()` returns a data frame, and the embedding functions return ordinary numeric matrices. These results can move directly into familiar R and Bioconductor analyses. Each operation also records its inputs, logs, outputs, and provenance in a durable run directory.
+
+Model operations require a supported CUDA-capable NVIDIA GPU. The package can still be installed without one to inspect the available workflows, recipes, and model metadata.
+
+## Fine-tuning and reuse
+
+Evo 2 fine-tuning follows the same interface. `evo2_dataset()` describes the training, validation, and test sequences. `evo2_prepare()` converts those sequences into the indexed dataset consumed by the pinned Evo 2 training program. By default, `evo2_finetune()` returns a durable job, and `job_wait()` waits for that job and returns a fitted model backed by a saved checkpoint.
+
+Longer operations can return a durable job immediately. Saving its path is enough to reopen it in a later R session:
+
+```r
+sequence_127 <- function(pattern) {
+  substr(strrep(pattern, ceiling(127 / nchar(pattern))), 1L, 127L)
+}
+
+data <- evo2_dataset(
+  train = Biostrings::DNAStringSet(c(
+    train_1 = sequence_127("ACGT"),
+    train_2 = sequence_127("TGCA")
+  )),
+  validation = Biostrings::DNAStringSet(c(
+    validation_1 = sequence_127("AGCT")
+  )),
+  test = Biostrings::DNAStringSet(c(
+    test_1 = sequence_127("TGCAT")
+  ))
+)
+prepared <- evo2_prepare(
+  data,
+  model,
+  path = "datasets/my-study",
+  control = evo2_preprocess_control(sample_length = 128L)
+)
+
+run <- evo2_finetune(
+  model,
+  prepared,
+  steps = 100L,
+  control = evo2_fit_control(sequence_length = 128L),
+  async = TRUE
+)
+path <- job_path(run)
+
+# In a new R session:
+run <- bionemo_job(path)
+fitted <- job_wait(run)
+```
+
+The fitted checkpoint can then be passed to the same scoring, generation, and embedding functions as the base model.
+
+## Protein embeddings with ESM-2
+
+ESM-2 has a separate model and recipe because its checkpoints and runtime differ from Evo 2. The result still follows the same R-facing conventions:
+
+```r
+esm2_compute <- bionemo_compute(
+  recipe = esm2_recipe(),
+  backend = "local",
+  engine = "container",
+  workspace = "~/bionemor-work/esm2"
+)
+esm2_compute <- bionemo_install(esm2_compute)
+protein_model <- esm2_model("8m", esm2_compute)
+
+proteins <- Biostrings::AAStringSet(c(
+  protein_1 = "MKTAYIAKQRQISFVKSHFSRQ",
+  protein_2 = "GAVLILKKKGHHEAELKPLAQSHATK"
+))
+protein_embeddings <- esm2_embed(protein_model, proteins)
+```
+
+The rows of `protein_embeddings` can be used for sequence similarity, clustering, or as features in downstream R models. They are model representations, not measurements of protein function.
+
+## Why Evo 2 and ESM-2 are in one package
+
+Evo 2 and ESM-2 are different model families, and their family-specific code is kept separate. What they share is the workflow around a model: selecting a pinned runtime, describing compute, staging sequence inputs, running work on a GPU, retaining jobs and checkpoints, and returning portable R results.
+
+That shared workflow is the organizing boundary for bionemor. Adding a model family means adding an adapter and recipe behind the common model, compute, workflow, and job contracts. Users get one package and one execution model while the family-specific APIs remain explicit through names such as `evo2_score()` and `esm2_embed()`.
+
+## Install bionemor
+
+The package is available from GitHub:
+
+```r
+pak::pak("t-kalinowski/bionemor")
+```
+
+See the [getting-started guide](https://t-kalinowski.github.io/bionemor/articles/bionemor.html) for GPU setup and complete examples. Generated sequences and scores are model outputs; their biological interpretation and validation remain part of the downstream analysis.

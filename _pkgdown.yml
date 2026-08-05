@@ -1,0 +1,73 @@
+url: https://t-kalinowski.github.io/bionemor/
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Start here
+  contents:
+  - bionemor-package
+
+- title: Discover and run workflows
+  contents:
+  - bionemo_workflows
+  - bionemo_workflow
+  - bionemo_run
+
+- title: Configure compute and runtimes
+  contents:
+  - bionemo_compute
+  - evo2_recipe
+  - esm2_recipe
+  - bionemo_install
+  - bionemo_doctor
+  - bionemo_capabilities
+
+- title: Evo 2 models and checkpoints
+  contents:
+  - evo2_models
+  - evo2
+  - evo2_model
+  - evo2_checkpoint
+  - evo2_export
+  - checkpoint_metadata
+
+- title: Evo 2 inference
+  contents:
+  - evo2_generate
+  - evo2_score
+  - evo2_profile
+  - evo2_embed
+  - evo2_phylo_tag
+  - evo2_inference_control
+
+- title: Evo 2 fine-tuning
+  contents:
+  - evo2_dataset
+  - evo2_preprocess_control
+  - evo2_prepare
+  - evo2_lora
+  - evo2_full
+  - evo2_fit_control
+  - evo2_finetune
+
+- title: ESM-2 protein embeddings
+  contents:
+  - esm2_models
+  - esm2
+  - esm2_model
+  - esm2_embed
+
+- title: Durable jobs
+  contents:
+  - bionemo_job
+  - job_path
+  - job_status
+  - job_logs
+  - job_wait
+  - job_result
+  - job_cancel
+
+- title: Compatibility generics
+  contents:
+  - reexports

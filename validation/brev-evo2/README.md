@@ -39,7 +39,7 @@ Rscript tools/render-gpu-docs.R
 
 The renderer fails when the source tree is dirty, renders into a staging
 directory, verifies that GPU-backed documents contain captured output, and
-then replaces `README.md` and three static package vignettes. The generated
+then replaces `README.md` and two static package vignettes. The generated
 vignettes contain ordinary fenced R code and output, not executable knitr
 chunks, so package installation and vignette rendering do not require a GPU.
 
@@ -50,5 +50,4 @@ rendering again.
 The README and `bionemor` article run Evo 2 generation, scoring, and embeddings,
 then run ESM-2 protein embeddings through its separate pinned runtime. The
 fine-tuning article prepares fixed 127-base synthetic inputs, runs two BF16
-rank-4 LoRA optimizer steps, and checks fitted scoring and generation. The
-Slurm article is rendered as reference material but is not executed on Brev.
+rank-4 LoRA optimizer steps, and checks fitted scoring and generation.

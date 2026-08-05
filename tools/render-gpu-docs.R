@@ -59,8 +59,7 @@ Sys.setenv(BIONEMOR_DOCS_PACKAGE_REVISION = revision)
 targets <- c(
   "README.Rmd" = "README.md",
   "vignettes-src/bionemor.Rmd" = "vignettes/bionemor.Rmd",
-  "vignettes-src/evo2-finetune.Rmd" = "vignettes/evo2-finetune.Rmd",
-  "vignettes-src/slurm.Rmd" = "vignettes/slurm.Rmd"
+  "vignettes-src/evo2-finetune.Rmd" = "vignettes/evo2-finetune.Rmd"
 )
 stopifnot(
   "documentation sources are missing" = all(file.exists(names(targets)))
@@ -94,13 +93,11 @@ tryCatch(
           grepl("NIM", text, fixed = TRUE)
         )
       )
-      if (!identical(input, "vignettes-src/slurm.Rmd")) {
-        stopifnot(
-          "GPU-rendered document does not contain captured output" = any(
-            startsWith(text, "#>")
-          )
+      stopifnot(
+        "GPU-rendered document does not contain captured output" = any(
+          startsWith(text, "#>")
         )
-      }
+      )
       staged[[index]] <- output
     }
 
@@ -111,7 +108,7 @@ tryCatch(
       stopifnot("could not publish rendered documentation" = copied)
     }
 
-    message("Rendered README.md and three static package vignettes")
+    message("Rendered README.md and two static package vignettes")
   },
   finally = {
     unlink(staging, recursive = TRUE)

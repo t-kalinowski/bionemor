@@ -1589,15 +1589,26 @@ evo2_export <- function(
   )
 }
 
-#' Return a checkpoint path
+#' Inspect checkpoint metadata
+#'
+#' `checkpoint_path()` returns the normalized path to checkpoint weights.
+#' `checkpoint_manifest()` reads the adjacent bionemor manifest, including the
+#' checkpoint identity, format, source, recipe revision, and provenance.
 #'
 #' @param x A checkpoint, model, or one checkpoint path.
 #'
-#' @return One normalized path.
+#' @return `checkpoint_path()` returns one normalized path.
+#'   `checkpoint_manifest()` returns a named list containing checkpoint
+#'   identity, provenance, format, recipe revision, source revision, and
+#'   inspection metadata.
 #'
 #' @examples
 #' checkpoint_path("checkpoints/evo2-7b")
-#' @seealso [checkpoint_manifest()], [evo2_checkpoint()]
+#' @seealso [evo2_checkpoint()]
+#' @name checkpoint_metadata
+NULL
+
+#' @rdname checkpoint_metadata
 #' @export
 checkpoint_path <- function(x) {
   path <- if (S7_inherits(x, BioNeMoCheckpoint)) {
@@ -1613,13 +1624,7 @@ checkpoint_path <- function(x) {
   normalize_path(path)
 }
 
-#' Read checkpoint provenance
-#'
-#' @param x A checkpoint, model, or one checkpoint path.
-#'
-#' @return A named list containing checkpoint identity, provenance, format,
-#'   recipe revision, source revision, and inspection metadata.
-#' @seealso [checkpoint_path()], [evo2_checkpoint()]
+#' @rdname checkpoint_metadata
 #' @export
 checkpoint_manifest <- function(x) {
   if (S7_inherits(x, BioNeMoCheckpoint) && !is.null(x@manifest)) {

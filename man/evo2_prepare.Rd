@@ -2,7 +2,7 @@
 % Please edit documentation in R/06-adapter-evo2-fit.R
 \name{evo2_prepare}
 \alias{evo2_prepare}
-\title{Prepare indexed data for Evo 2 fine-tuning}
+\title{Preprocess training data for Evo 2 fine-tuning}
 \usage{
 evo2_prepare(
   data,
@@ -38,11 +38,23 @@ With \code{async = FALSE}, a prepared \code{Evo2Dataset}. With
 \code{async = TRUE}, a \code{BioNeMoJob}; \code{\link[=job_wait]{job_wait()}} materializes the dataset.
 }
 \description{
-\code{evo2_prepare()} writes each dataset partition as FASTA, calls the pinned
-\code{preprocess_evo2} entry point, and returns an \code{Evo2Dataset} that points to
-the resulting indexed files. Its manifest records input digests, model size,
-tokenizer and recipe revisions, preprocessing controls, and output digests.
-\code{\link[=evo2_finetune]{evo2_finetune()}} checks those fields before training.
+\code{evo2_prepare()} is a training-data preprocessing step. It writes each
+dataset partition as FASTA, calls the pinned \code{preprocess_evo2} entry point,
+and returns an \code{Evo2Dataset} that points to the resulting indexed files. It
+does not prepare model weights, fit the model, or run inference. The model
+argument supplies the model size and compatible tokenizer configuration; its
+checkpoint weights are not read.
+}
+\details{
+Most users can pass raw data directly to \code{\link[=evo2_finetune]{evo2_finetune()}}.
+\code{evo2_finetune()} performs this step automatically with default controls.
+Call \code{evo2_prepare()} first when preprocessing must be customized or when the
+same indexed data will be reused across fitting runs. Its manifest records
+input digests, model size, tokenizer and recipe revisions, preprocessing
+controls, and output digests.
+Before training, \code{evo2_finetune()} checks that the prepared path and manifest
+exist and verifies the recorded model size, tokenizer, tokenizer revision,
+and recipe revision.
 }
 \examples{
 \dontrun{

@@ -1,9 +1,11 @@
-#' Use BioNeMo Recipes from R
+#' Run biological foundation-model workflows from R
 #'
-#' NVIDIA BioNeMo Recipes provides runnable training and inference workflows for
-#' biological foundation models. `bionemor` controls those workflows from R and
-#' returns R data frames, matrices, and durable job objects. The package supports
-#' Evo 2 DNA workflows and ESM-2 protein embeddings.
+#' `bionemor` provides R interfaces to selected biological foundation-model
+#' assets and runtimes published through NVIDIA BioNeMo Recipes. Each model
+#' family has its own adapter, checkpoints, and runtime. The package supplies
+#' the shared sequence-input, compute, durable-job, provenance, and R-result
+#' lifecycle. It currently supports Evo 2 DNA workflows and ESM-2 protein
+#' embeddings.
 #'
 #' Installing the R package and inspecting its model registries do not require a
 #' GPU. Preparing weights, inference, preprocessing, and fine-tuning require a
@@ -12,6 +14,16 @@
 #' Container Toolkit. A remote
 #' Linux GPU from a provider such as Brev can be used when no local GPU is
 #' available.
+#'
+#' @section How the pieces fit together:
+#'
+#' A model descriptor identifies a family, variant, configuration, and optional
+#' checkpoint without loading weights into R. A recipe describes the pinned
+#' family-specific source, dependencies, and commands. A compute descriptor
+#' combines that recipe with a workspace, backend, runtime engine, and GPU
+#' resources; a container is one engine selected by compute. A workflow is one
+#' operation, and a durable job records its request, state, logs, outputs, and
+#' provenance so it can be reopened in another R session.
 #'
 #' @section Start here:
 #'
@@ -28,8 +40,8 @@
 #' - [evo2_score()] scores complete sequences.
 #' - [evo2_profile()] writes per-position log probabilities.
 #' - [evo2_embed()] returns pooled embeddings or writes positional embeddings.
-#' - [evo2_dataset()], [evo2_prepare()], and [evo2_finetune()] prepare data and
-#'   fine-tune a model.
+#' - [evo2_dataset()], [evo2_prepare()], and [evo2_finetune()] describe and
+#'   preprocess training data, then fine-tune a model.
 #' - [evo2_checkpoint()] and [evo2_export()] convert and export checkpoints.
 #'
 #' @section ESM-2 protein embeddings:

@@ -26,27 +26,35 @@ stopifnot(
 )
 ```
 
-`bionemor` runs biological foundation-model workflows from R with NVIDIA
-BioNeMo Recipes. BioNeMo Recipes supplies the model-specific training and
-inference programs. `bionemor` installs a pinned recipe runtime, prepares
-inputs, starts jobs, and returns their results to R.
+`bionemor` provides R interfaces to selected biological foundation-model assets
+and runtimes published through NVIDIA BioNeMo Recipes. Each model family has its
+own adapter, checkpoints, and runtime. The package prepares inputs, starts jobs,
+and returns their results to R.
 
 The package currently supports Evo 2 workflows for DNA sequences and ESM-2
 pooled embeddings for protein sequences. Evo 2 has the broadest interface, so
 most of this article uses it as a detailed example. ESM-2 then shows how the
 same API works with another model family.
 
-Five concepts recur throughout the package:
+Six concepts recur throughout the package:
 
-- A *recipe* selects the model-specific BioNeMo runtime.
+- A *model descriptor* is a lightweight S7 object that identifies a family,
+  size, configuration, and optional checkpoint. It does not load weights into
+  the R process.
+- A *checkpoint* contains model weights stored outside R.
+- A *recipe* describes the pinned source, dependencies, and commands used by a
+  family-specific adapter.
 - A *workflow* is one model-family operation, such as DNA scoring or protein
   embedding.
 - A *compute descriptor* records where jobs run, which recipe they use, and
-  where checkpoints and job files are stored.
-- A *model* describes a registered checkpoint and can retain its compute
-  descriptor.
+  where checkpoints and job files are stored. A container is one runtime engine
+  selected by compute, not another kind of model object.
 - A *job* records a run so it can be monitored or reopened from another R
   session.
+
+Evo 2 and ESM-2 are separate model families. They share this execution
+lifecycle, while their adapters keep model-specific checkpoints and commands
+separate.
 
 The output in this article was captured on `r docs_date` with an `r docs_gpu`
 using package revision `r substr(docs_revision, 1L, 12L)`. The executable source
@@ -103,7 +111,7 @@ workflows[c("id", "family", "task")]
 
 | Model family | Input | Supported workflows | Main functions |
 |---|---|---|---|
-| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, data preparation, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
+| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
 The family-specific functions are the ordinary R interface. For automation,
@@ -133,14 +141,17 @@ evo2_compute <- bionemo_install(evo2_compute)
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed outside
-the package. If setup fails, `bionemo_doctor()` reports runtime and GPU checks.
+the package. `backend = "slurm"` can use that external environment or an
+existing Apptainer image on a shared cluster. If setup fails,
+`bionemo_doctor()` reports runtime and GPU checks.
 
 ## Evo 2 example: prepare or reuse a model
 
-`evo2_model()` downloads the selected weights when needed, converts them to the
-checkpoint format used by the Evo 2 recipe, and binds the compute descriptor to
-the returned model. The prepared checkpoint is reused on later calls from the
-same workspace.
+The pinned Evo 2 recipe is built on Megatron Bridge and consumes MBridge-format
+checkpoints. `evo2_model()` needs a compute descriptor because it downloads the
+selected weights when needed, converts them in that runtime, stores them in the
+compute workspace, and returns a model descriptor pointing to the checkpoint.
+The prepared checkpoint is reused on later calls from the same workspace.
 
 ```r
 model <- evo2_model("7b", evo2_compute)
@@ -256,9 +267,11 @@ str(protein_embeddings)
 round(protein_embeddings[, 1:4, drop = FALSE], 4)
 ```
 
-The result contains one last-token, L2-normalized row per protein. Use these
-vectors for sequence similarity, clustering, or as features in downstream R
-models. They are model representations, not measurements of protein function.
+The result contains one last-token, L2-normalized row per protein. It remains a
+standard numeric matrix for ordinary R analysis; its `provenance` attribute
+records the model, recipe revision, and durable run path. Use these vectors for
+sequence similarity, clustering, or as features in downstream R models. They
+are model representations, not measurements of protein function.
 `esm2_models()` lists the available pinned checkpoints and their embedding
 dimensions without downloading weights. Transformers downloads the selected
 checkpoint on first use and caches it below the ESM-2 workspace.
@@ -279,6 +292,8 @@ run <- evo2_generate(
 )
 
 path <- job_path(run)
+
+# In a new R session:
 same_run <- bionemo_job(path)
 job_status(same_run)
 job_logs(same_run, tail = 50L)
@@ -288,6 +303,5 @@ result <- job_wait(same_run, timeout = 600)
 A `job_wait()` timeout only stops waiting. Call `job_cancel()` to cancel the
 underlying process, container, or Slurm allocation.
 
-To prepare data and train Evo 2 adapters, continue with
-`vignette("evo2-finetune")`. For a shared GPU cluster, see
-`vignette("slurm")`.
+To preprocess training data and train Evo 2 adapters, continue with
+`vignette("evo2-finetune")`.

@@ -9,6 +9,11 @@ test_that("installed metadata and exports describe the Recipes runtime", {
   expect_match(description$SystemRequirements, "NVIDIA GPU", fixed = TRUE)
   expect_match(description$SystemRequirements, "Git", fixed = TRUE)
   expect_match(description$SystemRequirements, "tar", fixed = TRUE)
+  expect_false(grepl(
+    "experimental",
+    description$Description,
+    ignore.case = TRUE
+  ))
   expect_true(all(
     c(
       "bionemo_install",
@@ -137,7 +142,10 @@ test_that("public documentation states the current runtime and API contracts", {
 
   esm_recipe <- read_text(file.path("man", "esm2_recipe.Rd"), "esm2_recipe")
   expect_match(esm_recipe, "native Transformers", fixed = TRUE)
-  expect_match(esm_recipe, "does[[:space:]]+not[[:space:]]+compile[[:space:]]+vLLM")
+  expect_match(
+    esm_recipe,
+    "does[[:space:]]+not[[:space:]]+compile[[:space:]]+vLLM"
+  )
 
   esm_embeddings <- read_text(
     file.path("man", "esm2_embed.Rd"),
@@ -146,6 +154,8 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(esm_embeddings, "sequence similarity", fixed = TRUE)
   expect_match(esm_embeddings, "downstream R models", fixed = TRUE)
   expect_match(esm_embeddings, "gpus = 1", fixed = TRUE)
+  expect_match(esm_embeddings, "ordinary matrix behavior", fixed = TRUE)
+  expect_match(esm_embeddings, "provenance", fixed = TRUE)
   expect_match(
     esm_embeddings,
     "not measurements of[[:space:]]+protein function"
@@ -201,6 +211,9 @@ test_that("public documentation states the current runtime and API contracts", {
     "recipe = evo2_recipe()",
     fixed = TRUE
   )
+  expect_match(compute, "Slurm support is experimental", fixed = TRUE)
+  expect_match(compute, "Apptainer\\s+support\\s+is\\s+experimental")
+  expect_match(compute, "report", ignore.case = TRUE)
 
   install <- read_text(
     file.path("man", "bionemo_install.Rd"),
@@ -219,6 +232,30 @@ test_that("public documentation states the current runtime and API contracts", {
 
   models <- read_text(file.path("man", "evo2_models.Rd"), "evo2_models")
   expect_match(models, "does\\s+not\\s+measure\\s+available\\s+GPU\\s+memory")
+
+  preparation <- read_text(
+    file.path("man", "evo2_prepare.Rd"),
+    "evo2_prepare"
+  )
+  expect_match(preparation, "training-data preprocessing", fixed = TRUE)
+  expect_match(preparation, "does\\s+not\\s+prepare\\s+model\\s+weights")
+  expect_match(preparation, "performs\\s+this\\s+step\\s+automatically")
+  expect_match(
+    preparation,
+    "checks\\s+that\\s+the\\s+prepared\\s+path\\s+and\\s+manifest\\s+exist"
+  )
+  expect_match(
+    preparation,
+    paste0(
+      "verifies\\s+the\\s+recorded\\s+model\\s+size,\\s+tokenizer,\\s+",
+      "tokenizer\\s+revision,\\s+and\\s+recipe\\s+revision"
+    )
+  )
+  expect_no_match(preparation, "checks those fields", fixed = TRUE)
+
+  generics <- read_text(file.path("man", "reexports.Rd"), "reexports")
+  expect_match(generics, "Evo 2 or ESM-2", fixed = TRUE)
+  expect_match(generics, "esm2_embed", fixed = TRUE)
 
   wait <- read_text(file.path("man", "job_wait.Rd"), "job_wait")
   expect_match(wait, "does\\s+not\\s+cancel")

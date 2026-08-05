@@ -7,14 +7,13 @@ test_that("GPU documentation has a guarded manual render workflow", {
       "README.Rmd",
       "vignettes-src/bionemor.Rmd",
       "vignettes-src/evo2-finetune.Rmd",
-      "vignettes-src/slurm.Rmd",
       "tools/render-gpu-docs.R"
     )
   )
   expect_true(all(file.exists(paths)))
 
   renderer <- paste(
-    readLines(paths[[5L]], warn = FALSE),
+    readLines(paths[[4L]], warn = FALSE),
     collapse = "\n"
   )
   expect_match(renderer, "BIONEMOR_DOCS_RENDER", fixed = TRUE)
@@ -23,7 +22,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_match(renderer, "finally", fixed = TRUE)
 
   sources <- vapply(
-    paths[1:4],
+    paths[1:3],
     function(path) paste(readLines(path, warn = FALSE), collapse = "\n"),
     character(1)
   )
@@ -33,12 +32,19 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("NVIDIA GPU", onboarding, fixed = TRUE)))
   expect_true(all(grepl("no CPU fallback", onboarding, fixed = TRUE)))
   expect_true(all(grepl("BioNeMo Recipes", onboarding, fixed = TRUE)))
+  expect_match(sources[[1L]], "family-specific programs", fixed = TRUE)
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("ESM-2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Brev", onboarding, fixed = TRUE)))
   expect_true(all(grepl("bionemo_workflows()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = evo2_recipe()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = esm2_recipe()", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("Megatron Bridge", onboarding, fixed = TRUE)))
+  expect_match(sources[[1L]], "Megatron Bridge is", fixed = TRUE)
+  expect_match(sources[[1L]], "checkpoint format", fixed = TRUE)
+  expect_true(all(grepl("model descriptor", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("compute descriptor", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("container", onboarding, fixed = TRUE)))
   expect_true(all(grepl(
     'evo2_model("7b", evo2_compute)',
     onboarding,
@@ -69,6 +75,19 @@ test_that("GPU documentation has a guarded manual render workflow", {
     "downstream[[:space:]]+R[[:space:]]+models",
     onboarding
   )))
+  expect_true(all(grepl("# In a new R session:", onboarding, fixed = TRUE)))
+
+  site_guides <- c(
+    "https://t-kalinowski.github.io/bionemor/articles/bionemor.html",
+    "https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html"
+  )
+  expect_true(all(vapply(
+    site_guides,
+    grepl,
+    logical(1),
+    x = sources[[1L]],
+    fixed = TRUE
+  )))
 
   fine_tune <- sources[[3L]]
   expect_match(fine_tune, "BIONEMOR_DOCS_CHECKPOINT", fixed = TRUE)
@@ -76,11 +95,16 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_match(fine_tune, "evo2_finetune(", fixed = TRUE)
   expect_match(fine_tune, "fitted_score", fixed = TRUE)
   expect_match(fine_tune, "fitted_generation", fixed = TRUE)
+  expect_match(fine_tune, "callr::r(", fixed = TRUE)
+  expect_match(fine_tune, "bionemo_job(", fixed = TRUE)
   expect_match(fine_tune, "biological", ignore.case = TRUE)
 
-  slurm <- sources[[4L]]
-  expect_match(slurm, "not executed", ignore.case = TRUE)
-  expect_match(slurm, "Evo 2 example", fixed = TRUE)
-  expect_match(slurm, "recipe = evo2_recipe()", fixed = TRUE)
-  expect_match(slurm, "async = TRUE", fixed = TRUE)
+  announcement <- paste(
+    readLines(file.path(root, "blog", "first-release.md"), warn = FALSE),
+    collapse = "\n"
+  )
+  expect_match(announcement, "run <- evo2_finetune(", fixed = TRUE)
+  expect_match(announcement, "async = TRUE", fixed = TRUE)
+  expect_match(announcement, "fitted <- job_wait(run)", fixed = TRUE)
+  expect_match(announcement, "Biostrings::DNAStringSet(", fixed = TRUE)
 })

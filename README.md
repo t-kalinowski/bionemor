@@ -2,15 +2,38 @@
 
 # bionemor
 
-`bionemor` runs biological foundation-model workflows from R with NVIDIA
-BioNeMo Recipes. BioNeMo Recipes is a collection of model-specific training and
-inference programs. The package installs a pinned recipe runtime, translates R
-inputs into its command-line interface, and returns results as R objects and
-durable jobs.
+`bionemor` provides R interfaces to selected biological foundation-model assets
+and runtimes published through NVIDIA BioNeMo Recipes. BioNeMo Recipes supplies
+family-specific programs and the runtime environments needed to run them. Each
+model family has its own adapter, checkpoints, and runtime. The package supplies
+the shared R-facing workflow: sequence inputs, compute configuration, durable
+jobs, provenance, and R results.
 
 > Model operations require a supported CUDA-capable NVIDIA GPU. There is no CPU fallback.
 > You can install the package and inspect recipes, workflows, and model metadata
 > without a GPU.
+
+## How the pieces fit together
+
+The package currently supports Evo 2 for DNA and ESM-2 for proteins. These are
+separate model families, not variants of one model. They share the surrounding
+work needed to run a biological model on a GPU, which is why they live in one
+package.
+
+| Concept | Role in bionemor |
+|---|---|
+| Model descriptor | A lightweight S7 object that identifies a model family, size, configuration, and optional checkpoint. It does not load model weights into the R process. |
+| Checkpoint | Model weights stored outside R. A model descriptor can point to a checkpoint prepared or fitted in an earlier run. |
+| Recipe | A versioned description of the family-specific source, dependencies, and commands used by an adapter. |
+| Compute descriptor | The recipe plus the workspace, execution backend, runtime engine, and requested GPU resources. Models retain this descriptor when it is supplied. |
+| Container | One way a compute descriptor supplies the recipe runtime. Local container work uses Docker by default; Slurm container work uses Apptainer. An externally managed runtime is the other engine. |
+| Workflow | One family-specific operation, such as Evo 2 scoring or ESM-2 embedding. |
+| Job | The durable record of one workflow execution, including its request, logs, state, outputs, and provenance. |
+
+A model, sequence input, and operation define the requested work. The compute
+descriptor says where and how to run it; its recipe supplies the matching
+family-specific runtime. The operation produces a durable job and, when it
+finishes, an ordinary R result.
 
 ## Find a workflow
 
@@ -39,7 +62,7 @@ The package currently provides these family-specific R interfaces:
 
 | Model family | Input | Supported workflows | Main functions |
 |---|---|---|---|
-| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, data preparation, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
+| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
 Evo 2 has the broadest interface and is the detailed example below. ESM-2
@@ -101,7 +124,9 @@ echo "$NGC_API_KEY" | docker login nvcr.io \
 
 A compute descriptor records where jobs run, where their files are stored, and
 which recipe supplies the model-specific runtime. The recipe is required so
-that changing model families is visible in user code.
+that changing model families is visible in user code. This example uses a local
+Docker container. `backend = "slurm"` also accepts an administrator-managed
+runtime or an existing Apptainer image.
 
 This descriptor selects the Evo 2 recipe:
 
@@ -150,8 +175,12 @@ str(models)
 #>  $ compatibility_note       : chr  "advertised GPUs support the validated BF16 or FP8 policy" "advertised GPUs support the validated BF16 or FP8 policy"
 ```
 
-`evo2_model()` prepares the recommended dense Megatron Bridge checkpoint on
-its first call and reuses a complete matching checkpoint later:
+Megatron Bridge is the training and inference stack used by the pinned Evo 2
+recipe. MBridge is its checkpoint format. `evo2_model()` needs a compute
+descriptor because it downloads the registered source weights when needed,
+converts them in the selected runtime, and stores the result in the compute
+workspace. It returns a model descriptor that points to the prepared checkpoint
+and reuses a complete matching checkpoint on later calls:
 
 ```r
 model <- evo2_model("7b", evo2_compute)
@@ -263,9 +292,11 @@ round(protein_embeddings[, 1:4, drop = FALSE], 4)
 #> protein_2 -0.0147  0.0020 0.0397 0.0330
 ```
 
-Each row is one last-token, L2-normalized protein embedding. You can use these
-vectors for sequence similarity, clustering, or as features in downstream R
-models. They are model representations, not measurements of protein function.
+Each row is one last-token, L2-normalized protein embedding. The result remains
+a standard numeric matrix for use with ordinary R tools; its `provenance`
+attribute records the model, recipe revision, and durable run path. You can use
+these vectors for sequence similarity, clustering, or as features in downstream
+R models. They are model representations, not measurements of protein function.
 `esm2_models()` lists the available pinned checkpoints and their embedding
 dimensions without downloading weights.
 
@@ -283,6 +314,8 @@ run <- evo2_generate(
 )
 
 path <- job_path(run)
+
+# In a new R session:
 same_run <- bionemo_job(path)
 job_status(same_run)
 result <- job_wait(same_run)
@@ -290,13 +323,10 @@ result <- job_wait(same_run)
 
 ## More guides
 
-- [BioNeMo workflows from R](vignettes/bionemor.Rmd) explains the shared API,
-  then walks through Evo 2 and ESM-2 workflows.
-- [Fine-tune Evo 2 and retain the checkpoint](vignettes/evo2-finetune.Rmd)
+- [BioNeMo workflows from R](https://t-kalinowski.github.io/bionemor/articles/bionemor.html)
+  explains the shared API, then walks through Evo 2 and ESM-2 workflows.
+- [Fine-tune Evo 2 and retain the checkpoint](https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html)
   covers preprocessing, LoRA, and fitted inference.
-- [Run BioNeMo Recipes jobs with Slurm](vignettes/slurm.Rmd) is an experimental
-  cluster reference. Its Evo 2 example has not been executed on Slurm and must
-  be validated on the target cluster.
 
 Generated sequences are model output, not validated biological designs. The
 package reports mechanical sequence checks; downstream biological validation

@@ -141,7 +141,8 @@ slurm_sif_verification_lines <- function(compute) {
 #'
 #' - `"local"` launches them from the current machine.
 #' - `"slurm"` writes a job script, submits it with `sbatch`, reads its state
-#'   with `sacct`, and cancels it with `scancel`.
+#'   with `sacct`, and cancels it with `scancel`. Slurm support is experimental;
+#'   please report problems at the package's issue tracker.
 #'
 #' `engine` selects how the recipe runtime is provided:
 #'
@@ -149,6 +150,8 @@ slurm_sif_verification_lines <- function(compute) {
 #'   default; set `config = list(container_engine = "podman")` to use another
 #'   Docker-compatible command. Slurm execution uses Apptainer and requires an
 #'   existing SIF path or digest-qualified image URI.
+#'   Apptainer support is experimental; please report problems through the
+#'   package issue tracker.
 #' - `"external"` runs the recipe commands and package helper directly in an
 #'   environment managed outside bionemor. Those commands must be on the
 #'   execution environment's `PATH`. `image` must be `NULL`.
