@@ -20,3 +20,6 @@
 ^docs$
 ^.*__pycache__$
 ^.*[.]py[co]$
+^_pkgdown\.yml$
+^pkgdown$
+^\.github$
