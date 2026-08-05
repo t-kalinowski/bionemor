@@ -1,8 +1,8 @@
-test_that("installed metadata and exports describe the Recipes runtime", {
+test_that("installed metadata and exports describe supported runtimes", {
   description <- packageDescription("bionemor")
   text <- paste(description[c("Title", "Description")], collapse = "\n")
 
-  expect_match(text, "BioNeMo Recipes", fixed = TRUE)
+  expect_match(text, "version-pinned NVIDIA GPU runtimes", fixed = TRUE)
   expect_match(text, "Evo 2", fixed = TRUE)
   expect_match(text, "CUDA-capable NVIDIA GPU", fixed = TRUE)
   expect_match(text, "no CPU fallback", fixed = TRUE)
