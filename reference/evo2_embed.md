@@ -69,7 +69,9 @@ evo2_embed(
 
 - output:
 
-  Optional output file. Required when `pool = "none"`.
+  For pooled embeddings, an optional prefix for the compressed float32
+  data (`.f32.gz`) and JSON metadata (`.json`). For unpooled embeddings,
+  a required Parquet output path.
 
 - name:
 
@@ -92,6 +94,9 @@ rule, token embeddings are pooled independently for each strand. With
 `strand = "both"`, the forward and reverse pooled vectors are then
 averaged. The returned matrix preserves input IDs as row names and names
 its columns `dim_1`, `dim_2`, and so on.
+
+Pooled embedding files store little-endian, row-major float32 values. R
+reads these values into its native double-precision numeric matrix.
 
 With `pool = "none"`, the result is a Parquet artifact with columns `id`
 (string), `position` (int64), `embedding` (list of doubles), and

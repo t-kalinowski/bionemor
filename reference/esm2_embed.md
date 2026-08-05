@@ -43,8 +43,9 @@ esm2_embed(
 
 - output:
 
-  Optional path for the portable JSONL result. Container outputs must be
-  inside the compute workspace.
+  Optional prefix for the compressed float32 data (`.f32.gz`) and JSON
+  metadata (`.json`). Container outputs must be inside the compute
+  workspace.
 
 - name:
 
@@ -69,6 +70,9 @@ measurements of protein function. ESM-2 currently requires `gpus = 1`.
 You may supply multiple proteins; the runtime processes them one at a
 time on the selected GPU to preserve their bidirectional attention
 boundaries.
+
+Portable embedding files store little-endian, row-major float32 values.
+R reads these values into its native double-precision numeric matrix.
 
 ## Examples
 

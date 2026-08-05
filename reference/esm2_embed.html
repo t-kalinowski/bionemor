@@ -86,8 +86,9 @@ uses the compute target attached by <code><a href="esm2_model.html">esm2_model()
 
 
 <dt id="arg-output">output<a class="anchor" aria-label="anchor" href="#arg-output"></a></dt>
-<dd><p>Optional path for the portable JSONL result. Container outputs
-must be inside the compute workspace.</p></dd>
+<dd><p>Optional prefix for the compressed float32 data (<code>.f32.gz</code>)
+and JSON metadata (<code>.json</code>). Container outputs must be inside the compute
+workspace.</p></dd>
 
 
 <dt id="arg-name">name<a class="anchor" aria-label="anchor" href="#arg-name"></a></dt>
@@ -112,6 +113,9 @@ in downstream R models. They are model representations, not measurements of
 protein function. ESM-2 currently requires <code>gpus = 1</code>. You may supply
 multiple proteins; the runtime processes them one at a time on the selected
 GPU to preserve their bidirectional attention boundaries.</p>
+<p>Portable embedding files store little-endian, row-major float32
+values. R reads these values into its native double-precision numeric
+matrix.</p>
     </div>
 
     <div class="section level2">

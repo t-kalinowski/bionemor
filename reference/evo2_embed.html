@@ -107,7 +107,9 @@ reverse-strand operations require uppercase IUPAC DNA.</p></dd>
 
 
 <dt id="arg-output">output<a class="anchor" aria-label="anchor" href="#arg-output"></a></dt>
-<dd><p>Optional output file. Required when <code>pool = "none"</code>.</p></dd>
+<dd><p>For pooled embeddings, an optional prefix for the compressed
+float32 data (<code>.f32.gz</code>) and JSON metadata (<code>.json</code>). For unpooled
+embeddings, a required Parquet output path.</p></dd>
 
 
 <dt id="arg-name">name<a class="anchor" aria-label="anchor" href="#arg-name"></a></dt>
@@ -131,6 +133,8 @@ pooling rule, token embeddings are pooled independently for each strand.
 With <code>strand = "both"</code>, the forward and reverse pooled vectors are then
 averaged. The returned matrix preserves input IDs as row names and names
 its columns <code>dim_1</code>, <code>dim_2</code>, and so on.</p>
+<p>Pooled embedding files store little-endian, row-major float32 values. R
+reads these values into its native double-precision numeric matrix.</p>
 <p>With <code>pool = "none"</code>, the result is a Parquet artifact with columns <code>id</code>
 (string), <code>position</code> (int64), <code>embedding</code> (list of doubles), and <code>strand</code>
 (string). Unpooled output requires <code>output</code> and does not support
