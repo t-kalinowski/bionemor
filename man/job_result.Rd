@@ -23,7 +23,7 @@ when the operation may still be running.
 }
 \details{
 A failed, cancelled, active, or unknown job produces a typed bionemor error.
-The condition includes the run path and available log context so the durable
+The condition includes the run path and available log context so the saved
 run can be inspected after the error is caught.
 }
 \examples{

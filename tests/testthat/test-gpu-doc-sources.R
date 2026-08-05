@@ -34,7 +34,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("BioNeMo Recipes", onboarding, fixed = TRUE)))
   expect_match(
     sources[[1L]],
-    "ESM-2 embeddings use a helper supplied by",
+    "running and monitoring jobs",
     fixed = TRUE
   )
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
@@ -170,4 +170,32 @@ test_that("user-facing docs present ESM-2 as an added capability", {
       info = phrase
     )
   }
+})
+
+test_that("user-facing docs describe saved jobs without durable terminology", {
+  root <- testthat::test_path("..", "..")
+  skip_if_not(file.exists(file.path(root, ".git")))
+
+  prose_paths <- c(
+    file.path(
+      root,
+      c("DESCRIPTION", "README.Rmd", "README.md", "_pkgdown.yml")
+    ),
+    list.files(file.path(root, "blog"), full.names = TRUE),
+    list.files(file.path(root, "vignettes-src"), full.names = TRUE),
+    list.files(file.path(root, "vignettes"), full.names = TRUE),
+    list.files(file.path(root, "man"), full.names = TRUE)
+  )
+  prose <- unlist(lapply(prose_paths, readLines, warn = FALSE), use.names = FALSE)
+
+  r_paths <- list.files(file.path(root, "R"), full.names = TRUE)
+  roxygen <- unlist(
+    lapply(r_paths, function(path) {
+      lines <- readLines(path, warn = FALSE)
+      lines[startsWith(lines, "#'")]
+    }),
+    use.names = FALSE
+  )
+
+  expect_false(any(grepl("\\bdurable\\b", c(prose, roxygen), ignore.case = TRUE)))
 })

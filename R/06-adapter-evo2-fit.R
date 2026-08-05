@@ -383,7 +383,7 @@ preprocess_record <- function(
 #'   that workspace.
 #' @param control Preprocessing controls from [evo2_preprocess_control()].
 #' @param overwrite Whether to replace an existing destination.
-#' @param async Whether to return a durable job.
+#' @param async Whether to return a `BioNeMoJob` before preprocessing completes.
 #'
 #' @return With `async = FALSE`, a prepared `Evo2Dataset`. With
 #'   `async = TRUE`, a `BioNeMoJob`; [job_wait()] materializes the dataset.
@@ -928,9 +928,9 @@ fit_control_args <- function(control, model_record) {
 #' @param path Result directory. Relative paths resolve below the compute
 #'   workspace, and `NULL` uses `artifacts/<name>`. Container execution requires
 #'   the result to remain inside the workspace.
-#' @param name Optional durable run name. When `data` must be preprocessed
+#' @param name Optional run name. When `data` must be preprocessed
 #'   automatically, its preprocessing run uses `<name>-data`.
-#' @param async Whether to return a durable job immediately.
+#' @param async Whether to return a `BioNeMoJob` before fine-tuning completes.
 #' @param timeout Complete operation timeout in seconds. This limits the
 #'   launched operation; [job_wait()] has a separate client-side wait timeout.
 #'

@@ -2,7 +2,7 @@
 
 We are releasing the first version of bionemor, an R package for running biological foundation models on NVIDIA GPUs. It is intended for bioinformaticians whose sequence data and downstream analysis already live in R, including users of Bioconductor packages such as Biostrings.
 
-Evo 2 operations use programs from NVIDIA BioNeMo Recipes. ESM-2 embeddings use a helper supplied by bionemor and built on Transformers and Transformer Engine. bionemor configures the version-pinned GPU runtime for each model family, runs the selected operation, and returns its results to R.
+`bionemor` configures compute, runs and monitors jobs, returns results to R, and records how they were produced.
 
 The first release supports Evo 2 operations on DNA and ESM-2 protein embeddings. Evo 2 support includes generation, scoring, positional profiles, embeddings, dataset preprocessing, and LoRA or full fine-tuning. ESM-2 support provides pooled protein embeddings for similarity, clustering, and downstream modeling.
 
@@ -39,15 +39,15 @@ scores
 
 Megatron Bridge is the training and inference stack used by the pinned Evo 2 recipe. MBridge is its checkpoint format. `evo2_model()` downloads the registered weights when needed, converts them in the selected runtime, stores the checkpoint in the compute workspace, and returns an R model descriptor that points to it.
 
-`evo2_score()` returns a data frame, and the embedding functions return ordinary numeric matrices. These results can move directly into familiar R and Bioconductor analyses. Each operation also records its inputs, logs, outputs, and provenance in a durable run directory.
+`evo2_score()` returns a data frame, and the embedding functions return ordinary numeric matrices. These results can move directly into familiar R and Bioconductor analyses. Each operation stores its inputs, logs, outputs, and a record of how they were produced in a run directory that remains available after the R session ends.
 
 Model operations require a supported CUDA-capable NVIDIA GPU. The package can still be installed without one to inspect recipes and model metadata.
 
 ## Fine-tuning and reuse
 
-Evo 2 fine-tuning follows the same interface. `evo2_dataset()` describes the training, validation, and test sequences. `evo2_preprocess()` converts those sequences into the indexed dataset consumed by the pinned Evo 2 training program. By default, `evo2_finetune()` returns a durable job, and `job_wait()` waits for that job and returns a fitted model backed by a saved checkpoint.
+Evo 2 fine-tuning follows the same interface. `evo2_dataset()` describes the training, validation, and test sequences. `evo2_preprocess()` converts those sequences into the indexed dataset consumed by the pinned Evo 2 training program. By default, `evo2_finetune()` returns a job, and `job_wait()` waits for that job and returns a fitted model backed by a saved checkpoint.
 
-Longer operations can return a durable job immediately. Saving its path is enough to reopen it in a later R session:
+Longer operations can return a job immediately. Saving its path is enough to reopen it in a later R session:
 
 ```r
 sequence_127 <- function(pattern) {
@@ -91,7 +91,7 @@ The fitted checkpoint can then be passed to the same scoring, generation, and em
 
 ## Protein embeddings with ESM-2
 
-`bionemor` also supports ESM-2, a protein language model used to create numerical representations of protein sequences. It follows the same model-descriptor, compute, and durable-job interface as the Evo 2 examples:
+`bionemor` also supports ESM-2, a protein language model used to create numerical representations of protein sequences. It uses the same model descriptors and compute configuration, and its jobs can likewise be monitored or reopened from another R session:
 
 ```r
 esm2_compute <- bionemo_compute(

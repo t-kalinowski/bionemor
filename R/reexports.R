@@ -15,7 +15,7 @@
 #' @param name Optional run name.
 #' @param output Optional result path.
 #' @param timeout Complete operation timeout in seconds.
-#' @param async Whether to return a durable job.
+#' @param async Whether to return a `BioNeMoJob` before the operation completes.
 #' @param newdata DNA sequences or prompts for Evo 2, or protein sequences for
 #'   ESM-2.
 #' @param type Inference operation. Evo 2 supports `"score"`, `"generate"`, and

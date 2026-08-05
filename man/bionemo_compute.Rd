@@ -104,8 +104,8 @@ combination. For either external combination, and for Slurm/container,
 \code{workspace} is normalized, created if absent, and required to be writable.
 It is the working directory for external commands and is mounted at the same
 absolute path inside containers. Relative checkpoint, dataset, and artifact
-destinations resolve below this directory, and bionemor stores durable run
-metadata in its \code{.bionemor} subdirectory. For container and Slurm execution,
+destinations resolve below this directory, and bionemor stores run metadata
+in its \code{.bionemor} subdirectory. For container and Slurm execution,
 these inputs and outputs must remain visible at their recorded paths. The
 submitting process and Slurm compute nodes must therefore resolve the
 workspace to the same shared storage.

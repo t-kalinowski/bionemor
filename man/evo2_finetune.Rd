@@ -36,10 +36,10 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 workspace, and \code{NULL} uses \verb{artifacts/<name>}. Container execution requires
 the result to remain inside the workspace.}
 
-\item{name}{Optional durable run name. When \code{data} must be preprocessed
+\item{name}{Optional run name. When \code{data} must be preprocessed
 automatically, its preprocessing run uses \verb{<name>-data}.}
 
-\item{async}{Whether to return a durable job immediately.}
+\item{async}{Whether to return a \code{BioNeMoJob} before fine-tuning completes.}
 
 \item{timeout}{Complete operation timeout in seconds. This limits the
 launched operation; \code{\link[=job_wait]{job_wait()}} has a separate client-side wait timeout.}

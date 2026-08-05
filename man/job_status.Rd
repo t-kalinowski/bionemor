@@ -30,7 +30,7 @@ may be stale. Reopening a job with \code{\link[=bionemo_job]{bionemo_job()}} loa
 
 A job has one of these state strings:
 \itemize{
-\item \code{"created"}: the durable run directory has been initialized.
+\item \code{"created"}: the run directory has been initialized.
 \item \code{"submitted"}: the backend accepted the job and it is waiting to start.
 \item \code{"starting"}: the local runner is starting the operation.
 \item \code{"running"}: the operation is running or finalizing its outputs.

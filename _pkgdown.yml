@@ -52,7 +52,7 @@ reference:
   - esm2_model
   - esm2_embed
 
-- title: Durable jobs
+- title: Run and monitor jobs
   contents:
   - bionemo_job
   - job_path

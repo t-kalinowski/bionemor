@@ -202,9 +202,10 @@ job_status(run, refresh = TRUE)
 fitted
 ```
 
-With `async = TRUE`, `evo2_finetune()` returns immediately with a durable job.
-`job_wait()` returns a fitted `Evo2Model` that points to the saved checkpoint
-and retains the compute descriptor. A wait timeout does not cancel training.
+With `async = TRUE`, `evo2_finetune()` returns a job immediately. The job is
+saved on disk, so it can be monitored or reopened in another R session.
+`job_wait()` returns a fitted `Evo2Model` that points to the saved checkpoint and
+retains the compute descriptor. A wait timeout does not cancel training.
 
 ## Inspect and reuse the fitted checkpoint
 
@@ -250,10 +251,9 @@ steps are not evidence of improved biological performance.
 
 ## Use the fitted model in a fresh R session
 
-The training job is the durable route back to the fitted model. Save its path,
-then pass that path to `bionemo_job()` in another session. `job_wait()` waits if
-training is still active and otherwise reconstructs the fitted model from its
-saved checkpoint and compute descriptor.
+Save the training job's path, then pass that path to `bionemo_job()` in another
+session. `job_wait()` waits if training is still active and otherwise
+reconstructs the fitted model from its saved checkpoint and compute descriptor.
 
 The following `callr::r()` call starts a separate R process and scores a
 sequence with the fitted model:

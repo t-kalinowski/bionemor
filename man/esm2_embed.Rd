@@ -26,7 +26,7 @@ uses the compute target attached by \code{\link[=esm2_model]{esm2_model()}}.}
 \item{output}{Optional path for the portable JSONL result. Container outputs
 must be inside the compute workspace.}
 
-\item{name}{Optional durable run name.}
+\item{name}{Optional run name.}
 
 \item{async}{Whether to return a \code{BioNeMoJob} before completion.}
 }
@@ -34,7 +34,7 @@ must be inside the compute workspace.}
 A numeric matrix with class \code{esm2_embeddings}, or a \code{BioNeMoJob}
 when \code{async = TRUE}. The matrix keeps ordinary matrix behavior. Its
 \code{provenance} attribute records the model, source and recipe revisions,
-pooling method, and durable run path.
+pooling method, and path where the job was saved.
 }
 \description{
 \code{esm2_embed()} runs the ESM-2 model through the package-pinned native

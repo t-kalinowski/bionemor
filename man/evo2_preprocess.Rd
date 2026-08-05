@@ -31,7 +31,7 @@ that workspace.}
 
 \item{overwrite}{Whether to replace an existing destination.}
 
-\item{async}{Whether to return a durable job.}
+\item{async}{Whether to return a \code{BioNeMoJob} before preprocessing completes.}
 }
 \value{
 With \code{async = FALSE}, a prepared \code{Evo2Dataset}. With

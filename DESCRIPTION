@@ -3,12 +3,11 @@ Title: Run Biological Foundation Models from R
 Version: 0.0.0.9000
 Authors@R:
     person("Tomasz", "Kalinowski", , "kalinowskit@gmail.com", role = c("aut", "cre"))
-Description: Provides R interfaces to selected biological foundation models
-    using version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from
-    NVIDIA BioNeMo Recipes; ESM-2 embeddings use a package-supplied helper built
-    on Transformers and Transformer Engine. The package manages model sources,
-    durable jobs, provenance, and portable R results. Model operations require a
-    supported CUDA-capable NVIDIA GPU; no CPU fallback is available.
+Description: Provides an R interface to Evo 2 operations on DNA and ESM-2
+    protein embeddings using version-pinned NVIDIA GPU runtimes. The package
+    configures compute, runs and monitors jobs, returns portable R results, and
+    records how they were produced. Model operations require a supported
+    CUDA-capable NVIDIA GPU; no CPU fallback is available.
 License: MIT + file LICENSE
 URL: https://t-kalinowski.github.io/bionemor/,
     https://github.com/t-kalinowski/bionemor

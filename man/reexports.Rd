@@ -48,7 +48,7 @@ attached by \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=esm2_model]{es
 
 \item{timeout}{Complete operation timeout in seconds.}
 
-\item{async}{Whether to return a durable job.}
+\item{async}{Whether to return a \code{BioNeMoJob} before the operation completes.}
 
 \item{newdata}{DNA sequences or prompts for Evo 2, or protein sequences for
 ESM-2.}

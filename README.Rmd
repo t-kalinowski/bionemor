@@ -20,12 +20,9 @@ stopifnot(
 
 # bionemor
 
-`bionemor` provides R interfaces to selected biological foundation models using
-version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from NVIDIA
-BioNeMo Recipes. ESM-2 embeddings use a helper supplied by `bionemor` and built
-on Transformers and Transformer Engine. The package supports Evo 2 operations
-on DNA and ESM-2 protein embeddings through a shared R interface for sequence
-inputs, compute configuration, durable jobs, provenance, and R results.
+`bionemor` supports Evo 2 operations on DNA and ESM-2 protein embeddings through
+a shared R interface for configuring compute, running and monitoring jobs,
+returning results to R, and recording how they were produced.
 
 > Model operations require a supported CUDA-capable NVIDIA GPU. There is no CPU fallback.
 > You can install the package and inspect recipes and model metadata
@@ -45,12 +42,13 @@ runtime, running work on a GPU, and bringing the result back to R.
 | Compute descriptor | The recipe plus the workspace, execution backend, runtime engine, and requested GPU resources. Models retain this descriptor when it is supplied. |
 | Container | One way a compute descriptor supplies the recipe runtime. Local container work uses Docker by default; Slurm container work uses Apptainer. An externally managed runtime is the other engine. |
 | Operation | A family-specific R function, such as `evo2_score()` or `esm2_embed()`, that requests work from a model. |
-| Job | The durable record of one operation, including its request, logs, state, outputs, and provenance. |
+| Job | A record of one operation, including its request, logs, state, outputs, and details about how it was run. It is saved on disk and can be reopened in another R session. |
 
 A family-specific function combines a model with the relevant input. The
 compute descriptor says where and how to run it; its recipe supplies the
-matching runtime. The operation produces a durable job and, when it finishes,
-an ordinary R result.
+matching runtime. Every operation is recorded in a job directory. Synchronous
+calls return an ordinary R result; asynchronous calls return a job that can be
+monitored or reopened in another R session.
 
 ## Supported models and operations
 
@@ -66,8 +64,7 @@ The function name identifies the model family and the work being requested:
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
 Use these family-specific functions directly. The examples below begin with Evo
-2 DNA, then show ESM-2 protein embeddings through the same compute, durable-job,
-provenance, and result lifecycle.
+2 DNA, then show ESM-2 protein embeddings through the same R interface.
 
 The captured output below was rendered on `r docs_date` with an `r docs_gpu`
 using package revision `r substr(docs_revision, 1L, 12L)`.
@@ -127,7 +124,7 @@ that changing model families is visible in user code. This example uses a local
 Docker container. `backend = "slurm"` also accepts an administrator-managed
 runtime or an existing Apptainer image.
 
-This descriptor selects the Evo 2 recipe:
+This descriptor selects the pinned NVIDIA BioNeMo Recipes runtime for Evo 2:
 
 ```{r runtime}
 workspace <- normalizePath(
@@ -258,16 +255,17 @@ round(protein_embeddings[, 1:4, drop = FALSE], 4)
 
 Each row is one last-token, L2-normalized protein embedding. The result remains
 a standard numeric matrix for use with ordinary R tools; its `provenance`
-attribute records the model, recipe revision, and durable run path. You can use
-these vectors for sequence similarity, clustering, or as features in downstream
-R models. They are model representations, not measurements of protein function.
+attribute records the model, recipe revision, and path where the job was saved.
+You can use these vectors for sequence similarity, clustering, or as features in
+downstream R models. They are model representations, not measurements of protein
+function.
 `esm2_models()` lists the available pinned checkpoints and their embedding
 dimensions without downloading weights.
 
 ## Run longer work
 
-Family-specific functions use the same durable job interface. Set
-`async = TRUE`, retain the job path, and reopen it in a later R session:
+Family-specific functions use the same job interface. Set `async = TRUE`, save
+the job path, and reopen it in a later R session:
 
 ```r
 run <- evo2_generate(

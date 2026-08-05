@@ -1459,8 +1459,8 @@ submit_plan <- function(
 
 #' Reopen a persisted BioNeMo job
 #'
-#' Each operation dispatched through the job runner creates a durable run
-#' directory under `<workspace>/.bionemor/runs/<name>`. The directory records
+#' Each operation dispatched through the job runner creates a run directory
+#' under `<workspace>/.bionemor/runs/<name>`. The directory records
 #' the request, command plan, state, logs, outputs, and provenance needed to
 #' inspect the run after the R session that started it has ended. A
 #' `BioNeMoJob` is a handle to those persisted files and the local or Slurm
@@ -1556,10 +1556,10 @@ bionemo_job <- function(path) {
 
 #' Return the run directory for a BioNeMo job
 #'
-#' The run directory is the durable identity of a job. Save this path to reopen
-#' the job with [bionemo_job()] in another R session. Keep the directory intact:
-#' status updates, logs, result materialization, and provenance all use files
-#' stored below it.
+#' The run directory identifies a job and stores the files needed to inspect or
+#' reopen it. Save this path to reopen the job with [bionemo_job()] in another R
+#' session. Keep the directory intact: status updates, logs, result
+#' materialization, and provenance all use files stored below it.
 #'
 #' @param x A `BioNeMoJob` returned by an asynchronous operation or
 #'   [bionemo_job()].
@@ -1810,7 +1810,7 @@ local_job_status <- function(job) {
 #'
 #' A job has one of these state strings:
 #'
-#' - `"created"`: the durable run directory has been initialized.
+#' - `"created"`: the run directory has been initialized.
 #' - `"submitted"`: the backend accepted the job and it is waiting to start.
 #' - `"starting"`: the local runner is starting the operation.
 #' - `"running"`: the operation is running or finalizing its outputs.
@@ -2974,7 +2974,7 @@ abort_job_state <- function(x, state, message) {
 #' when the operation may still be running.
 #'
 #' A failed, cancelled, active, or unknown job produces a typed bionemor error.
-#' The condition includes the run path and available log context so the durable
+#' The condition includes the run path and available log context so the saved
 #' run can be inspected after the error is caught.
 #'
 #' @param x A `BioNeMoJob` returned by an asynchronous operation or

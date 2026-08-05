@@ -26,15 +26,12 @@ stopifnot(
 )
 ```
 
-`bionemor` provides R interfaces to selected biological foundation models using
-version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from NVIDIA
-BioNeMo Recipes. ESM-2 embeddings use a helper supplied by `bionemor` and built
-on Transformers and Transformer Engine. The package supports Evo 2 operations
-on DNA and ESM-2 protein embeddings through the same R interface for preparing
-inputs, starting jobs, and returning results to R.
+`bionemor` supports Evo 2 operations on DNA and ESM-2 protein embeddings through
+a shared R interface for configuring compute, running and monitoring jobs,
+returning results to R, and recording how they were produced.
 
 This article begins with Evo 2 DNA, then uses ESM-2 to create pooled protein
-embeddings through the same compute, job, provenance, and result lifecycle.
+embeddings through the same R interface.
 
 Six concepts recur throughout the package:
 
@@ -112,8 +109,7 @@ The function name identifies the model family and the work being requested:
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
 Use these family-specific functions directly. Both model families return
-ordinary R objects and use the same durable job functions for longer-running
-work.
+ordinary R objects and use the same job functions for longer-running work.
 
 ## Install an Evo 2 runtime
 
@@ -264,14 +260,14 @@ round(protein_embeddings[, 1:4, drop = FALSE], 4)
 
 The result contains one last-token, L2-normalized row per protein. It remains a
 standard numeric matrix for ordinary R analysis; its `provenance` attribute
-records the model, recipe revision, and durable run path. Use these vectors for
-sequence similarity, clustering, or as features in downstream R models. They
-are model representations, not measurements of protein function.
+records the model, recipe revision, and path where the job was saved. Use these
+vectors for sequence similarity, clustering, or as features in downstream R
+models. They are model representations, not measurements of protein function.
 `esm2_models()` lists the available pinned checkpoints and their embedding
 dimensions without downloading weights. Transformers downloads the selected
 checkpoint on first use and caches it below the ESM-2 workspace.
 
-## Reopen a durable job
+## Reopen a job in another R session
 
 Every operation records its request, command plan, logs, portable outputs, and
 provenance under `.bionemor/runs` in the compute workspace. For a longer batch,

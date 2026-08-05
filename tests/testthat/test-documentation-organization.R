@@ -45,7 +45,7 @@ test_that("the pkgdown reference index follows the public API", {
       "esm2_model",
       "esm2_embed"
     ),
-    "Durable jobs" = c(
+    "Run and monitor jobs" = c(
       "bionemo_job",
       "job_path",
       "job_status",

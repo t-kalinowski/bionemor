@@ -15,10 +15,10 @@ A length-one character vector containing the normalized absolute run
 path.
 }
 \description{
-The run directory is the durable identity of a job. Save this path to reopen
-the job with \code{\link[=bionemo_job]{bionemo_job()}} in another R session. Keep the directory intact:
-status updates, logs, result materialization, and provenance all use files
-stored below it.
+The run directory identifies a job and stores the files needed to inspect or
+reopen it. Save this path to reopen the job with \code{\link[=bionemo_job]{bionemo_job()}} in another R
+session. Keep the directory intact: status updates, logs, result
+materialization, and provenance all use files stored below it.
 }
 \examples{
 \dontrun{

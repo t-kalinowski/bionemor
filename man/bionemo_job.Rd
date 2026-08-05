@@ -14,8 +14,8 @@ persisted request, command plan, and state files.}
 A \code{BioNeMoJob} for the persisted run.
 }
 \description{
-Each operation dispatched through the job runner creates a durable run
-directory under \verb{<workspace>/.bionemor/runs/<name>}. The directory records
+Each operation dispatched through the job runner creates a run directory
+under \verb{<workspace>/.bionemor/runs/<name>}. The directory records
 the request, command plan, state, logs, outputs, and provenance needed to
 inspect the run after the R session that started it has ended. A
 \code{BioNeMoJob} is a handle to those persisted files and the local or Slurm

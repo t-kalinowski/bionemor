@@ -82,13 +82,13 @@ esm2_embedding_plan <- function(
 #'   uses the compute target attached by [esm2_model()].
 #' @param output Optional path for the portable JSONL result. Container outputs
 #'   must be inside the compute workspace.
-#' @param name Optional durable run name.
+#' @param name Optional run name.
 #' @param async Whether to return a `BioNeMoJob` before completion.
 #'
 #' @return A numeric matrix with class `esm2_embeddings`, or a `BioNeMoJob`
 #'   when `async = TRUE`. The matrix keeps ordinary matrix behavior. Its
 #'   `provenance` attribute records the model, source and recipe revisions,
-#'   pooling method, and durable run path.
+#'   pooling method, and path where the job was saved.
 #' @examples
 #' \dontrun{
 #' compute <- bionemo_compute(

@@ -1,11 +1,8 @@
 #' Run biological foundation models from R
 #'
-#' `bionemor` provides R interfaces to selected biological foundation models
-#' using version-pinned NVIDIA GPU runtimes. Evo 2 operations use programs from
-#' NVIDIA BioNeMo Recipes. ESM-2 embeddings use a helper supplied by `bionemor`
-#' and built on Transformers and Transformer Engine. The package supports Evo 2
-#' operations on DNA and ESM-2 protein embeddings through a shared
-#' sequence-input, compute, durable-job, provenance, and R-result lifecycle.
+#' `bionemor` supports Evo 2 operations on DNA and ESM-2 protein embeddings
+#' through a shared R interface for configuring compute, running and monitoring
+#' jobs, returning results to R, and recording how they were produced.
 #'
 #' Installing the R package and inspecting its model registries do not require a
 #' GPU. Preparing weights, inference, preprocessing, and fine-tuning require a
@@ -22,8 +19,9 @@
 #' family-specific source, dependencies, and commands. A compute descriptor
 #' combines that recipe with a workspace, backend, runtime engine, and GPU
 #' resources; a container is one engine selected by compute. Family-specific R
-#' functions request operations, and a durable job records each request, state,
-#' logs, outputs, and provenance so it can be reopened in another R session.
+#' functions request operations. Each operation creates a job directory that
+#' stores its request, state, logs, outputs, and details about how it was run.
+#' Save the job path to reopen it in another R session.
 #'
 #' @section Start here:
 #'
@@ -50,10 +48,10 @@
 #' - [esm2_model()] binds a checkpoint to an ESM-2 recipe runtime.
 #' - [esm2_embed()] returns last-token, L2-normalized protein embeddings.
 #'
-#' @section Durable jobs:
+#' @section Run and monitor jobs:
 #'
-#' Operations write durable requests, logs, state, and portable results below
-#' the compute workspace. Use [bionemo_job()] to reopen a run after the R session
+#' Operations save their requests, logs, state, and portable results below the
+#' compute workspace. Use [bionemo_job()] to reopen a run after the R session
 #' ends and [job_result()] to retrieve its result.
 #'
 #' @import S7
