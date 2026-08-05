@@ -168,7 +168,7 @@ fake_recipes_runtime <- function(bin) {
       "args <- commandArgs(TRUE)",
       "command <- args[[1L]]",
       "value <- function(flag) args[[match(flag, args) + 1L]]",
-      "if (command %in% c('capabilities', 'describe')) {",
+      "if (identical(args, c('describe', '--json'))) {",
       "  result <- list(",
       "    protocol_version = 1L,",
       "    driver = 'evo2-megatron',",

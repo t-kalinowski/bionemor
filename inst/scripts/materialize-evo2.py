@@ -1258,11 +1258,8 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="bionemor-evo2-helper")
     subcommands = result.add_subparsers(dest="command", required=True)
 
-    capability = subcommands.add_parser("capabilities")
-    capability.add_argument("--json", action="store_true")
-
     describe = subcommands.add_parser("describe")
-    describe.add_argument("--json", action="store_true")
+    describe.add_argument("--json", action="store_true", required=True)
 
     inspect = subcommands.add_parser("inspect-checkpoint")
     inspect.add_argument("--path", type=Path, required=True)
@@ -1306,9 +1303,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = parser().parse_args()
-    if args.command == "capabilities":
-        print(json.dumps(capabilities(), sort_keys=True))
-    elif args.command == "describe":
+    if args.command == "describe":
         print(json.dumps(description(), sort_keys=True))
     elif args.command == "inspect-checkpoint":
         atomic_write_json(args.output, checkpoint_inspection(args.path))
