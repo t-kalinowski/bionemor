@@ -414,37 +414,26 @@ def prediction_files(directory: Path) -> list[Path]:
     return files
 
 
-def load_sequence_map(path: Path) -> list[dict[str, Any]]:
-    text = path.read_text(encoding="utf-8").strip()
-    if not text:
-        raise RuntimeError("sequence map is empty")
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if text.startswith("["):
-        value = json.loads(text)
-    elif len(lines) > 1 and all(
-        line.startswith("{") and line.endswith("}") for line in lines
-    ):
-        value = [json.loads(line) for line in lines]
-    elif text.startswith("{"):
-        value = json.loads(text)
-        if isinstance(value, dict) and all(
-            isinstance(item, list) for item in value.values()
-        ):
-            value = [
-                {name: column[index] for name, column in value.items()}
-                for index in range(len(next(iter(value.values()))))
-            ]
-        else:
-            value = [value]
-    else:
-        value = [json.loads(line) for line in lines]
+def load_records(path: Path, *, jsonl: bool) -> list[dict[str, Any]]:
+    text = path.read_text(encoding="utf-8")
+    try:
+        rows = (
+            [json.loads(line) for line in text.splitlines() if line]
+            if jsonl
+            else json.loads(text)
+        )
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "input must be valid JSONL" if jsonl else "input must be valid JSON"
+        ) from error
     if (
-        not isinstance(value, list)
-        or not value
-        or not all(isinstance(row, dict) for row in value)
+        not isinstance(rows, list)
+        or not rows
+        or not all(isinstance(row, dict) for row in rows)
     ):
-        raise RuntimeError("sequence map must contain one or more JSON records")
-    return value
+        kind = "JSONL" if jsonl else "JSON array"
+        raise RuntimeError(f"input must be a non-empty {kind} of objects")
+    return rows
 
 
 def reverse_complement(sequence: str) -> str:
@@ -460,7 +449,7 @@ def expected_sequence_rows(
     path: Path, prediction_directory: Path
 ) -> tuple[dict[int, dict[str, Any]], list[str]]:
     required = {"derived_id", "id", "strand", "sequence", "sequence_length"}
-    rows = load_sequence_map(path)
+    rows = load_records(path, jsonl=False)
     by_derived_id: dict[str, dict[str, Any]] = {}
     original_order: list[str] = []
     original_records: dict[str, tuple[str, int, set[str]]] = {}
@@ -1044,19 +1033,14 @@ def materialize_predictions(args: argparse.Namespace) -> None:
 
 
 def generation_log_probabilities(row: dict[str, Any]) -> list[float] | None:
-    values = row.get("log_probabilities")
-    if values is None:
-        logprobs = row.get("logprobs")
-        if isinstance(logprobs, dict):
-            values = logprobs.get("completion_logprobs")
-    if values is None:
+    logprobs = row.get("logprobs")
+    if logprobs is None:
         return None
+    if not isinstance(logprobs, dict) or set(logprobs) != {"completion_logprobs"}:
+        raise PortableOutputError("generation logprobs fields are invalid", 65)
+    values = logprobs["completion_logprobs"]
     if not isinstance(values, list):
         raise PortableOutputError("generation log probabilities must be a list", 65)
-    if values and all(isinstance(value, dict) for value in values):
-        values = [
-            value.get("logprob", value.get("log_probability")) for value in values
-        ]
     if not all(
         isinstance(value, (int, float))
         and not isinstance(value, bool)
@@ -1111,23 +1095,36 @@ def generation_validation_warnings(
 
 def validate_generation(args: argparse.Namespace) -> None:
     try:
-        upstream = load_sequence_map(args.input)
-        prompts = load_sequence_map(args.prompts)
+        upstream = load_records(args.input, jsonl=True)
+        prompts = load_records(args.prompts, jsonl=True)
     except RuntimeError as error:
         raise PortableOutputError(str(error), 65) from error
     if len(upstream) != len(prompts):
         raise PortableOutputError(
             "generation output has an unexpected number of rows", 65
         )
-    prompt_ids = [row.get("id") for row in prompts]
-    upstream_ids = [row.get("id") for row in upstream]
-    if (
-        any(not isinstance(value, str) or not value for value in prompt_ids)
-        or len(set(prompt_ids)) != len(prompt_ids)
-        or upstream_ids != prompt_ids
+    prompt_fields = {"id", "input_id", "sample", "prompt"}
+    output_fields = {"id", "prompt", "completion", "finish_reason", "usage"}
+    usage_fields = {"prompt_tokens", "completion_tokens", "total_tokens"}
+    if any(set(row) != prompt_fields for row in prompts):
+        raise PortableOutputError("generation prompt fields are invalid", 65)
+    if any(
+        set(row) not in (output_fields, output_fields | {"logprobs"})
+        for row in upstream
     ):
+        raise PortableOutputError("generation output fields are invalid", 65)
+    prompt_ids = [row["id"] for row in prompts]
+    if any(not isinstance(value, str) or not value for value in prompt_ids) or len(
+        set(prompt_ids)
+    ) != len(prompt_ids):
+        raise PortableOutputError("generation prompt IDs are invalid", 65)
+    if [row["id"] for row in upstream] != prompt_ids:
         raise PortableOutputError("generation output IDs do not match the request", 65)
-    completions = [row.get("completion") for row in upstream]
+    if [row["prompt"] for row in upstream] != [row["prompt"] for row in prompts]:
+        raise PortableOutputError(
+            "generation output prompts do not match the request", 65
+        )
+    completions = [row["completion"] for row in upstream]
     if any(not isinstance(value, str) or not value for value in completions):
         raise PortableOutputError("generation output is missing a completion", 65)
     if args.validate == "strict" and any(
@@ -1141,7 +1138,7 @@ def validate_generation(args: argparse.Namespace) -> None:
     for upstream_row, prompt, completion, row_warnings in zip(
         upstream, prompts, completions, warnings, strict=True
     ):
-        prompt_value = prompt.get("prompt")
+        prompt_value = prompt["prompt"]
         if not isinstance(prompt_value, str) or not prompt_value:
             raise PortableOutputError(
                 "generation prompt must be a non-empty string", 65
@@ -1151,24 +1148,20 @@ def validate_generation(args: argparse.Namespace) -> None:
             raise PortableOutputError(
                 "generation output is missing requested log probabilities", 65
             )
-        usage = upstream_row.get("usage")
-        usage = usage if isinstance(usage, dict) else {}
-        generated_tokens = upstream_row.get(
-            "generated_tokens", usage.get("completion_tokens")
-        )
-        if generated_tokens is None:
-            generated_tokens = (
-                len(completion) if log_probabilities is None else len(log_probabilities)
-            )
-        if (
-            not isinstance(generated_tokens, int)
-            or isinstance(generated_tokens, bool)
-            or generated_tokens < 0
+        usage = upstream_row["usage"]
+        if not isinstance(usage, dict) or set(usage) != usage_fields:
+            raise PortableOutputError("generation usage fields are invalid", 65)
+        if any(
+            type(usage[field]) is not int or usage[field] < 0
+            for field in usage_fields
         ):
             raise PortableOutputError(
-                "generation output has an invalid generated token count", 65
+                "generation usage counts must be non-negative integers", 65
             )
-        finish_reason = upstream_row.get("finish_reason", "unknown")
+        prompt_tokens = usage["prompt_tokens"]
+        generated_tokens = usage["completion_tokens"]
+        total_tokens = usage["total_tokens"]
+        finish_reason = upstream_row["finish_reason"]
         if not isinstance(finish_reason, str) or not finish_reason:
             raise PortableOutputError(
                 "generation output has an invalid finish reason", 65
@@ -1191,12 +1184,6 @@ def validate_generation(args: argparse.Namespace) -> None:
             raise PortableOutputError(
                 "generation probability count does not match generated tokens", 65
             )
-        prompt_tokens = upstream_row.get("prompt_tokens", usage.get("prompt_tokens"))
-        if prompt_tokens is None:
-            prompt_tokens = len(prompt_value)
-        total_tokens = upstream_row.get("total_tokens", usage.get("total_tokens"))
-        if total_tokens is None:
-            total_tokens = prompt_tokens + generated_tokens
         dna = [base for base in completion if base in "ACGT"]
         retained_log_probabilities = (
             log_probabilities if args.return_probabilities else None
@@ -1204,15 +1191,15 @@ def validate_generation(args: argparse.Namespace) -> None:
         rows.append(
             {
                 "id": prompt["id"],
-                "input_id": prompt.get("input_id", prompt["id"]),
-                "sample": int(prompt.get("sample", 1)),
+                "input_id": prompt["input_id"],
+                "sample": int(prompt["sample"]),
                 "prompt": prompt_value,
                 "completion": completion,
                 "sequence": prompt_value + completion,
                 "finish_reason": finish_reason,
-                "prompt_tokens": int(prompt_tokens),
+                "prompt_tokens": prompt_tokens,
                 "generated_tokens": generated_tokens,
-                "total_tokens": int(total_tokens),
+                "total_tokens": total_tokens,
                 "log_probabilities": retained_log_probabilities,
                 "probabilities": (
                     None

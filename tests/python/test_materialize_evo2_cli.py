@@ -16,6 +16,33 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "inst" / "scripts" / "materialize-evo2.py"
+GENERATION_PROMPT = {
+    "id": "prompt-1",
+    "input_id": "sequence-1",
+    "sample": 1,
+    "prompt": "ACGT",
+}
+
+
+def generation_record(
+    completion: str,
+    finish_reason: str,
+    log_probabilities: list[float] | None,
+) -> dict[str, object]:
+    row: dict[str, object] = {
+        "id": "prompt-1",
+        "prompt": "ACGT",
+        "completion": completion,
+        "finish_reason": finish_reason,
+        "usage": {
+            "prompt_tokens": 4,
+            "completion_tokens": len(completion),
+            "total_tokens": 4 + len(completion),
+        },
+    }
+    if log_probabilities is not None:
+        row["logprobs"] = {"completion_logprobs": log_probabilities}
+    return row
 
 
 class MaliciousMetadataValue:
@@ -278,27 +305,9 @@ class GenerationMaterializationTest(unittest.TestCase):
     def test_writes_complete_portable_generation_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            prompt = {
-                "id": "prompt-1",
-                "input_id": "sequence-1",
-                "sample": 1,
-                "prompt": "ACGT",
-            }
-            generated = {
-                **prompt,
-                "completion": "TGCA",
-                "finish_reason": "length",
-                "usage": {
-                    "prompt_tokens": 4,
-                    "completion_tokens": 4,
-                    "total_tokens": 8,
-                },
-                "logprobs": {
-                    "completion_logprobs": [math.log(0.25)] * 4,
-                },
-            }
+            generated = generation_record("TGCA", "length", [math.log(0.25)] * 4)
 
-            result = self.run_helper(root, prompt, generated)
+            result = self.run_helper(root, GENERATION_PROMPT, generated)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             row = json.loads((root / "generation.jsonl").read_text(encoding="utf-8"))
@@ -318,21 +327,9 @@ class GenerationMaterializationTest(unittest.TestCase):
     def test_rejects_positive_log_probabilities_before_writing_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            prompt = {
-                "id": "prompt-1",
-                "input_id": "sequence-1",
-                "sample": 1,
-                "prompt": "ACGT",
-            }
-            generated = {
-                **prompt,
-                "completion": "T",
-                "finish_reason": "stop",
-                "generated_tokens": 1,
-                "log_probabilities": [0.1],
-            }
+            generated = generation_record("T", "stop", [0.1])
 
-            result = self.run_helper(root, prompt, generated)
+            result = self.run_helper(root, GENERATION_PROMPT, generated)
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("finite and non-positive", result.stderr)
@@ -343,26 +340,26 @@ class GenerationMaterializationTest(unittest.TestCase):
     def test_requires_requested_log_probabilities(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            prompt = {
-                "id": "prompt-1",
-                "input_id": "sequence-1",
-                "sample": 1,
-                "prompt": "ACGT",
-            }
-            generated = {
-                **prompt,
-                "completion": "TGCA",
-                "finish_reason": "length",
-                "generated_tokens": 4,
-            }
+            generated = generation_record("TGCA", "length", None)
 
-            result = self.run_helper(root, prompt, generated)
+            result = self.run_helper(root, GENERATION_PROMPT, generated)
 
             self.assertEqual(result.returncode, 65)
             self.assertIn("requested log probabilities", result.stderr)
             self.assertFalse((root / "generation.jsonl").exists())
             self.assertFalse((root / "generated.fasta").exists())
             self.assertFalse((root / "validation.json").exists())
+
+    def test_rejects_unpinned_upstream_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            generated = generation_record("TGCA", "length", None)
+            generated["log_probabilities"] = [math.log(0.25)] * 4
+
+            result = self.run_helper(root, GENERATION_PROMPT, generated)
+
+            self.assertEqual(result.returncode, 65)
+            self.assertIn("fields", result.stderr)
 
 
 if __name__ == "__main__":
