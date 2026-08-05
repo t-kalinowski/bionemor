@@ -379,6 +379,13 @@ test_that("Vortex export resolves the checkpoint Transformer Engine layout", {
     "scripts",
     "materialize-evo2.py"
   )
+  if (!file.exists(materializer)) {
+    materializer <- system.file(
+      "scripts",
+      "materialize-evo2.py",
+      package = "bionemor"
+    )
+  }
   materializer <- normalizePath(materializer, mustWork = TRUE)
   python <- Sys.which("python3")
   stopifnot(
