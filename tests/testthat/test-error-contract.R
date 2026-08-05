@@ -169,9 +169,14 @@ test_that("malformed generation output exposes BN_OUTPUT_SCHEMA metadata", {
     Sys.sleep(0.01)
   }
   expect_identical(job_status(job), "succeeded")
-  writeLines(
-    '{"id":"prompt::1"}',
-    file.path(job_path(job), "outputs", "generation.jsonl")
+  output <- file.path(job_path(job), "outputs", "generation.jsonl")
+  row <- jsonlite::read_json(output, simplifyVector = FALSE)
+  row$unexpected <- TRUE
+  jsonlite::write_json(
+    row,
+    output,
+    auto_unbox = TRUE,
+    null = "null"
   )
 
   error <- expect_error(

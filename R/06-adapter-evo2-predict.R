@@ -403,52 +403,106 @@ evo2_generate <- function(
   submit_operation(operation, async = async)
 }
 
+generation_result_fields <- c(
+  "id",
+  "input_id",
+  "sample",
+  "prompt",
+  "completion",
+  "sequence",
+  "finish_reason",
+  "prompt_tokens",
+  "generated_tokens",
+  "total_tokens",
+  "log_probabilities",
+  "probabilities",
+  "generated_bases",
+  "gc_fraction",
+  "ambiguous_fraction",
+  "longest_homopolymer",
+  "validation_warnings"
+)
+
+generation_string_fields <- c(
+  "id",
+  "input_id",
+  "prompt",
+  "completion",
+  "sequence",
+  "finish_reason"
+)
+
+generation_integer_fields <- c(
+  sample = 1L,
+  prompt_tokens = 0L,
+  generated_tokens = 0L,
+  total_tokens = 0L,
+  generated_bases = 0L,
+  longest_homopolymer = 0L
+)
+
+generation_list_fields <- c(
+  "log_probabilities",
+  "probabilities",
+  "validation_warnings"
+)
+
+is_generation_fraction <- function(x) {
+  is_scalar_number(x) && x >= 0 && x <= 1
+}
+
+is_generation_number_vector <- function(x, min = -Inf, max = Inf) {
+  is.null(x) ||
+    length(x) == 0L ||
+    is.numeric(x) && all(is.finite(x)) && all(x >= min & x <= max)
+}
+
+is_generation_row <- function(row) {
+  if (
+    !is.list(row) ||
+      !identical(sort(names(row)), sort(generation_result_fields))
+  ) {
+    return(FALSE)
+  }
+  warnings <- row$validation_warnings
+  all(vapply(
+    row[generation_string_fields],
+    is_scalar_string,
+    logical(1)
+  )) &&
+    all(vapply(
+      names(generation_integer_fields),
+      function(field) {
+        is_scalar_integerish(row[[field]], generation_integer_fields[[field]])
+      },
+      logical(1)
+    )) &&
+    (is.null(row$gc_fraction) || is_generation_fraction(row$gc_fraction)) &&
+    is_generation_fraction(row$ambiguous_fraction) &&
+    is_generation_number_vector(row$log_probabilities, max = 0) &&
+    is_generation_number_vector(row$probabilities, min = 0, max = 1) &&
+    (is.character(warnings) || is.list(warnings) && length(warnings) == 0L) &&
+    !anyNA(warnings) &&
+    all(nzchar(warnings))
+}
+
+as_generation_number_vector <- function(x) {
+  if (is.null(x)) NULL else as.double(unlist(x, use.names = FALSE))
+}
+
 generation_rows_data_frame <- function(records) {
-  scalar_names <- c(
-    "id",
-    "input_id",
-    "sample",
-    "prompt",
-    "completion",
-    "sequence",
-    "finish_reason",
-    "prompt_tokens",
-    "generated_tokens",
-    "total_tokens",
-    "generated_bases",
-    "gc_fraction",
-    "ambiguous_fraction",
-    "longest_homopolymer"
-  )
+  scalar_fields <- setdiff(generation_result_fields, generation_list_fields)
   data <- as.data.frame(
-    lapply(scalar_names, function(name) {
+    lapply(scalar_fields, function(name) {
       pluck_vec(records, name, records[[1L]][[name]])
     }),
     stringsAsFactors = FALSE
   )
-  names(data) <- scalar_names
-  data$log_probabilities <- I(lapply(records, `[[`, "log_probabilities"))
-  data$probabilities <- I(lapply(records, `[[`, "probabilities"))
-  data$validation_warnings <- I(lapply(records, `[[`, "validation_warnings"))
-  data[c(
-    "id",
-    "input_id",
-    "sample",
-    "prompt",
-    "completion",
-    "sequence",
-    "finish_reason",
-    "prompt_tokens",
-    "generated_tokens",
-    "total_tokens",
-    "log_probabilities",
-    "probabilities",
-    "generated_bases",
-    "gc_fraction",
-    "ambiguous_fraction",
-    "longest_homopolymer",
-    "validation_warnings"
-  )]
+  names(data) <- scalar_fields
+  for (field in generation_list_fields) {
+    data[[field]] <- I(lapply(records, `[[`, field))
+  }
+  data[generation_result_fields]
 }
 
 abort_generation_schema <- function(
@@ -505,208 +559,28 @@ materialize_generation_job <- function(job, operation) {
     } else {
       NULL
     }
-    if (!is.list(row)) {
+    if (!is_generation_row(row)) {
       abort_generation_schema(
         job,
         operation,
-        "generation portable output row must be an object"
+        "generation portable output row has an invalid schema",
+        request_id = request_id
       )
     }
-    string_fields <- c(
-      "id",
-      "input_id",
-      "prompt",
-      "completion",
-      "sequence",
-      "finish_reason"
+    integer_fields <- names(generation_integer_fields)
+    row[integer_fields] <- lapply(row[integer_fields], as.integer)
+    row$gc_fraction <- as.double(row$gc_fraction %||% NA_real_)
+    row$ambiguous_fraction <- as.double(row$ambiguous_fraction)
+    vector_fields <- c("log_probabilities", "probabilities")
+    row[vector_fields] <- lapply(
+      row[vector_fields],
+      as_generation_number_vector
     )
-    invalid_string <- string_fields[
-      !vapply(
-        row[string_fields],
-        is_scalar_string,
-        logical(1)
-      )
-    ]
-    if (length(invalid_string)) {
-      abort_generation_schema(
-        job,
-        operation,
-        paste0(
-          "generation portable output has an invalid ",
-          invalid_string[[1L]]
-        ),
-        request_id = request_id
-      )
-    }
-    integer_fields <- c(
-      sample = 1L,
-      prompt_tokens = 0L,
-      generated_tokens = 0L,
-      total_tokens = 0L,
-      generated_bases = 0L,
-      longest_homopolymer = 0L
-    )
-    invalid_integer <- names(integer_fields)[
-      !vapply(
-        names(integer_fields),
-        function(field) {
-          is_scalar_integerish(row[[field]], min = integer_fields[[field]])
-        },
-        logical(1)
-      )
-    ]
-    if (length(invalid_integer)) {
-      abort_generation_schema(
-        job,
-        operation,
-        paste0(
-          "generation portable output has an invalid ",
-          invalid_integer[[1L]]
-        ),
-        request_id = request_id
-      )
-    }
-    gc_fraction <- row$gc_fraction
-    if (is.null(gc_fraction)) {
-      gc_fraction <- NA_real_
-    } else if (
-      !is_scalar_number(gc_fraction) ||
-        gc_fraction < 0 ||
-        gc_fraction > 1
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output has an invalid gc_fraction",
-        request_id = request_id
-      )
-    }
-    ambiguous_fraction <- row$ambiguous_fraction
-    if (
-      !is_scalar_number(ambiguous_fraction) ||
-        ambiguous_fraction < 0 ||
-        ambiguous_fraction > 1
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output has an invalid ambiguous_fraction",
-        request_id = request_id
-      )
-    }
-    numeric_vector <- function(field) {
-      value <- row[[field]]
-      if (is.null(value)) {
-        return(NULL)
-      }
-      if (length(value) == 0L) {
-        return(numeric())
-      }
-      value <- unlist(value, use.names = FALSE)
-      if (!is.numeric(value) || any(!is.finite(value))) {
-        abort_generation_schema(
-          job,
-          operation,
-          paste0(
-            "generation portable output has invalid ",
-            field
-          ),
-          request_id = request_id
-        )
-      }
-      as.double(value)
-    }
-    log_probabilities <- numeric_vector("log_probabilities")
-    probabilities <- numeric_vector("probabilities")
-    if (
-      !is.null(log_probabilities) &&
-        any(log_probabilities > 0)
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output has invalid log_probabilities",
-        request_id = request_id
-      )
-    }
-    if (
-      !is.null(probabilities) &&
-        any(probabilities < 0 | probabilities > 1)
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output has invalid probabilities",
-        request_id = request_id
-      )
-    }
-    validation_warnings <- row$validation_warnings
-    if (
-      !is.character(validation_warnings) &&
-        !is.list(validation_warnings)
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output has invalid validation_warnings",
-        request_id = request_id
-      )
-    }
-    validation_warnings <- as.character(unlist(
-      validation_warnings,
+    row$validation_warnings <- as.character(unlist(
+      row$validation_warnings,
       use.names = FALSE
     ))
-    if (
-      anyNA(validation_warnings) ||
-        any(!nzchar(validation_warnings))
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output has invalid validation_warnings",
-        request_id = request_id
-      )
-    }
-    if (
-      !identical(row$sequence, paste0(row$prompt, row$completion)) ||
-        row$total_tokens != row$prompt_tokens + row$generated_tokens ||
-        row$generated_bases > nchar(row$completion, type = "chars") ||
-        request$validate != "none" &&
-          row$generated_tokens > request$num_tokens ||
-        request$validate != "none" &&
-          identical(row$finish_reason, "length") &&
-          row$generated_tokens != request$num_tokens ||
-        !is.null(log_probabilities) &&
-          length(log_probabilities) != row$generated_tokens ||
-        !is.null(probabilities) &&
-          length(probabilities) != row$generated_tokens
-    ) {
-      abort_generation_schema(
-        job,
-        operation,
-        "generation portable output fields are inconsistent",
-        request_id = request_id
-      )
-    }
-    list(
-      id = row$id,
-      input_id = row$input_id,
-      sample = as.integer(row$sample),
-      prompt = row$prompt,
-      completion = row$completion,
-      sequence = row$sequence,
-      finish_reason = row$finish_reason,
-      prompt_tokens = as.integer(row$prompt_tokens),
-      generated_tokens = as.integer(row$generated_tokens),
-      total_tokens = as.integer(row$total_tokens),
-      log_probabilities = log_probabilities,
-      probabilities = probabilities,
-      generated_bases = as.integer(row$generated_bases),
-      gc_fraction = as.double(gc_fraction),
-      ambiguous_fraction = as.double(ambiguous_fraction),
-      longest_homopolymer = as.integer(row$longest_homopolymer),
-      validation_warnings = validation_warnings
-    )
+    row[generation_result_fields]
   })
   ids <- pluck_chr(records, "id")
   if (anyDuplicated(ids)) {
