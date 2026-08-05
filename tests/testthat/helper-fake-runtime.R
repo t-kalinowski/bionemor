@@ -21,6 +21,29 @@ write_fake_dcp_weights <- function(path) {
 
 fake_recipes_runtime <- function(bin) {
   dir.create(bin, recursive = TRUE, showWarnings = FALSE)
+  materializer <- testthat::test_path(
+    "..",
+    "..",
+    "inst",
+    "scripts",
+    "materialize-evo2.py"
+  )
+  if (!file.exists(materializer)) {
+    materializer <- system.file(
+      "scripts",
+      "materialize-evo2.py",
+      package = "bionemor"
+    )
+  }
+  materializer <- normalizePath(materializer, mustWork = TRUE)
+  python <- Sys.which("python3")
+  stopifnot(nzchar(python))
+  python_modules <- file.path(bin, "python-modules")
+  dir.create(python_modules)
+  writeLines("# Generation conversion does not use torch.", file.path(
+    python_modules,
+    "torch.py"
+  ))
   tokenizer_root <- file.path(bin, "tokenizers")
   dir.create(
     file.path(tokenizer_root, "nucleotide_fast_tokenizer_256"),
@@ -164,8 +187,8 @@ fake_recipes_runtime <- function(bin) {
     )
   )
 
-  write_r_executable(
-    file.path(bin, "bionemor-evo2-helper"),
+  fake_helper <- write_r_executable(
+    file.path(bin, "bionemor-evo2-helper-fake"),
     c(
       "args <- commandArgs(TRUE)",
       "command <- args[[1L]]",
@@ -216,60 +239,6 @@ fake_recipes_runtime <- function(bin) {
       "  transformer_engine <- config[['model']][['transformer_engine']]",
       "  result <- list(path = normalizePath(path), resolved_path = normalizePath(resolved), model_size = config$model_size, kind = config$kind, vortex_style_fp8 = vortex_style_fp8, transformer_engine = transformer_engine, tokenizer = 'evo2-tokenizer', base_checkpoint = config$checkpoint$pretrained_checkpoint)",
       "  jsonlite::write_json(result, value('--output'), auto_unbox = TRUE, null = 'null', pretty = TRUE)",
-      "} else if (command == 'validate-generation') {",
-      "  read_rows <- function(path) lapply(readLines(path, warn = FALSE), jsonlite::parse_json, simplifyVector = FALSE)",
-      "  fail <- function(message, status) { cat(message, '\\n', file = stderr()); quit(save = 'no', status = status) }",
-      "  upstream <- read_rows(value('--input'))",
-      "  prompts <- read_rows(value('--prompts'))",
-      "  if (length(upstream) != length(prompts)) fail('generation output has an unexpected number of rows', 65L)",
-      "  if (!identical(vapply(upstream, `[[`, character(1), 'id'), vapply(prompts, `[[`, character(1), 'id'))) fail('generation output IDs do not match the request', 65L)",
-      "  requested <- as.integer(value('--num-tokens'))",
-      "  validation_mode <- value('--validate')",
-      "  retain_probabilities <- '--return-probabilities' %in% args",
-      "  or_else <- function(x, y) if (is.null(x)) y else x",
-      "  completions <- vapply(upstream, function(row) {",
-      "    completion <- row$completion",
-      "    if (!is.character(completion) || length(completion) != 1L || !nzchar(completion)) fail('generation output is missing a completion', 65L)",
-      "    completion",
-      "  }, character(1))",
-      "  duplicates <- duplicated(completions) | duplicated(completions, fromLast = TRUE)",
-      "  records <- Map(function(row, prompt, completion, duplicate) {",
-      "    if (validation_mode == 'strict' && grepl('[^ACGT]', completion)) fail('strict generation validation rejected non-ACGT output', 67L)",
-      "    probabilities <- row$log_probabilities",
-      "    if (is.null(probabilities)) probabilities <- row$logprobs$completion_logprobs",
-      "    probabilities <- if (is.null(probabilities)) NULL else as.double(unlist(probabilities, use.names = FALSE))",
-      "    if (retain_probabilities && is.null(probabilities)) fail('generation output is missing requested log probabilities', 65L)",
-      "    if (!is.null(probabilities) && any(!is.finite(probabilities) | probabilities > 0)) fail('generation log probabilities must be finite and non-positive', 66L)",
-      "    generated <- row$generated_tokens",
-      "    if (is.null(generated)) generated <- row$usage$completion_tokens",
-      "    if (is.null(generated)) generated <- if (is.null(probabilities)) nchar(completion) else length(probabilities)",
-      "    generated <- as.integer(generated)",
-      "    if (validation_mode != 'none' && generated > requested) fail('generated token count exceeds the request', 65L)",
-      "    finish <- or_else(row$finish_reason, 'unknown')",
-      "    if (validation_mode != 'none' && identical(finish, 'length') && generated != requested) fail('length-finished generation has an unexpected token count', 65L)",
-      "    if (validation_mode != 'none' && !is.null(probabilities) && length(probabilities) != generated) fail('generation probability count does not match generated tokens', 65L)",
-      "    prompt_tokens <- or_else(row$prompt_tokens, or_else(row$usage$prompt_tokens, nchar(prompt$prompt)))",
-      "    total_tokens <- or_else(row$total_tokens, or_else(row$usage$total_tokens, prompt_tokens + generated))",
-      "    dna <- strsplit(gsub('[^ACGT]', '', completion), '', fixed = TRUE)[[1L]]",
-      "    longest <- if (nchar(completion)) max(rle(strsplit(completion, '', fixed = TRUE)[[1L]])$lengths) else 0L",
-      "    validation_warnings <- character()",
-      "    if (validation_mode != 'none' && grepl('[^ACGT]', completion)) validation_warnings <- c(validation_warnings, 'completion contains non-ACGT symbols')",
-      "    if (validation_mode != 'none' && length(dna)) {",
-      "      gc <- mean(dna %in% c('G', 'C'))",
-      "      if (gc < 0.2 || gc > 0.8) validation_warnings <- c(validation_warnings, 'completion has extreme GC fraction')",
-      "    }",
-      "    if (validation_mode != 'none' && longest >= 10L) validation_warnings <- c(validation_warnings, 'completion contains a long homopolymer')",
-      "    if (validation_mode != 'none' && length(dna) >= 8L && length(unique(dna)) <= 2L) validation_warnings <- c(validation_warnings, 'completion has low complexity')",
-      "    if (validation_mode != 'none' && duplicate) validation_warnings <- c(validation_warnings, 'completion is duplicated in this batch')",
-      "    list(id = prompt$id, input_id = prompt$input_id, sample = prompt$sample, prompt = prompt$prompt, completion = completion, sequence = paste0(prompt$prompt, completion), finish_reason = finish, prompt_tokens = as.integer(prompt_tokens), generated_tokens = generated, total_tokens = as.integer(total_tokens), log_probabilities = if (retain_probabilities) probabilities else NULL, probabilities = if (retain_probabilities) exp(probabilities) else NULL, generated_bases = length(dna), gc_fraction = if (length(dna)) mean(dna %in% c('G', 'C')) else NULL, ambiguous_fraction = if (nchar(completion)) 1 - length(dna) / nchar(completion) else 0, longest_homopolymer = longest, validation_warnings = validation_warnings)",
-      "  }, upstream, prompts, completions, duplicates)",
-      "  output <- value('--output')",
-      "  dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)",
-      "  writeLines(vapply(records, jsonlite::toJSON, character(1), auto_unbox = TRUE, null = 'null'), output)",
-      "  fasta <- unlist(lapply(records, function(row) c(paste0('>', row$id), row$sequence)), use.names = FALSE)",
-      "  writeLines(fasta, value('--fasta'))",
-      "  warnings <- stats::setNames(lapply(records, `[[`, 'validation_warnings'), vapply(records, `[[`, character(1), 'id'))",
-      "  jsonlite::write_json(list(validate = validation_mode, warnings = warnings), value('--validation'), auto_unbox = TRUE, null = 'null', pretty = TRUE)",
       "} else if (command == 'materialize-predictions') {",
       "  map <- jsonlite::read_json(value('--sequence-map'), simplifyVector = TRUE)",
       "  mode <- value('--mode')",
@@ -305,6 +274,17 @@ fake_recipes_runtime <- function(bin) {
       "  result <- list(path = normalizePath(value('--path')), kind = 'dense')",
       "  jsonlite::write_json(result, value('--output'), auto_unbox = TRUE, pretty = TRUE)",
       "} else stop('unsupported fake helper command')"
+    )
+  )
+
+  write_executable(
+    file.path(bin, "bionemor-evo2-helper"),
+    c(
+      "if [[ \"${1:-}\" == \"validate-generation\" ]]; then",
+      paste0("  export PYTHONPATH=", shQuote(python_modules)),
+      paste("  exec", shQuote(python), shQuote(materializer), "\"$@\""),
+      "fi",
+      paste("exec", shQuote(fake_helper), "\"$@\"")
     )
   )
 
