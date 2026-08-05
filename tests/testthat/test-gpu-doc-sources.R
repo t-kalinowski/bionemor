@@ -67,7 +67,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
   )))
   expect_true(all(grepl("esm2_embed(", onboarding, fixed = TRUE)))
   expect_true(all(grepl("native Transformers", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("does not compile vLLM", onboarding, fixed = TRUE)))
+  expect_false(any(grepl("vLLM", onboarding, fixed = TRUE)))
   expect_true(all(grepl("gpus = 1", onboarding, fixed = TRUE)))
   expect_true(all(grepl("similarity", onboarding, fixed = TRUE)))
   expect_true(all(grepl("clustering", onboarding, fixed = TRUE)))
@@ -107,4 +107,57 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_match(announcement, "async = TRUE", fixed = TRUE)
   expect_match(announcement, "fitted <- job_wait(run)", fixed = TRUE)
   expect_match(announcement, "Biostrings::DNAStringSet(", fixed = TRUE)
+})
+
+test_that("user-facing docs present ESM-2 as an added capability", {
+  root <- testthat::test_path("..", "..")
+  skip_if_not(file.exists(file.path(root, ".git")))
+  paths <- file.path(
+    root,
+    c(
+      "README.Rmd",
+      "README.md",
+      "vignettes-src/bionemor.Rmd",
+      "vignettes/bionemor.Rmd",
+      "blog/first-release.md",
+      "R/bionemor-package.R",
+      "man/bionemor-package.Rd"
+    )
+  )
+  documents <- vapply(
+    paths,
+    function(path) paste(readLines(path, warn = FALSE), collapse = " "),
+    character(1)
+  )
+  expect_true(all(grepl("supports.*ESM-2", documents)))
+
+  restriction_documents <- c(
+    documents,
+    vapply(
+      file.path(
+        root,
+        c("R/06-adapter-esm2-recipe.R", "man/esm2_recipe.Rd")
+      ),
+      function(path) paste(readLines(path, warn = FALSE), collapse = " "),
+      character(1)
+    )
+  )
+
+  restriction_first <- c(
+    "has its own adapter",
+    "separate model families",
+    "has the broadest interface",
+    "uses its own recipe",
+    "has a separate model and recipe",
+    "different model families",
+    "same API works with another model family",
+    "Why Evo 2 and ESM-2 are in one package",
+    "does not compile vLLM"
+  )
+  for (phrase in restriction_first) {
+    expect_false(
+      any(grepl(phrase, restriction_documents, fixed = TRUE)),
+      info = phrase
+    )
+  }
 })

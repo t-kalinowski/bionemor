@@ -4,10 +4,10 @@
 
 `bionemor` provides R interfaces to selected biological foundation-model assets
 and runtimes published through NVIDIA BioNeMo Recipes. BioNeMo Recipes supplies
-family-specific programs and the runtime environments needed to run them. Each
-model family has its own adapter, checkpoints, and runtime. The package supplies
-the shared R-facing workflow: sequence inputs, compute configuration, durable
-jobs, provenance, and R results.
+family-specific programs and the runtime environments needed to run them. The
+package supports Evo 2 DNA workflows and ESM-2 protein embeddings through a
+shared R-facing workflow: sequence inputs, compute configuration, durable jobs,
+provenance, and R results.
 
 > Model operations require a supported CUDA-capable NVIDIA GPU. There is no CPU fallback.
 > You can install the package and inspect recipes, workflows, and model metadata
@@ -15,10 +15,9 @@ jobs, provenance, and R results.
 
 ## How the pieces fit together
 
-The package currently supports Evo 2 for DNA and ESM-2 for proteins. These are
-separate model families, not variants of one model. They share the surrounding
-work needed to run a biological model on a GPU, which is why they live in one
-package.
+`bionemor` brings Evo 2 DNA workflows and ESM-2 protein embeddings into one R
+interface. The same model, recipe, compute, workflow, and job concepts apply to
+both.
 
 | Concept | Role in bionemor |
 |---|---|
@@ -65,8 +64,8 @@ The package currently provides these family-specific R interfaces:
 | Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
-Evo 2 has the broadest interface and is the detailed example below. ESM-2
-embedding uses the same compute, workflow, and durable-job abstractions. The
+The examples below begin with Evo 2 DNA workflows, then show ESM-2 protein
+embeddings through the same compute, workflow, and durable-job interface. The
 lower-level `bionemo_run()` interface also accepts an ID from
 `bionemo_workflows()` when you need to select a workflow programmatically.
 
@@ -246,13 +245,15 @@ function. Embedding row names preserve the input IDs.
 
 ## ESM-2: embed proteins
 
-ESM-2 uses its own recipe and compute descriptor. `esm2_model()` binds a pinned
-ESM-2 checkpoint to that compute target. On first use, Transformers downloads
-the selected weights from Hugging Face and caches them below the workspace.
-Installation uses the recipe's native Transformers and Transformer Engine path
-and does not compile vLLM. ESM-2 inference currently requires `gpus = 1`. You
-may supply multiple proteins; the runtime processes them one at a time on the
-selected GPU to preserve their bidirectional attention boundaries.
+`bionemor` also supports ESM-2, a protein language model for representing
+protein sequences. `esm2_model()` selects a pinned ESM-2 checkpoint and binds it
+to a compute descriptor. `esm2_embed()` returns one pooled embedding per
+protein. On first use, Transformers downloads the selected weights from Hugging
+Face and caches them below the workspace. The package installs the recipe's
+native Transformers and Transformer Engine runtime. ESM-2 inference currently
+requires `gpus = 1`. You may supply multiple proteins; the runtime processes
+them one at a time on the selected GPU to preserve their bidirectional attention
+boundaries.
 
 
 ``` r

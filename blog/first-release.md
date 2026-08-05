@@ -4,7 +4,7 @@ We are releasing the first version of bionemor, an R package for running biologi
 
 BioNeMo Recipes supplies family-specific programs and the runtime environments needed to run them. bionemor configures those environments, runs the selected program, and returns its results to R.
 
-The first release supports Evo 2 workflows for DNA and pooled ESM-2 embeddings for proteins. Evo 2 support includes generation, scoring, positional profiles, embeddings, dataset preprocessing, and LoRA or full fine-tuning. ESM-2 support currently focuses on protein embeddings.
+The first release supports Evo 2 workflows for DNA and ESM-2 protein embeddings. Evo 2 support includes generation, scoring, positional profiles, embeddings, dataset preprocessing, and LoRA or full fine-tuning. ESM-2 support provides pooled protein embeddings for similarity, clustering, and downstream modeling.
 
 ## A small Evo 2 example
 
@@ -91,7 +91,7 @@ The fitted checkpoint can then be passed to the same scoring, generation, and em
 
 ## Protein embeddings with ESM-2
 
-ESM-2 has a separate model and recipe because its checkpoints and runtime differ from Evo 2. The result still follows the same R-facing conventions:
+`bionemor` also supports ESM-2, a protein language model used to create numerical representations of protein sequences. It follows the same model-descriptor, compute, workflow, and durable-job interface as the Evo 2 examples:
 
 ```r
 esm2_compute <- bionemo_compute(
@@ -112,11 +112,11 @@ protein_embeddings <- esm2_embed(protein_model, proteins)
 
 The rows of `protein_embeddings` can be used for sequence similarity, clustering, or as features in downstream R models. They are model representations, not measurements of protein function.
 
-## Why Evo 2 and ESM-2 are in one package
+## One R interface for DNA and protein workflows
 
-Evo 2 and ESM-2 are different model families, and their family-specific code is kept separate. What they share is the workflow around a model: selecting a pinned runtime, describing compute, staging sequence inputs, running work on a GPU, retaining jobs and checkpoints, and returning portable R results.
+`bionemor` brings Evo 2 DNA workflows and ESM-2 protein embeddings into one R interface. Both use the same workflow around a model: selecting a pinned runtime, describing compute, staging sequence inputs, running work on a GPU, retaining jobs and checkpoints, and returning portable R results.
 
-That shared workflow is the organizing boundary for bionemor. Adding a model family means adding an adapter and recipe behind the common model, compute, workflow, and job contracts. Users get one package and one execution model while the family-specific APIs remain explicit through names such as `evo2_score()` and `esm2_embed()`.
+Family-specific adapters connect that shared interface to the appropriate model commands and checkpoints. Users get one package and one execution model while task APIs remain explicit through names such as `evo2_score()` and `esm2_embed()`.
 
 ## Install bionemor
 

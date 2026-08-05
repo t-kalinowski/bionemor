@@ -10,14 +10,13 @@ vignette: |
 
 
 `bionemor` provides R interfaces to selected biological foundation-model assets
-and runtimes published through NVIDIA BioNeMo Recipes. Each model family has its
-own adapter, checkpoints, and runtime. The package prepares inputs, starts jobs,
-and returns their results to R.
+and runtimes published through NVIDIA BioNeMo Recipes. The package supports Evo
+2 workflows for DNA sequences and ESM-2 pooled embeddings for protein sequences
+through the same R-facing interface. It prepares inputs, starts jobs, and
+returns their results to R.
 
-The package currently supports Evo 2 workflows for DNA sequences and ESM-2
-pooled embeddings for protein sequences. Evo 2 has the broadest interface, so
-most of this article uses it as a detailed example. ESM-2 then shows how the
-same API works with another model family.
+This article begins with Evo 2 DNA workflows, then uses ESM-2 to create pooled
+protein embeddings through the same API.
 
 Six concepts recur throughout the package:
 
@@ -35,9 +34,8 @@ Six concepts recur throughout the package:
 - A *job* records a run so it can be monitored or reopened from another R
   session.
 
-Evo 2 and ESM-2 are separate model families. They share this execution
-lifecycle, while their adapters keep model-specific checkpoints and commands
-separate.
+These concepts apply to both Evo 2 and ESM-2. Their adapters connect the shared
+execution lifecycle to the corresponding model checkpoints and commands.
 
 The output in this article was captured on 2026-08-01 with an NVIDIA L40S
 using package revision 7da249b5f346. The executable source
@@ -257,15 +255,13 @@ into memory.
 
 ## ESM-2 example: embed proteins
 
-ESM-2 uses a separate recipe because its runtime and model commands differ from
-Evo 2. This complete example creates a second compute descriptor, installs the
-pinned native Transformers and Transformer Engine runtime, and embeds two short
-proteins with the smallest registered model.
-
-Installation uses the recipe's native Transformers and Transformer Engine path
-and does not compile vLLM. ESM-2 inference currently requires `gpus = 1`. You
-may supply multiple proteins; the runtime processes them one at a time on the
-selected GPU to preserve their bidirectional attention boundaries.
+`bionemor` also supports pooled protein embeddings with ESM-2. This complete
+example configures a compute descriptor, installs the pinned native Transformers
+and Transformer Engine runtime, and embeds two short proteins with the smallest
+registered model. `esm2_embed()` accepts multiple proteins and returns one
+pooled embedding per input. ESM-2 inference currently requires `gpus = 1`; the
+runtime processes proteins one at a time on the selected GPU to preserve their
+bidirectional attention boundaries.
 
 
 ``` r

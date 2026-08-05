@@ -7,11 +7,9 @@
 \title{Run biological foundation-model workflows from R}
 \description{
 \code{bionemor} provides R interfaces to selected biological foundation-model
-assets and runtimes published through NVIDIA BioNeMo Recipes. Each model
-family has its own adapter, checkpoints, and runtime. The package supplies
-the shared sequence-input, compute, durable-job, provenance, and R-result
-lifecycle. It currently supports Evo 2 DNA workflows and ESM-2 protein
-embeddings.
+assets and runtimes published through NVIDIA BioNeMo Recipes. It supports Evo
+2 DNA workflows and ESM-2 protein embeddings through a shared sequence-input,
+compute, durable-job, provenance, and R-result lifecycle.
 }
 \details{
 Installing the R package and inspecting its model registries do not require a

@@ -144,8 +144,9 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(esm_recipe, "native Transformers", fixed = TRUE)
   expect_match(
     esm_recipe,
-    "does[[:space:]]+not[[:space:]]+compile[[:space:]]+vLLM"
+    "Transformer[[:space:]]+Engine[[:space:]]+runtime"
   )
+  expect_no_match(esm_recipe, "vLLM", fixed = TRUE)
 
   esm_embeddings <- read_text(
     file.path("man", "esm2_embed.Rd"),
