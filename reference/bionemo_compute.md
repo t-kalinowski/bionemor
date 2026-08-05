@@ -181,7 +181,7 @@ compute
 #> <BioNeMo compute>
 #> Backend:   local
 #> Engine:    external
-#> Workspace: /tmp/RtmpHA5M4P/bionemor-compute-example
+#> Workspace: /tmp/RtmpChCwss/bionemor-compute-example
 #> Recipe:    2.4 @ e8e7f597
 #> Resources: 1 node(s), 1 GPU(s)
 

@@ -1,58 +1,24 @@
 # bionemor
 
-`bionemor` supports Evo 2 operations on DNA and ESM-2 protein embeddings
-through a shared R interface for configuring compute, running and
-monitoring jobs, returning results to R, and recording how they were
-produced.
+Biological foundation models are trained on large collections of DNA or
+protein sequences. The resulting models can be used across different
+sequence tasks.
 
-> Model operations require a supported CUDA-capable NVIDIA GPU. There is
-> no CPU fallback. You can install the package and inspect recipes and
-> model metadata without a GPU.
+`bionemor` lets bioinformaticians and other researchers use these models
+on NVIDIA GPUs from R. With Evo 2, you can generate and score DNA,
+calculate positional profiles and embeddings, and fine-tune a model on
+your own sequences. With ESM-2, you can create embeddings that represent
+proteins as numerical vectors for similarity, clustering, and downstream
+models.
 
-## How the pieces fit together
+Sequence inputs can be character vectors or sequence sets from
+Biostrings. Generation and scoring return data frames, while pooled
+embeddings return numeric matrices. Longer runs can be saved, monitored,
+and reopened from another R session.
 
-`bionemor` brings Evo 2 DNA operations and ESM-2 protein embeddings into
-one R package. Both use the same R concepts for describing a model,
-selecting its runtime, running work on a GPU, and bringing the result
-back to R.
-
-| Concept | Role in bionemor |
-|----|----|
-| Model descriptor | A lightweight S7 object that identifies a model family, size, configuration, and optional checkpoint. It does not load model weights into the R process. |
-| Checkpoint | Model weights stored outside R. A model descriptor can point to a checkpoint prepared or fitted in an earlier run. |
-| Recipe | A versioned description of the family-specific source, dependencies, and commands used to build or verify its runtime. |
-| Compute descriptor | The recipe plus the workspace, execution backend, runtime engine, and requested GPU resources. Models retain this descriptor when it is supplied. |
-| Container | One way a compute descriptor supplies the recipe runtime. Local container work uses Docker by default; Slurm container work uses Apptainer. An externally managed runtime is the other engine. |
-| Operation | A family-specific R function, such as [`evo2_score()`](https://t-kalinowski.github.io/bionemor/reference/evo2_score.md) or [`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md), that requests work from a model. |
-| Job | A record of one operation, including its request, logs, state, outputs, and details about how it was run. It is saved on disk and can be reopened in another R session. |
-
-A family-specific function combines a model with the relevant input. The
-compute descriptor says where and how to run it; its recipe supplies the
-matching runtime. Every operation is recorded in a job directory.
-Synchronous calls return an ordinary R result; asynchronous calls return
-a job that can be monitored or reopened in another R session.
-
-## Supported models and operations
-
-``` r
-
-library(bionemor)
-```
-
-The function name identifies the model family and the work being
-requested:
-
-| Model family | Input | Available operations | Main functions |
-|----|----|----|----|
-| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | [`evo2_models()`](https://t-kalinowski.github.io/bionemor/reference/evo2_models.md), [`evo2_model()`](https://t-kalinowski.github.io/bionemor/reference/evo2_model.md), [`evo2_checkpoint()`](https://t-kalinowski.github.io/bionemor/reference/evo2_checkpoint.md), [`evo2_export()`](https://t-kalinowski.github.io/bionemor/reference/evo2_export.md), [`evo2_preprocess()`](https://t-kalinowski.github.io/bionemor/reference/evo2_preprocess.md), [`evo2_generate()`](https://t-kalinowski.github.io/bionemor/reference/evo2_generate.md), [`evo2_score()`](https://t-kalinowski.github.io/bionemor/reference/evo2_score.md), [`evo2_profile()`](https://t-kalinowski.github.io/bionemor/reference/evo2_profile.md), [`evo2_embed()`](https://t-kalinowski.github.io/bionemor/reference/evo2_embed.md), [`evo2_finetune()`](https://t-kalinowski.github.io/bionemor/reference/evo2_finetune.md) |
-| ESM-2 | Protein sequences | Pooled protein embeddings | [`esm2_models()`](https://t-kalinowski.github.io/bionemor/reference/esm2_models.md), [`esm2_model()`](https://t-kalinowski.github.io/bionemor/reference/esm2_model.md), [`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md) |
-
-Use these family-specific functions directly. The examples below begin
-with Evo 2 DNA, then show ESM-2 protein embeddings through the same R
-interface.
-
-The captured output below was rendered on 2026-08-01 with an NVIDIA L40S
-using package revision 7da249b5f346.
+> Running a model requires a supported CUDA-capable NVIDIA GPU. There is
+> no CPU fallback. You can install `bionemor` and inspect the available
+> models without a GPU.
 
 ## Install bionemor
 
@@ -61,21 +27,35 @@ using package revision 7da249b5f346.
 pak::pak("t-kalinowski/bionemor")
 ```
 
-Install the package on the Linux GPU machine where you will run the
-model.
+For the local container setup below, install the package in the R
+environment on the Linux GPU machine, then load it:
+
+``` r
+
+library(bionemor)
+```
+
+## Supported models and operations
+
+The supported models and their main functions are:
+
+| Model family | Input | What you can do | Main functions |
+|----|----|----|----|
+| Evo 2 | DNA sequences | Generation, scoring, positional profiles, embeddings, fine-tuning, training-data preprocessing, and checkpoint preparation and export | [`evo2_generate()`](https://t-kalinowski.github.io/bionemor/reference/evo2_generate.md), [`evo2_score()`](https://t-kalinowski.github.io/bionemor/reference/evo2_score.md), [`evo2_profile()`](https://t-kalinowski.github.io/bionemor/reference/evo2_profile.md), [`evo2_embed()`](https://t-kalinowski.github.io/bionemor/reference/evo2_embed.md), [`evo2_finetune()`](https://t-kalinowski.github.io/bionemor/reference/evo2_finetune.md), [`evo2_preprocess()`](https://t-kalinowski.github.io/bionemor/reference/evo2_preprocess.md), [`evo2_models()`](https://t-kalinowski.github.io/bionemor/reference/evo2_models.md), [`evo2_model()`](https://t-kalinowski.github.io/bionemor/reference/evo2_model.md), [`evo2_checkpoint()`](https://t-kalinowski.github.io/bionemor/reference/evo2_checkpoint.md), [`evo2_export()`](https://t-kalinowski.github.io/bionemor/reference/evo2_export.md) |
+| ESM-2 | Protein sequences | Pooled protein embeddings | [`esm2_models()`](https://t-kalinowski.github.io/bionemor/reference/esm2_models.md), [`esm2_model()`](https://t-kalinowski.github.io/bionemor/reference/esm2_model.md), [`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md) |
+
+The examples below begin with Evo 2 DNA, followed by ESM-2 protein
+embeddings.
 
 ## Get access to a GPU
 
-The package-managed local runtime requires Linux, Git, `tar`, Docker,
-and the NVIDIA Container Toolkit. Docker must be able to expose the GPU
-to containers. The Evo 2 7B examples below were captured on one NVIDIA
-L40S with 48 GB of GPU memory. Requirements vary by model, sequence
-length, batch size, and operation.
+The local setup below runs models in Docker on a Linux machine with an
+NVIDIA GPU. Docker must be configured so containers can use the GPU. GPU
+requirements vary by model, sequence length, batch size, and operation.
 
 If you do not have a suitable local GPU, [NVIDIA
-Brev](https://brev.nvidia.com/) is one way to rent one. Brev instances
-are billable. Inspect the available type and hourly price before
-creating an instance:
+Brev](https://brev.nvidia.com/) lets you rent one and manage the
+instance from its CLI:
 
 ``` bash
 brev search --stoppable --gpu-name L40S --min-vram 48 --sort price
@@ -83,40 +63,35 @@ brev create bionemor-gpu --stoppable --gpu-name L40S --min-vram 48
 brev shell bionemor-gpu
 ```
 
-Brev supplies the Linux GPU machine; it is not a
-[`bionemo_compute()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_compute.md)
-backend. Inside the instance, use the `local` backend shown below.
-Install R and the required system tools if the selected image does not
-include them.
+`brev create` provisions the GPU machine, and `brev shell` opens a shell
+on it. Install R and `bionemor` there; the setup below builds the model
+environment in Docker from an NVIDIA image.
 
-Leave the remote shell and stop the instance from your local terminal
-when you finish:
+When you finish, leave the remote shell and stop the instance from your
+local terminal:
 
 ``` bash
 brev stop bionemor-gpu
 ```
 
-Check the selected instance type’s billing and storage terms.
+## Set up Evo 2
 
-## Install a recipe runtime
-
-NVIDIA NGC is the container registry that supplies the runtime’s base
-image. Create an NGC API key and authenticate Docker to `nvcr.io` on the
-GPU machine, including when using Brev:
+Evo 2 operations run through NVIDIA BioNeMo Recipes and Megatron Bridge.
+`bionemor` uses versions tested with this release. The local Docker
+environment is built from an NVIDIA NGC base image. Create an NGC API
+key and authenticate Docker to `nvcr.io` on the GPU machine, including
+when using Brev:
 
 ``` bash
 echo "$NGC_API_KEY" | docker login nvcr.io \
   --username '$oauthtoken' --password-stdin
 ```
 
-A compute descriptor records where jobs run, where their files are
-stored, and which recipe supplies the model-specific runtime. The recipe
-is required so that changing model families is visible in user code.
-This example uses a local Docker container. `backend = "slurm"` also
-accepts an administrator-managed runtime or an existing Apptainer image.
-
-This descriptor selects the pinned NVIDIA BioNeMo Recipes runtime for
-Evo 2:
+[`bionemo_compute()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_compute.md)
+records the workspace and execution settings.
+[`evo2_recipe()`](https://t-kalinowski.github.io/bionemor/reference/evo2_recipe.md)
+selects that software environment; `backend = "local"` and
+`engine = "container"` run it in Docker on the current machine:
 
 ``` r
 
@@ -135,19 +110,20 @@ evo2_compute <- bionemo_install(evo2_compute)
 ```
 
 [`bionemo_install()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_install.md)
-builds or verifies the selected runtime and performs GPU-backed
-capability checks. Use
+builds or verifies the selected environment and checks its GPU
+capabilities. If setup fails, use
 [`bionemo_doctor()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_doctor.md)
-to diagnose a setup problem. A site-managed recipe environment can use
-`engine = "external"`.
+to inspect the environment.
 
-## Evo 2: score, generate, and embed DNA
+## Evo 2: generate, score, and embed DNA
 
 [`evo2_models()`](https://t-kalinowski.github.io/bionemor/reference/evo2_models.md)
 lists models without downloading weights. With a configured compute
 object, it can filter by GPU count, compute capability, and precision
-policy. This compatibility check does not estimate GPU memory or disk
-use.
+policy. Check GPU memory and disk requirements separately.
+
+The output below was captured on 2026-08-01 with an NVIDIA L40S using
+package revision 7da249b5f346.
 
 ``` r
 
@@ -168,14 +144,9 @@ str(models)
 #>  $ compatibility_note       : chr  "advertised GPUs support the validated BF16 or FP8 policy" "advertised GPUs support the validated BF16 or FP8 policy"
 ```
 
-Megatron Bridge is the training and inference stack used by the pinned
-Evo 2 recipe. MBridge is its checkpoint format.
 [`evo2_model()`](https://t-kalinowski.github.io/bionemor/reference/evo2_model.md)
-needs a compute descriptor because it downloads the registered source
-weights when needed, converts them in the selected runtime, and stores
-the result in the compute workspace. It returns a model descriptor that
-points to the prepared checkpoint and reuses a complete matching
-checkpoint on later calls:
+downloads and prepares the selected model the first time you use it.
+Later calls from the same workspace reuse the prepared checkpoint:
 
 ``` r
 
@@ -183,8 +154,9 @@ model <- evo2_model("7b", evo2_compute)
 model
 ```
 
-The returned model retains its compute object. Generation and scoring
-return data frames; pooled embeddings return a numeric matrix:
+Pass the model to the generation, scoring, and embedding functions.
+Generation and scoring return data frames; pooled embeddings return a
+numeric matrix:
 
 ``` r
 
@@ -235,23 +207,26 @@ round(dna_embeddings[, 1:4, drop = FALSE], 4)
 ```
 
 Scores are reduced token log probabilities; higher values indicate
-greater model likelihood. They are not calibrated measurements of
-biological function. Embedding row names preserve the input IDs.
+greater model likelihood. Interpreting them in terms of biological
+function generally requires further analysis. Embedding row names
+preserve the input IDs.
 
 ## ESM-2: embed proteins
 
-`bionemor` also supports ESM-2, a protein language model for
-representing protein sequences.
+`bionemor` supports pooled protein embeddings with ESM-2. You can use
+these vectors for sequence similarity, clustering, or as features in
+downstream R models.
+[`esm2_models()`](https://t-kalinowski.github.io/bionemor/reference/esm2_models.md)
+lists the available pinned NVIDIA checkpoints and their embedding
+dimensions without downloading weights, and
 [`esm2_model()`](https://t-kalinowski.github.io/bionemor/reference/esm2_model.md)
-selects a pinned ESM-2 checkpoint and binds it to a compute descriptor.
-[`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md)
-returns one pooled embedding per protein. On first use, Transformers
+selects one for use with a compute descriptor.
+
+The ESM-2 environment uses Transformers. On first use, Transformers
 downloads the selected weights from Hugging Face and caches them below
-the workspace. The package installs the recipe’s native Transformers and
-Transformer Engine runtime. ESM-2 inference currently requires
-`gpus = 1`. You may supply multiple proteins; the runtime processes them
-one at a time on the selected GPU to preserve their bidirectional
-attention boundaries.
+the workspace.
+[`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md)
+currently requires `gpus = 1` and returns one embedding per protein:
 
 ``` r
 
@@ -292,19 +267,14 @@ round(protein_embeddings[, 1:4, drop = FALSE], 4)
 ```
 
 Each row is one last-token, L2-normalized protein embedding. The result
-remains a standard numeric matrix for use with ordinary R tools; its
-`provenance` attribute records the model, recipe revision, and path
-where the job was saved. You can use these vectors for sequence
-similarity, clustering, or as features in downstream R models. They are
-model representations, not measurements of protein function.
-[`esm2_models()`](https://t-kalinowski.github.io/bionemor/reference/esm2_models.md)
-lists the available pinned checkpoints and their embedding dimensions
-without downloading weights.
+is a numeric matrix for use with ordinary R tools. Its `provenance`
+attribute records the model, recipe revision, and path where the job was
+saved.
 
 ## Run longer work
 
-Family-specific functions use the same job interface. Set
-`async = TRUE`, save the job path, and reopen it in a later R session:
+Operations that accept `async = TRUE` return a saved job. Save its path
+to monitor it or reopen it in a later R session:
 
 ``` r
 
@@ -323,16 +293,24 @@ job_status(same_run)
 result <- job_wait(same_run)
 ```
 
+## How the pieces fit together
+
+The examples above use the following package concepts:
+
+| Concept | Role in bionemor |
+|----|----|
+| Model descriptor | Identifies the model family, size, configuration, and optional checkpoint. |
+| Checkpoint | Model weights obtained from a registered source, a supplied path, or an earlier run. |
+| Recipe | Describes the versioned software environment and commands for a model family. |
+| Compute descriptor | Combines a recipe with a workspace, execution settings, and requested GPU resources. |
+| Operation | Work requested through a family-specific R function such as [`evo2_score()`](https://t-kalinowski.github.io/bionemor/reference/evo2_score.md) or [`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md). |
+| Job | A saved record of an operation’s request, logs, state, outputs, and provenance. |
+
 ## More guides
 
 - [Get started with
   bionemor](https://t-kalinowski.github.io/bionemor/articles/bionemor.html)
-  explains the shared API, then walks through Evo 2 and ESM-2
-  operations.
+  walks through setup and Evo 2 and ESM-2 examples.
 - [Fine-tune Evo 2 and retain the
   checkpoint](https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html)
   covers preprocessing, LoRA, and fitted inference.
-
-Generated sequences are model output, not validated biological designs.
-The package reports mechanical sequence checks; downstream biological
-validation remains the user’s responsibility.
