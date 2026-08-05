@@ -55,8 +55,7 @@ esm2_embedding_plan <- function(
       args,
       env = esm2_huggingface_environment(compute),
       cwd = compute@workspace
-    )),
-    metadata = list(operation = "embedding")
+    ))
   )
 }
 
@@ -146,23 +145,18 @@ esm2_embed <- function(
 
   request <- list(
     model = object@size,
-    source = source,
-    source_revision = source_revision,
-    pooling = "last-token-l2"
+    pooling = "last-token-l2",
+    output = output
   )
-  run_path <- create_run(
-    compute,
-    "embedding",
-    name,
-    request = request
-  )
+  run <- create_run(compute, "embedding", name)
+  run_path <- run$path
   input <- prepare_sequence_input(
     newdata,
     run_path,
     normalize = "protein",
     filename = "proteins.fasta"
   )
-  persist_inference_input_source(run_path, input)
+  request$input_source <- input$input_source
   too_long <- which(
     nchar(input$sequences, type = "chars") > object@context_length
   )
@@ -194,34 +188,56 @@ esm2_embed <- function(
     source_revision = source_revision,
     compute = compute
   )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    "embedding",
-    list(
-      type = "esm2-pooled",
-      portable = portable,
+  source_format <- if (is.null(checkpoint)) {
+    record$source_format
+  } else {
+    "huggingface"
+  }
+  source_digest <- if (is.null(checkpoint)) {
+    list(algorithm = "git-revision", value = source_revision)
+  } else {
+    list(algorithm = "md5", value = path_digest(checkpoint))
+  }
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(type = "esm2-pooled", portable = portable),
+    execution = list(
       input_ids = input$ids,
-      model = object@size,
-      model_size = object@model_size,
-      embedding_size = object@embedding_size,
-      source = source,
-      source_revision = source_revision,
-      source_format = if (is.null(checkpoint)) {
-        record$source_format
-      } else {
-        "huggingface"
-      },
-      checkpoint = checkpoint,
-      pooling = "last-token-l2",
-      output = output
+      embedding_size = object@embedding_size
     ),
-    async = async
+    context = operation_context(
+      model = list(
+        name = object@size,
+        model_size = object@model_size,
+        revision = source_revision
+      ),
+      checkpoint = list(
+        path = checkpoint,
+        source = source,
+        format = source_format,
+        kind = "pretrained",
+        revision = source_revision,
+        digest = source_digest
+      ),
+      tokenizer = list(
+        identity = source,
+        revision = source_revision,
+        digest = source_digest
+      ),
+      precision = list(
+        semantic = "float32",
+        resolved_recipe = "float32"
+      )
+    )
   )
+  submit_operation(operation, async = async)
 }
 
-esm2_materialize_embedding <- function(job, descriptor) {
+esm2_materialize_embedding <- function(job, operation) {
+  descriptor <- operation$result
+  execution <- operation$execution
   if (!file.exists(descriptor$portable)) {
     stop("ESM-2 helper did not write its portable output")
   }
@@ -230,14 +246,14 @@ esm2_materialize_embedding <- function(job, descriptor) {
     stop("ESM-2 helper wrote no embedding rows")
   }
   ids <- pluck_chr(rows, "id")
-  if (!identical(ids, unlist(descriptor$input_ids, use.names = FALSE))) {
+  if (!identical(ids, unlist(execution$input_ids, use.names = FALSE))) {
     stop("ESM-2 embedding IDs do not match input order")
   }
   values <- lapply(rows, function(row) {
     as.double(unlist(row$embedding, use.names = FALSE))
   })
   if (
-    any(lengths(values) != descriptor$embedding_size) ||
+    any(lengths(values) != execution$embedding_size) ||
       any(!is.finite(unlist(values, use.names = FALSE)))
   ) {
     stop("ESM-2 embeddings have an invalid shape or non-finite values")
@@ -248,14 +264,14 @@ esm2_materialize_embedding <- function(job, descriptor) {
   class(result) <- c("esm2_embeddings", "matrix", "array")
   attr(result, "provenance") <- list(
     run_path = job@path,
-    model = descriptor$model,
-    source = descriptor$source,
-    source_revision = descriptor$source_revision,
-    pooling = descriptor$pooling,
+    model = operation$context$model$name,
+    source = operation$context$checkpoint$source,
+    source_revision = operation$context$checkpoint$revision,
+    pooling = operation$request$pooling,
     recipe_revision = job@compute@recipe@revision
   )
-  if (!is.null(descriptor$output)) {
-    copy_output_file(descriptor$portable, descriptor$output)
+  if (!is.null(operation$request$output)) {
+    copy_output_file(descriptor$portable, operation$request$output)
   }
   result
 }
@@ -378,70 +394,12 @@ bionemor_adapter_esm2_transformers_doctor_model <- function(
   )
 }
 
-bionemor_adapter_esm2_transformers_manifest_context <- function(
-  job,
-  request,
-  plan
-) {
-  stopifnot(
-    "job must use the ESM-2 Transformers adapter" = identical(
-      job@compute@recipe@adapter,
-      "esm2-transformers"
-    ),
-    "manifest request and plan must be lists" = is.list(request) &&
-      is.list(plan)
-  )
-  descriptor <- job@expected_result
-  revision <- descriptor$source_revision
-  checkpoint_digest <- if (
-    !is.null(descriptor$checkpoint) && file.exists(descriptor$checkpoint)
-  ) {
-    path_digest(descriptor$checkpoint)
-  } else {
-    NULL
-  }
-  source_digest <- if (!is.null(checkpoint_digest)) {
-    list(algorithm = "md5", value = checkpoint_digest)
-  } else if (!is.null(revision)) {
-    list(algorithm = "git-revision", value = revision)
-  } else {
-    NULL
-  }
-  list(
-    checkpoint = list(
-      path = descriptor$checkpoint,
-      source = descriptor$source,
-      format = descriptor$source_format,
-      kind = "pretrained",
-      revision = revision,
-      digest = source_digest
-    ),
-    model = list(
-      name = descriptor$model,
-      model_size = descriptor$model_size,
-      revision = revision
-    ),
-    tokenizer = list(
-      identity = descriptor$source,
-      revision = revision,
-      digest = source_digest
-    ),
-    precision = list(semantic = "float32", resolved_recipe = "float32"),
-    warnings = list()
-  )
-}
 
 bionemor_adapter_esm2_transformers_materialize <- function(
   job,
-  descriptor
+  operation
 ) {
-  stopifnot(
-    "job must use the ESM-2 Transformers adapter" = identical(
-      job@compute@recipe@adapter,
-      "esm2-transformers"
-    ),
-    "job result descriptor must be a list" = is.list(descriptor)
-  )
+  descriptor <- operation$result
   if (!identical(descriptor$type, "esm2-pooled")) {
     bionemor_abort(
       "BN_PROTOCOL",
@@ -451,5 +409,5 @@ bionemor_adapter_esm2_transformers_materialize <- function(
       operation = job@kind
     )
   }
-  esm2_materialize_embedding(job, descriptor)
+  esm2_materialize_embedding(job, operation)
 }

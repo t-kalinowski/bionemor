@@ -517,6 +517,8 @@ register_model_checkpoint <- function(inspection, record) {
     recipe_revision = recipe@revision,
     source_trust = "not-required",
     source_verified = FALSE,
+    tokenizer_identity = checkpoint_inspection$tokenizer,
+    tokenizer_revision = record$tokenizer_revision,
     tokenizer = checkpoint_inspection$tokenizer,
     mixed_precision_recipe = inspection$mixed_precision_recipe %||%
       record$mixed_precision_recipe,

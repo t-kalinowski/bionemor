@@ -34,7 +34,21 @@ test_that("terminal jobs persist complete redacted run provenance", {
     name = "manifest-provenance",
     async = TRUE
   )
-  result <- job_wait(job, poll = 0.01, timeout = 10)
+  state <- job_status(job)
+  deadline <- Sys.time() + 10
+  while (!state %in% c("succeeded", "failed", "cancelled") &&
+    Sys.time() < deadline) {
+    Sys.sleep(0.01)
+    state <- job_status(job)
+  }
+  expect_identical(state, "succeeded")
+  detached <- jsonlite::read_json(
+    file.path(job_path(job), "manifest.json"),
+    simplifyVector = FALSE
+  )
+  expect_true(any(grepl("non-ACGT", unlist(detached$warnings))))
+
+  result <- job_result(job)
   expect_s3_class(result, "evo2_generation")
 
   run_path <- job_path(job)
@@ -46,8 +60,8 @@ test_that("terminal jobs persist complete redacted run provenance", {
   expect_equal(manifest$kind, "generation")
   expect_equal(manifest$state, "succeeded")
   expect_equal(manifest$exit_status, 0L)
-  expect_equal(manifest$request$operation, "generation")
-  expect_true(length(manifest$plan$steps) >= 1L)
+  expect_true(is.list(manifest$execution$resolved_control))
+  expect_null(manifest$plan)
 
   expect_equal(manifest$recipe$revision, evo2_recipe()@revision)
   expect_equal(manifest$recipe$version, evo2_recipe()@recipe_version)
@@ -145,5 +159,4 @@ test_that("observing a failed job writes its terminal manifest", {
   )
   expect_equal(manifest$state, "failed")
   expect_true(manifest$exit_status != 0L)
-  expect_equal(manifest$request$operation, "generation")
 })

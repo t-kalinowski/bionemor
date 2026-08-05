@@ -219,7 +219,19 @@ test_that("documented 1B BF16 fine-tuning is independent of inference policy", {
   )
 
   expect_s3_class(fitted, "bionemor::Evo2Model")
-  plan <- checkpoint_manifest(fitted)$provenance$plan
+  provenance <- checkpoint_manifest(fitted)$provenance
+  run_manifest <- jsonlite::read_json(
+    file.path(provenance$run_path, "manifest.json"),
+    simplifyVector = FALSE
+  )
+  expect_identical(
+    run_manifest$checkpoint$revision,
+    checkpoint_manifest(fitted)$source_revision
+  )
+  plan <- jsonlite::read_json(
+    file.path(provenance$run_path, "plan.json"),
+    simplifyVector = FALSE
+  )
   tokens <- unlist(plan$steps, use.names = FALSE)
   precision <- which(tokens == "--mixed-precision-recipe")
   expect_length(precision, 1L)
@@ -380,7 +392,10 @@ test_that("Vortex export resolves the checkpoint Transformer Engine layout", {
   )
 
   manifest <- checkpoint_manifest(exported)
-  plan <- manifest$provenance$plan
+  plan <- jsonlite::read_json(
+    file.path(manifest$provenance$run_path, "plan.json"),
+    simplifyVector = FALSE
+  )
   tokens <- unlist(plan$steps, use.names = FALSE)
   expect_true("--no-te" %in% tokens)
   expect_match(manifest$checkpoint_digest, "^[0-9a-f]{32}$")

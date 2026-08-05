@@ -226,40 +226,11 @@ evo2_phylo_tag <- function(
   if (uppercase) toupper(tag) else tag
 }
 
-control_property <- function(control, name, default = NULL) {
-  tryCatch(S7::prop(control, name), error = function(...) default)
-}
-
-inference_checkpoint_defaults <- function(checkpoint, manifest = NULL) {
-  if (is.null(checkpoint) && is.null(manifest)) {
-    return(list(
-      mixed_precision_recipe = NULL,
-      precision_policy = NULL,
-      vortex_style_fp8 = NULL
-    ))
-  }
-  if (!is.list(manifest)) {
-    manifest <- tryCatch(
-      read_checkpoint_manifest(checkpoint),
-      error = function(...) NULL
-    )
-  }
-  if (!is.list(manifest)) {
-    return(list(
-      mixed_precision_recipe = NULL,
-      precision_policy = NULL,
-      vortex_style_fp8 = NULL
-    ))
-  }
-  record <- tryCatch(
-    evo2_model_record(manifest$variant),
-    error = function(...) NULL
-  )
+inference_checkpoint_defaults <- function(manifest) {
+  record <- evo2_model_record(manifest$variant)
   list(
-    mixed_precision_recipe = manifest$mixed_precision_recipe %||%
-      record$mixed_precision_recipe %||%
-      NULL,
-    precision_policy = record$precision_policy %||% NULL,
+    mixed_precision_recipe = manifest$mixed_precision_recipe,
+    precision_policy = record$precision_policy,
     vortex_style_fp8 = isTRUE(manifest$inspection$vortex_style_fp8)
   )
 }
@@ -292,16 +263,15 @@ resolved_inference_control <- function(
   control,
   compute,
   operation,
-  checkpoint = NULL,
-  checkpoint_manifest = NULL
+  checkpoint_manifest
 ) {
-  tensor <- control_property(control, "tensor_parallel_size", 1L)
+  tensor <- control@tensor_parallel_size
   pipeline <- 1L
-  context <- control_property(control, "context_parallel_size", 1L)
-  precision <- control_property(control, "precision", "auto")
-  mixed <- control_property(control, "mixed_precision_recipe", NULL)
-  defaults <- inference_checkpoint_defaults(checkpoint, checkpoint_manifest)
-  vortex_setting <- control_property(control, "vortex_style_fp8", "auto")
+  context <- control@context_parallel_size
+  precision <- control@precision
+  mixed <- control@mixed_precision_recipe
+  defaults <- inference_checkpoint_defaults(checkpoint_manifest)
+  vortex_setting <- control@vortex_style_fp8
   automatic_vortex <- identical(vortex_setting, "auto") &&
     (isTRUE(defaults$vortex_style_fp8) ||
       identical(defaults$precision_policy, "vortex-fp8-on-hopper"))
@@ -330,22 +300,13 @@ resolved_inference_control <- function(
       )
     }
   }
-  subquadratic <- control_property(control, "subquadratic_ops", FALSE)
-  cuda_graphs <- control_property(control, "cuda_graphs", "auto")
+  subquadratic <- control@subquadratic_ops
+  cuda_graphs <- control@cuda_graphs
   if (identical(cuda_graphs, "auto")) {
     cuda_graphs <- if (subquadratic) "none" else "local"
   }
   world_size <- as.integer(compute@gpus * compute@nodes)
   model_parallel <- as.integer(tensor * pipeline * context)
-  if (!is_scalar_integerish(tensor, min = 1)) {
-    stop("tensor parallelism must be a positive integer")
-  }
-  if (!identical(as.integer(pipeline), 1L)) {
-    stop("pipeline parallelism must equal one")
-  }
-  if (!is_scalar_integerish(context, min = 1)) {
-    stop("context parallelism must be a positive integer")
-  }
   if (model_parallel > world_size) {
     stop("model parallelism cannot exceed the allocated world size")
   }
@@ -363,30 +324,14 @@ resolved_inference_control <- function(
     precision = precision,
     mixed_precision_recipe = mixed,
     vortex_style_fp8 = vortex,
-    max_sequence_length = control_property(
-      control,
-      "max_sequence_length",
-      NULL
-    ),
-    max_batch_size = as.integer(
-      control_property(control, "max_batch_size", 1L)
-    ),
+    max_sequence_length = control@max_sequence_length,
+    max_batch_size = control@max_batch_size,
     cuda_graphs = cuda_graphs,
     subquadratic_ops = subquadratic,
-    chunked_prefill = control_property(
-      control,
-      "chunked_prefill",
-      FALSE
-    ),
-    dynamic_max_tokens = control_property(
-      control,
-      "dynamic_max_tokens",
-      NULL
-    ),
-    dynamic_block_size = as.integer(
-      control_property(control, "dynamic_block_size", 256L)
-    ),
-    extra = control_property(control, "extra", list())
+    chunked_prefill = control@chunked_prefill,
+    dynamic_max_tokens = control@dynamic_max_tokens,
+    dynamic_block_size = control@dynamic_block_size,
+    extra = control@extra
   )
 }
 
@@ -442,7 +387,13 @@ prediction_extra_args <- function(extra) {
 }
 
 validate_generation_control <- function(control) {
-  if (length(control_property(control, "extra", list())) != 0L) {
+  stopifnot(
+    "control must be an Evo 2 inference control" = S7_inherits(
+      control,
+      Evo2InferenceControl
+    )
+  )
+  if (length(control@extra) != 0L) {
     stop("inference extra settings are not supported for generation")
   }
   invisible(control)
@@ -478,23 +429,15 @@ evo2_generation_plan <- function(
   fasta,
   validation,
   compute,
-  control,
+  resolved,
   num_tokens,
   temperature,
   top_k,
   top_p,
   seed,
   return_probabilities,
-  validate,
-  checkpoint_manifest = NULL
+  validate
 ) {
-  resolved <- resolved_inference_control(
-    control,
-    compute,
-    "generation",
-    checkpoint,
-    checkpoint_manifest
-  )
   run_path <- normalize_path(run_path)
   run_files <- vapply(
     c(prompts, upstream, portable, fasta, validation),
@@ -575,15 +518,8 @@ evo2_generation_plan <- function(
         "bionemor-evo2-helper",
         validation_args,
         cwd = compute@workspace,
-        role = "generation-validation"
-      )
-    ),
-    metadata = list(
-      operation = "generation",
-      resolved_control = resolved,
-      failure_contract = list(
-        active_step = "generation-validation",
-        exit_codes = list(
+        role = "generation-validation",
+        failure_codes = c(
           `65` = "BN_OUTPUT_SCHEMA",
           `66` = "BN_NONFINITE_OUTPUT",
           `67` = "BN_INVALID_SEQUENCE"
@@ -600,26 +536,19 @@ evo2_prediction_plan <- function(
   upstream,
   portable,
   compute,
+  resolved,
   control,
   batch_size,
   reduction = NULL,
   layer = NULL,
   pool = NULL,
-  prepend_bos = FALSE,
-  checkpoint_manifest = NULL
+  prepend_bos = FALSE
 ) {
   if (
     !mode %in% c("score", "profile", "embedding-pooled", "embedding-unpooled")
   ) {
     stop("prediction mode is unsupported")
   }
-  resolved <- resolved_inference_control(
-    control,
-    compute,
-    mode,
-    checkpoint,
-    checkpoint_manifest
-  )
   stopifnot(
     "max_sequence_length is supported only for generation" = is.null(
       resolved$max_sequence_length
@@ -629,7 +558,7 @@ evo2_prediction_plan <- function(
       1L
     ),
     "CUDA graph controls are supported only for generation" = identical(
-      control_property(control, "cuda_graphs", "auto"),
+      control@cuda_graphs,
       "auto"
     ),
     "chunked prefill is supported only for generation" = !resolved$chunked_prefill,
@@ -709,11 +638,6 @@ evo2_prediction_plan <- function(
         helper_args,
         cwd = compute@workspace
       )
-    ),
-    metadata = list(
-      operation = mode,
-      resolved_control = resolved,
-      cleanup = list(directory = "upstream", suffix = ".pt")
     )
   )
 }
@@ -844,190 +768,63 @@ bionemor_adapter_evo2_megatron_doctor_model <- function(
   do.call(rbind, rows)
 }
 
-evo2_manifest_precision <- function(plan, request, checkpoint) {
-  resolved <- plan$metadata$resolved_control %||% list()
-  request_precision <- request$precision_request %||%
-    request$precision %||%
-    NULL
-  request_semantic_precision <- if (is.list(request_precision)) {
-    request_precision$semantic %||% NULL
-  } else {
-    request_precision
-  }
-  request_control <- request$control %||% list()
-  if (!is.list(request_control)) {
-    request_control <- list()
-  }
-  semantic <- resolved$semantic_precision %||%
-    resolved$precision %||%
-    request_control$precision %||%
-    request_semantic_precision %||%
-    NULL
-  resolved_recipe <- resolved$mixed_precision_recipe %||%
-    checkpoint$mixed_precision_recipe %||%
-    NULL
-  list(
-    semantic = semantic,
-    resolved_recipe = resolved_recipe
-  )
-}
-
-bionemor_adapter_evo2_megatron_manifest_context <- function(
-  job,
-  request,
-  plan
+evo2_inference_operation_context <- function(
+  object,
+  checkpoint,
+  checkpoint_manifest,
+  resolved
 ) {
-  stopifnot(
-    "job must use the Evo 2 Megatron adapter" = identical(
-      job@compute@recipe@adapter,
-      "evo2-megatron"
-    ),
-    "manifest request and plan must be lists" = is.list(request) &&
-      is.list(plan)
-  )
-  descriptor <- job@expected_result
-  output_checkpoint <- descriptor$type %in% c("checkpoint", "fine-tune")
-  path <- if (identical(descriptor$type, "checkpoint")) {
-    descriptor$path
-  } else if (identical(descriptor$type, "fine-tune")) {
-    descriptor$checkpoint_root
-  } else if (identical(descriptor$type, "preprocess")) {
-    NULL
-  } else {
-    descriptor$checkpoint
-  }
-  if (!is.null(path) && !is_scalar_string(path)) {
-    stop("checkpoint result path must be one non-empty string")
-  }
-  path_exists <- !is.null(path) && file.exists(path)
-  if (path_exists) {
-    path <- normalizePath(path, mustWork = TRUE)
-  } else if (!is.null(path)) {
-    path <- normalize_path(path)
-  }
-  manifest_path <- if (path_exists) checkpoint_manifest_path(path) else NULL
-  metadata <- if (!is.null(manifest_path) && file.exists(manifest_path)) {
-    read_checkpoint_manifest(path, manifest_path)
-  } else {
-    list()
-  }
-  expected <- descriptor$expected %||% list()
-  variant <- metadata$variant %||%
-    descriptor$variant %||%
-    expected$variant %||%
-    NULL
-  record <- if (is_scalar_string(variant)) {
-    tryCatch(evo2_model_record(variant), error = function(error) list())
-  } else {
-    list()
-  }
-  checkpoint_digest <- metadata$checkpoint_digest %||%
-    if (!output_checkpoint && path_exists) {
-      checkpoint_payload_digest(
-        path,
-        metadata$format %||% descriptor$format
-      )
-    } else {
+  checkpoint_context <- list(
+    path = checkpoint,
+    source = checkpoint_manifest$source,
+    source_trust = checkpoint_manifest$source_trust,
+    source_verified = checkpoint_manifest$source_verified,
+    format = checkpoint_manifest$format,
+    kind = checkpoint_manifest$kind,
+    revision = checkpoint_manifest$source_revision,
+    digest = if (is.null(checkpoint_manifest$checkpoint_digest)) {
       NULL
-    }
-  base_path <- metadata$base_checkpoint_path %||%
-    descriptor$base_checkpoint %||%
-    NULL
-  base_digest <- metadata$base_checkpoint_digest %||%
-    if (!is.null(base_path) && file.exists(base_path)) {
-      path_digest(base_path)
-    } else {
-      NULL
-    }
-  tokenizer_revision <- metadata$tokenizer_revision %||%
-    record$tokenizer_revision %||%
-    NULL
-  validation <- file.path(job@path, "outputs", "validation.json")
-  warnings <- if (file.exists(validation)) {
-    read_json_file(validation, simplify = FALSE)$warnings
-  } else {
-    list()
-  }
-  list(
-    checkpoint = if (is.null(path)) {
-      list()
     } else {
       list(
-        path = path,
-        source = metadata$source %||% expected$source %||% NULL,
-        source_trust = metadata$source_trust %||%
-          expected$source_trust %||%
-          NULL,
-        source_verified = metadata$source_verified %||%
-          expected$source_verified %||%
-          NULL,
-        format = metadata$format %||%
-          descriptor$format %||%
-          expected$format %||%
-          "mbridge",
-        kind = metadata$kind %||% descriptor$checkpoint_kind %||% NULL,
-        revision = metadata$source_revision %||%
-          expected$source_revision %||%
-          NULL,
-        digest = if (is.null(checkpoint_digest)) {
-          NULL
-        } else {
-          list(algorithm = "md5", value = checkpoint_digest)
-        },
-        base_checkpoint = list(
-          path = base_path,
-          source = metadata$base_checkpoint_source %||%
-            descriptor$base_checkpoint_source %||%
-            NULL,
-          source_trust = metadata$base_checkpoint_source_trust %||%
-            descriptor$base_checkpoint_source_trust %||%
-            NULL,
-          source_verified = metadata$base_checkpoint_source_verified %||%
-            descriptor$base_checkpoint_source_verified %||%
-            NULL,
-          digest = base_digest
-        )
+        algorithm = "md5",
+        value = checkpoint_manifest$checkpoint_digest
       )
     },
+    base_checkpoint = list(
+      path = checkpoint_manifest$base_checkpoint_path,
+      source = checkpoint_manifest$base_checkpoint_source,
+      source_trust = checkpoint_manifest$base_checkpoint_source_trust,
+      source_verified = checkpoint_manifest$base_checkpoint_source_verified,
+      digest = checkpoint_manifest$base_checkpoint_digest
+    )
+  )
+  operation_context(
     model = list(
-      name = variant,
-      model_size = metadata$model_size %||%
-        descriptor$model_size %||%
-        expected$model_size %||%
-        NULL,
-      revision = metadata$source_revision %||%
-        record$source_revision %||%
-        NULL
+      name = object@size,
+      model_size = object@model_size,
+      revision = checkpoint_manifest$source_revision
     ),
+    checkpoint = checkpoint_context,
     tokenizer = list(
-      identity = metadata$tokenizer %||% record$tokenizer %||% NULL,
-      revision = tokenizer_revision,
-      digest = if (is.null(tokenizer_revision)) {
-        NULL
-      } else {
-        list(algorithm = "git-revision", value = tokenizer_revision)
-      }
+      identity = checkpoint_manifest$tokenizer_identity,
+      revision = checkpoint_manifest$tokenizer_revision,
+      digest = list(
+        algorithm = "git-revision",
+        value = checkpoint_manifest$tokenizer_revision
+      )
     ),
-    precision = evo2_manifest_precision(
-      plan,
-      request,
-      metadata
-    ),
-    warnings = warnings
+    precision = list(
+      semantic = resolved$precision,
+      resolved_recipe = resolved$mixed_precision_recipe
+    )
   )
 }
 
 bionemor_adapter_evo2_megatron_materialize <- function(
   job,
-  descriptor
+  operation
 ) {
-  stopifnot(
-    "job must use the Evo 2 Megatron adapter" = identical(
-      job@compute@recipe@adapter,
-      "evo2-megatron"
-    ),
-    "job result descriptor must be a list" = is.list(descriptor)
-  )
+  descriptor <- operation$result
   materialize <- switch(
     descriptor$type,
     generation = materialize_generation_job,
@@ -1050,7 +847,7 @@ bionemor_adapter_evo2_megatron_materialize <- function(
       log_paths = file.path(job@path, c("stdout.log", "stderr.log"))
     )
   }
-  materialize(job, descriptor)
+  materialize(job, operation)
 }
 
 format_number <- function(x) {

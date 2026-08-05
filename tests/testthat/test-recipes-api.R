@@ -547,7 +547,6 @@ test_that("generation batches prompts and returns portable R results", {
     file.path(run_path, "request.json"),
     simplifyVector = FALSE
   )
-  expect_false("execution" %in% names(request))
   plan <- jsonlite::read_json(
     file.path(run_path, "plan.json"),
     simplifyVector = FALSE
@@ -933,7 +932,6 @@ test_that("inference requests retain original FASTA provenance", {
       simplifyVector = FALSE
     )
     expect_equal(request$request$input_source, expected)
-    expect_equal(request$expected_result$input_source, expected)
     job_wait(job, poll = 0.01, timeout = 10)
     manifest <- jsonlite::read_json(
       file.path(job_path(job), "manifest.json"),

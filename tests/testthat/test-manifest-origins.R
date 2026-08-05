@@ -75,11 +75,7 @@ test_that("run manifests retain exact request and resolved values", {
     "bf16_mixed"
   )
   expect_identical(
-    default$plan$metadata$operation,
-    "generation"
-  )
-  expect_identical(
-    default$plan$metadata$resolved_control$mixed_precision_recipe,
+    default$execution$resolved_control$mixed_precision_recipe,
     "bf16_mixed"
   )
   expect_identical(default$precision$semantic, "auto")
@@ -121,6 +117,6 @@ test_that("checkpoint manifests retain requested and resolved precision", {
     simplifyVector = FALSE
   )
   expect_null(request$request_origins)
-  expect_identical(request$request$precision_request, "auto")
-  expect_identical(request$request$precision, "bf16_mixed")
+  expect_identical(request$request$precision, "auto")
+  expect_identical(request$context$precision$resolved_recipe, "bf16_mixed")
 })

@@ -8,45 +8,33 @@ validate_inference_context <- function(object, compute, control) {
     ),
     "compute workspace must exist" = dir.exists(compute@workspace)
   )
-  checkpoint <- model_checkpoint_path(object, base = compute@workspace)
-  if (!is_scalar_string(checkpoint)) {
+  model_checkpoint <- object@checkpoint
+  if (!S7_inherits(model_checkpoint, BioNeMoCheckpoint)) {
     stop("inference requires an explicit checkpoint")
   }
-  if (!dir.exists(checkpoint)) {
+  checkpoint_root <- checkpoint_path(model_checkpoint)
+  if (!dir.exists(checkpoint_root)) {
     stop("checkpoint does not exist")
   }
-  checkpoint_root <- checkpoint
-  model_checkpoint <- object@checkpoint
-  manifest <- NULL
-  if (S7_inherits(model_checkpoint, BioNeMoCheckpoint)) {
-    manifest <- checkpoint_manifest(model_checkpoint)
-    checkpoint <- checkpoint_manifest_resolved_path(
-      model_checkpoint@path,
-      manifest
+  manifest <- checkpoint_manifest(model_checkpoint)
+  checkpoint <- checkpoint_manifest_resolved_path(
+    model_checkpoint@path,
+    manifest
+  )
+  if (!identical(model_checkpoint@recipe_revision, compute@recipe@revision)) {
+    bionemor_abort(
+      "BN_RECIPE_MISMATCH",
+      "checkpoint recipe revision does not match the compute recipe",
+      operation = "inference",
+      model = object@size,
+      checkpoint = checkpoint_root,
+      recipe_revision = compute@recipe@revision,
+      expected_recipe_revision = compute@recipe@revision,
+      actual_recipe_revision = model_checkpoint@recipe_revision,
+      hint = "use a checkpoint prepared with the active Evo 2 recipe"
     )
-    if (
-      !identical(
-        model_checkpoint@recipe_revision,
-        compute@recipe@revision
-      )
-    ) {
-      bionemor_abort(
-        "BN_RECIPE_MISMATCH",
-        "checkpoint recipe revision does not match the compute recipe",
-        operation = "inference",
-        model = object@size,
-        checkpoint = checkpoint_root,
-        recipe_revision = compute@recipe@revision,
-        expected_recipe_revision = compute@recipe@revision,
-        actual_recipe_revision = model_checkpoint@recipe_revision,
-        hint = "use a checkpoint prepared with the active Evo 2 recipe"
-      )
-    }
   }
-  if (
-    S7_inherits(model_checkpoint, BioNeMoCheckpoint) &&
-      identical(model_checkpoint@kind, "lora")
-  ) {
+  if (identical(model_checkpoint@kind, "lora")) {
     base <- model_checkpoint@base_checkpoint
     if (!is_scalar_string(base) || !dir.exists(base)) {
       bionemor_abort(
@@ -108,7 +96,7 @@ validate_inference_context <- function(object, compute, control) {
     }
   }
   preflight <- evo2_model_preflight(object, compute, "inference")
-  vortex <- control_property(control, "vortex_style_fp8", "auto")
+  vortex <- control@vortex_style_fp8
   if (
     identical(vortex, "yes") &&
       !evo2_verified_hopper(preflight$compute)
@@ -145,20 +133,6 @@ validate_inference_context <- function(object, compute, control) {
     checkpoint_manifest = manifest,
     compute = preflight$compute
   )
-}
-
-persist_inference_input_source <- function(run_path, input) {
-  if (!is_scalar_string(run_path) || !dir.exists(run_path)) {
-    stop("run path must exist")
-  }
-  if (!is.list(input$input_source)) {
-    stop("input source metadata must be a list")
-  }
-  path <- file.path(run_path, "request.json")
-  request <- read_json_file(path, simplify = FALSE)
-  request$request$input_source <- input$input_source
-  atomic_write_json(request, path)
-  input$input_source
 }
 
 validate_output_path <- function(output, compute) {
@@ -355,14 +329,11 @@ evo2_generate <- function(
     return_probabilities = return_probabilities,
     normalize = normalize,
     validate = validate,
-    control = S7::props(control)
+    control = S7::props(control),
+    output = output
   )
-  run_path <- create_run(
-    compute,
-    "generation",
-    name,
-    request = request
-  )
+  run <- create_run(compute, "generation", name)
+  run_path <- run$path
   input <- prepare_sequence_input(
     prompt,
     run_path,
@@ -370,7 +341,7 @@ evo2_generate <- function(
     column = "prompt",
     filename = "prompts.fasta"
   )
-  input_source <- persist_inference_input_source(run_path, input)
+  request$input_source <- input$input_source
   validate_sequence_context(
     input,
     object,
@@ -379,11 +350,7 @@ evo2_generate <- function(
     run_path = run_path,
     checkpoint = checkpoint_root,
     additional_tokens = as.integer(num_tokens),
-    max_sequence_length = control_property(
-      control,
-      "max_sequence_length",
-      NULL
-    )
+    max_sequence_length = control@max_sequence_length
   )
   prompts <- generation_prompt_rows(input)
   prompt_path <- file.path(run_path, "inputs", "prompts.jsonl")
@@ -392,6 +359,12 @@ evo2_generate <- function(
   portable <- file.path(run_path, "outputs", "generation.jsonl")
   fasta <- file.path(run_path, "outputs", "generated.fasta")
   validation_path <- file.path(run_path, "outputs", "validation.json")
+  resolved <- resolved_inference_control(
+    control,
+    compute,
+    "generation",
+    checkpoint_manifest
+  )
   plan <- evo2_generation_plan(
     run_path = run_path,
     checkpoint = checkpoint,
@@ -401,42 +374,33 @@ evo2_generate <- function(
     fasta = fasta,
     validation = validation_path,
     compute = compute,
-    control = control,
+    resolved = resolved,
     num_tokens = as.integer(num_tokens),
     temperature = as.double(temperature),
     top_k = as.integer(top_k),
     top_p = as.double(top_p),
     seed = as_nullable_integer(seed),
     return_probabilities = return_probabilities,
-    validate = validate,
-    checkpoint_manifest = checkpoint_manifest
+    validate = validate
   )
-  descriptor <- list(
-    type = "generation",
-    checkpoint = checkpoint_root,
-    resolved_checkpoint = checkpoint,
-    variant = object@size,
-    model_size = object@model_size,
-    prompts = prompt_path,
-    upstream = upstream,
-    portable = portable,
-    fasta = fasta,
-    validation_path = validation_path,
-    num_tokens = as.integer(num_tokens),
-    return_probabilities = return_probabilities,
-    validate = validate,
-    normalize = normalize,
-    input_source = input_source,
-    output = output
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(
+      type = "generation",
+      portable = portable,
+      validation = validation_path
+    ),
+    execution = list(resolved_control = resolved),
+    context = evo2_inference_operation_context(
+      object,
+      checkpoint_root,
+      checkpoint_manifest,
+      resolved
+    )
   )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    "generation",
-    descriptor,
-    async = async
-  )
+  submit_operation(operation, async = async)
 }
 
 generation_rows_data_frame <- function(records) {
@@ -489,7 +453,7 @@ generation_rows_data_frame <- function(records) {
 
 abort_generation_schema <- function(
   job,
-  descriptor,
+  operation,
   message,
   request_id = NULL
 ) {
@@ -499,37 +463,39 @@ abort_generation_schema <- function(
     run_path = job@path,
     request_id = request_id,
     operation = "generation",
-    model = descriptor$variant,
-    checkpoint = descriptor$checkpoint,
+    model = operation$context$model$name,
+    checkpoint = operation$context$checkpoint$path,
     recipe_revision = job@compute@recipe@revision,
     log_paths = file.path(job@path, c("stdout.log", "stderr.log"))
   )
 }
 
-read_generation_jsonl <- function(job, descriptor, path, label) {
+read_generation_jsonl <- function(job, operation, path, label) {
   tryCatch(
     read_jsonl_rows(path),
     error = function(error) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         paste0("generation ", label, " is not valid JSONL")
       )
     }
   )
 }
 
-materialize_generation_job <- function(job, descriptor) {
+materialize_generation_job <- function(job, operation) {
+  descriptor <- operation$result
+  request <- operation$request
   rows <- read_generation_jsonl(
     job,
-    descriptor,
+    operation,
     descriptor$portable,
     "portable output"
   )
   if (length(rows) == 0L) {
     abort_generation_schema(
       job,
-      descriptor,
+      operation,
       "generation portable output must contain at least one row"
     )
   }
@@ -542,7 +508,7 @@ materialize_generation_job <- function(job, descriptor) {
     if (!is.list(row)) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output row must be an object"
       )
     }
@@ -564,7 +530,7 @@ materialize_generation_job <- function(job, descriptor) {
     if (length(invalid_string)) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         paste0(
           "generation portable output has an invalid ",
           invalid_string[[1L]]
@@ -592,7 +558,7 @@ materialize_generation_job <- function(job, descriptor) {
     if (length(invalid_integer)) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         paste0(
           "generation portable output has an invalid ",
           invalid_integer[[1L]]
@@ -610,7 +576,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output has an invalid gc_fraction",
         request_id = request_id
       )
@@ -623,7 +589,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output has an invalid ambiguous_fraction",
         request_id = request_id
       )
@@ -640,7 +606,7 @@ materialize_generation_job <- function(job, descriptor) {
       if (!is.numeric(value) || any(!is.finite(value))) {
         abort_generation_schema(
           job,
-          descriptor,
+          operation,
           paste0(
             "generation portable output has invalid ",
             field
@@ -658,7 +624,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output has invalid log_probabilities",
         request_id = request_id
       )
@@ -669,7 +635,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output has invalid probabilities",
         request_id = request_id
       )
@@ -681,7 +647,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output has invalid validation_warnings",
         request_id = request_id
       )
@@ -696,7 +662,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output has invalid validation_warnings",
         request_id = request_id
       )
@@ -705,11 +671,11 @@ materialize_generation_job <- function(job, descriptor) {
       !identical(row$sequence, paste0(row$prompt, row$completion)) ||
         row$total_tokens != row$prompt_tokens + row$generated_tokens ||
         row$generated_bases > nchar(row$completion, type = "chars") ||
-        descriptor$validate != "none" &&
-          row$generated_tokens > descriptor$num_tokens ||
-        descriptor$validate != "none" &&
+        request$validate != "none" &&
+          row$generated_tokens > request$num_tokens ||
+        request$validate != "none" &&
           identical(row$finish_reason, "length") &&
-          row$generated_tokens != descriptor$num_tokens ||
+          row$generated_tokens != request$num_tokens ||
         !is.null(log_probabilities) &&
           length(log_probabilities) != row$generated_tokens ||
         !is.null(probabilities) &&
@@ -717,7 +683,7 @@ materialize_generation_job <- function(job, descriptor) {
     ) {
       abort_generation_schema(
         job,
-        descriptor,
+        operation,
         "generation portable output fields are inconsistent",
         request_id = request_id
       )
@@ -746,7 +712,7 @@ materialize_generation_job <- function(job, descriptor) {
   if (anyDuplicated(ids)) {
     abort_generation_schema(
       job,
-      descriptor,
+      operation,
       "generation portable output IDs must be unique",
       request_id = ids[[which(duplicated(ids))[[1L]]]]
     )
@@ -755,11 +721,11 @@ materialize_generation_job <- function(job, descriptor) {
   class(data) <- c("evo2_generation", "data.frame")
   attr(data, "provenance") <- list(
     run_path = job@path,
-    checkpoint = descriptor$checkpoint,
+    checkpoint = operation$context$checkpoint$path,
     recipe_revision = job@compute@recipe@revision,
-    input_source = descriptor$input_source
+    input_source = request$input_source
   )
-  copy_output_directory(job@path, descriptor$output)
+  copy_output_directory(job@path, request$output)
   data
 }
 
@@ -854,20 +820,17 @@ evo2_score <- function(
     batch_size = as.integer(batch_size),
     prepend_bos = prepend_bos,
     normalize = normalize,
-    control = S7::props(control)
+    control = S7::props(control),
+    output = output
   )
-  run_path <- create_run(
-    compute,
-    "score",
-    name,
-    request = request
-  )
+  run <- create_run(compute, "score", name)
+  run_path <- run$path
   input <- prepare_sequence_input(
     newdata,
     run_path,
     normalize = normalize
   )
-  input_source <- persist_inference_input_source(run_path, input)
+  request$input_source <- input$input_source
   validate_sequence_context(
     input,
     object,
@@ -879,6 +842,12 @@ evo2_score <- function(
   input <- prepare_stranded_input(input, run_path, strand)
   upstream <- file.path(run_path, "upstream", "predictions")
   portable <- file.path(run_path, "outputs", "scores.jsonl")
+  resolved <- resolved_inference_control(
+    control,
+    compute,
+    "score",
+    checkpoint_manifest
+  )
   plan <- evo2_prediction_plan(
     mode = "score",
     checkpoint = checkpoint,
@@ -886,44 +855,42 @@ evo2_score <- function(
     upstream = upstream,
     portable = portable,
     compute = compute,
+    resolved = resolved,
     control = control,
     batch_size = as.integer(batch_size),
     reduction = reduction,
-    prepend_bos = prepend_bos,
-    checkpoint_manifest = checkpoint_manifest
+    prepend_bos = prepend_bos
   )
-  descriptor <- list(
-    type = "score",
-    checkpoint = checkpoint_root,
-    resolved_checkpoint = checkpoint,
-    variant = object@size,
-    model_size = object@model_size,
-    input_ids = input$ids,
-    sequences = unname(as.list(input$sequences)),
-    sequence_map = file.path(run_path, "inputs", "sequence-map.json"),
-    portable = portable,
-    upstream = upstream,
-    reduction = reduction,
-    strand = strand,
-    input_source = input_source,
-    output = output
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(
+      type = "score",
+      portable = portable,
+      sequence_map = file.path(run_path, "inputs", "sequence-map.json")
+    ),
+    execution = list(resolved_control = resolved),
+    context = evo2_inference_operation_context(
+      object,
+      checkpoint_root,
+      checkpoint_manifest,
+      resolved
+    ),
+    cleanup = list(directory = "upstream", suffix = ".pt")
   )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    "score",
-    descriptor,
-    async = async
-  )
+  submit_operation(operation, async = async)
 }
 
-materialize_score_job <- function(job, descriptor) {
+materialize_score_job <- function(job, operation) {
+  descriptor <- operation$result
+  request <- operation$request
   rows <- read_jsonl_rows(descriptor$portable)
   map <- read_json_file(descriptor$sequence_map, simplify = TRUE)
   if (!is.data.frame(map)) {
     map <- as.data.frame(map, stringsAsFactors = FALSE)
   }
+  input <- map[!duplicated(map$id), , drop = FALSE]
   derived_ids <- pluck_chr(rows, "derived_id")
   if (!setequal(derived_ids, map$derived_id)) {
     stop("score output contains unexpected derived IDs")
@@ -936,9 +903,9 @@ materialize_score_job <- function(job, descriptor) {
     vapply(rows, function(row) as.integer(row$tokens_scored), integer(1)),
     derived_ids
   )
-  records <- lapply(seq_along(descriptor$input_ids), function(index) {
-    id <- descriptor$input_ids[[index]]
-    forward_id <- if (descriptor$strand == "forward") {
+  records <- lapply(seq_len(nrow(input)), function(index) {
+    id <- input$id[[index]]
+    forward_id <- if (request$strand == "forward") {
       id
     } else {
       paste0(id, "::forward")
@@ -959,13 +926,13 @@ materialize_score_job <- function(job, descriptor) {
     token_values <- tokens[names(tokens) %in% c(forward_id, reverse_id)]
     list(
       id = id,
-      sequence_length = as.integer(nchar(descriptor$sequences[[index]])),
+      sequence_length = as.integer(input$sequence_length[[index]]),
       tokens_scored = as.integer(min(token_values)),
       score = mean(selected),
       forward_score = forward,
       reverse_score = reverse,
-      reduction = descriptor$reduction,
-      strand = descriptor$strand
+      reduction = request$reduction,
+      strand = request$strand
     )
   })
   data <- data.frame(
@@ -982,10 +949,10 @@ materialize_score_job <- function(job, descriptor) {
   class(data) <- c("evo2_scores", "data.frame")
   attr(data, "provenance") <- list(
     run_path = job@path,
-    checkpoint = descriptor$checkpoint,
+    checkpoint = operation$context$checkpoint$path,
     recipe_revision = job@compute@recipe@revision
   )
-  copy_output_directory(job@path, descriptor$output)
+  copy_output_directory(job@path, request$output)
   data
 }
 
@@ -1036,13 +1003,17 @@ evo2_profile <- function(
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
   stopifnot(
+    "control must be an Evo 2 inference control" = S7_inherits(
+      control,
+      Evo2InferenceControl
+    ),
     "batch_size must be a positive integer" = is_scalar_integerish(
       batch_size,
       min = 1
     ),
     "profile output is required" = is_scalar_string(output),
     "context parallelism is not supported for positional profiles" = identical(
-      as.integer(control_property(control, "context_parallel_size", 1L)),
+      control@context_parallel_size,
       1L
     ),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
@@ -1058,16 +1029,13 @@ evo2_profile <- function(
     strand = strand,
     batch_size = as.integer(batch_size),
     normalize = normalize,
-    control = S7::props(control)
+    control = S7::props(control),
+    output = output
   )
-  run_path <- create_run(
-    compute,
-    "profile",
-    name,
-    request = request
-  )
+  run <- create_run(compute, "profile", name)
+  run_path <- run$path
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
-  input_source <- persist_inference_input_source(run_path, input)
+  request$input_source <- input$input_source
   validate_sequence_context(
     input,
     object,
@@ -1079,6 +1047,12 @@ evo2_profile <- function(
   input <- prepare_stranded_input(input, run_path, strand)
   upstream <- file.path(run_path, "upstream", "predictions")
   portable <- file.path(run_path, "outputs", "profile.parquet")
+  resolved <- resolved_inference_control(
+    control,
+    compute,
+    "profile",
+    checkpoint_manifest
+  )
   plan <- evo2_prediction_plan(
     "profile",
     checkpoint,
@@ -1086,37 +1060,38 @@ evo2_profile <- function(
     upstream,
     portable,
     compute,
+    resolved,
     control,
     as.integer(batch_size),
-    prepend_bos = TRUE,
-    checkpoint_manifest = checkpoint_manifest
+    prepend_bos = TRUE
   )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    "profile",
-    list(
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(
       type = "profile",
-      checkpoint = checkpoint_root,
-      resolved_checkpoint = checkpoint,
-      variant = object@size,
-      model_size = object@model_size,
-      portable = portable,
-      upstream = upstream,
-      output = output,
-      strand = strand,
-      input_source = input_source
+      portable = portable
     ),
-    async = async
+    execution = list(resolved_control = resolved),
+    context = evo2_inference_operation_context(
+      object,
+      checkpoint_root,
+      checkpoint_manifest,
+      resolved
+    ),
+    cleanup = list(directory = "upstream", suffix = ".pt")
   )
+  submit_operation(operation, async = async)
 }
 
-materialize_profile_job <- function(job, descriptor) {
+materialize_profile_job <- function(job, operation) {
+  descriptor <- operation$result
+  request <- operation$request
   if (!file.exists(descriptor$portable)) {
     stop("profile helper did not write its portable output")
   }
-  path <- copy_output_file(descriptor$portable, descriptor$output)
+  path <- copy_output_file(descriptor$portable, request$output)
   BioNeMoArtifact(
     path = path,
     format = "parquet",
@@ -1129,10 +1104,10 @@ materialize_profile_job <- function(job, descriptor) {
       log_probability = "double",
       strand = "string"
     ),
-    metadata = list(strand = descriptor$strand),
+    metadata = list(strand = request$strand),
     provenance = list(
       run_path = job@path,
-      checkpoint = descriptor$checkpoint,
+      checkpoint = operation$context$checkpoint$path,
       recipe_revision = job@compute@recipe@revision
     )
   )
@@ -1201,6 +1176,10 @@ evo2_embed <- function(
   strand <- match.arg(strand)
   normalize <- match.arg(normalize)
   stopifnot(
+    "control must be an Evo 2 inference control" = S7_inherits(
+      control,
+      Evo2InferenceControl
+    ),
     "layer must be 'last' or a positive integer" = identical(layer, "last") ||
       is_scalar_integerish(layer, min = 1),
     "batch_size must be a positive integer" = is_scalar_integerish(
@@ -1212,7 +1191,7 @@ evo2_embed <- function(
     "unpooled bidirectional embeddings are not supported" = pool != "none" ||
       strand != "both",
     "context parallelism is not supported for embeddings" = identical(
-      as.integer(control_property(control, "context_parallel_size", 1L)),
+      control@context_parallel_size,
       1L
     ),
     "async must be TRUE or FALSE" = is_scalar_logical(async)
@@ -1230,16 +1209,13 @@ evo2_embed <- function(
     strand = strand,
     batch_size = as.integer(batch_size),
     normalize = normalize,
-    control = S7::props(control)
+    control = S7::props(control),
+    output = output
   )
-  run_path <- create_run(
-    compute,
-    "embedding",
-    name,
-    request = request
-  )
+  run <- create_run(compute, "embedding", name)
+  run_path <- run$path
   input <- prepare_sequence_input(newdata, run_path, normalize = normalize)
-  input_source <- persist_inference_input_source(run_path, input)
+  request$input_source <- input$input_source
   validate_sequence_context(
     input,
     object,
@@ -1261,6 +1237,12 @@ evo2_embed <- function(
   } else {
     as.integer(layer) - 1L
   }
+  resolved <- resolved_inference_control(
+    control,
+    compute,
+    mode,
+    checkpoint_manifest
+  )
   plan <- evo2_prediction_plan(
     mode,
     checkpoint,
@@ -1268,37 +1250,39 @@ evo2_embed <- function(
     upstream,
     portable,
     compute,
+    resolved,
     control,
     as.integer(batch_size),
     layer = upstream_layer,
-    pool = if (pool == "none") NULL else pool,
-    checkpoint_manifest = checkpoint_manifest
+    pool = if (pool == "none") NULL else pool
   )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    "embedding",
-    list(
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(
       type = mode,
-      checkpoint = checkpoint_root,
-      resolved_checkpoint = checkpoint,
-      variant = object@size,
-      model_size = object@model_size,
-      portable = portable,
-      upstream = upstream,
-      input_ids = input$ids,
-      layer = layer,
-      pool = pool,
-      strand = strand,
-      input_source = input_source,
-      output = output
+      portable = portable
     ),
-    async = async
+    execution = list(
+      input_ids = input$ids,
+      resolved_control = resolved
+    ),
+    context = evo2_inference_operation_context(
+      object,
+      checkpoint_root,
+      checkpoint_manifest,
+      resolved
+    ),
+    cleanup = list(directory = "upstream", suffix = ".pt")
   )
+  submit_operation(operation, async = async)
 }
 
-materialize_embedding_job <- function(job, descriptor) {
+materialize_embedding_job <- function(job, operation) {
+  descriptor <- operation$result
+  request <- operation$request
+  execution <- operation$execution
   if (!file.exists(descriptor$portable)) {
     stop("embedding helper did not write its portable output")
   }
@@ -1329,7 +1313,7 @@ materialize_embedding_job <- function(job, descriptor) {
     if (!identical(schema, expected_schema)) {
       stop("embedding helper summary has an invalid schema")
     }
-    path <- copy_output_file(descriptor$portable, descriptor$output)
+    path <- copy_output_file(descriptor$portable, request$output)
     return(BioNeMoArtifact(
       path = path,
       format = "parquet",
@@ -1337,20 +1321,20 @@ materialize_embedding_job <- function(job, descriptor) {
       shape = shape,
       schema = schema,
       metadata = list(
-        layer = descriptor$layer,
-        pool = descriptor$pool,
-        strand = descriptor$strand
+        layer = request$layer,
+        pool = request$pool,
+        strand = request$strand
       ),
       provenance = list(
         run_path = job@path,
-        checkpoint = descriptor$checkpoint,
+        checkpoint = operation$context$checkpoint$path,
         recipe_revision = job@compute@recipe@revision
       )
     ))
   }
   rows <- read_jsonl_rows(descriptor$portable)
   ids <- pluck_chr(rows, "id")
-  if (!identical(ids, unlist(descriptor$input_ids, use.names = FALSE))) {
+  if (!identical(ids, unlist(execution$input_ids, use.names = FALSE))) {
     stop("embedding output IDs do not match input order")
   }
   values <- lapply(rows, function(row) {
@@ -1365,14 +1349,14 @@ materialize_embedding_job <- function(job, descriptor) {
   class(matrix) <- c("evo2_embeddings", "matrix", "array")
   attr(matrix, "provenance") <- list(
     run_path = job@path,
-    checkpoint = descriptor$checkpoint,
-    layer = descriptor$layer,
-    pool = descriptor$pool,
-    strand = descriptor$strand,
+    checkpoint = operation$context$checkpoint$path,
+    layer = request$layer,
+    pool = request$pool,
+    strand = request$strand,
     recipe_revision = job@compute@recipe@revision
   )
-  if (!is.null(descriptor$output)) {
-    copy_output_file(descriptor$portable, descriptor$output)
+  if (!is.null(request$output)) {
+    copy_output_file(descriptor$portable, request$output)
   }
   matrix
 }

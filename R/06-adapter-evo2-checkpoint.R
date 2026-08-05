@@ -712,10 +712,25 @@ checkpoint_expected_manifest <- function(
   )
 }
 
-materialize_checkpoint_job <- function(job, descriptor) {
-  if (!is.list(descriptor) || !identical(descriptor$type, "checkpoint")) {
-    stop("checkpoint result descriptor is invalid")
-  }
+materialize_checkpoint_job <- function(job, operation) {
+  descriptor <- operation$result
+  context <- operation$context
+  checkpoint_context <- context$checkpoint
+  expected <- list(
+    family = "evo2",
+    variant = context$model$name,
+    model_size = context$model$model_size,
+    format = checkpoint_context$format,
+    source = checkpoint_context$source,
+    source_format = checkpoint_context$source_format,
+    source_revision = checkpoint_context$revision,
+    recipe_revision = job@compute@recipe@revision,
+    source_trust = checkpoint_context$source_trust,
+    source_verified = checkpoint_context$source_verified,
+    tokenizer_identity = context$tokenizer$identity,
+    tokenizer_revision = context$tokenizer$revision,
+    mixed_precision_recipe = context$precision$resolved_recipe
+  )
   if (!is_scalar_string(descriptor$path)) {
     stop("checkpoint result path must be one non-empty string")
   }
@@ -727,7 +742,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
 
   if (checkpoint_is_complete(path, descriptor$format)) {
     manifest <- read_checkpoint_manifest(path, manifest_path)
-    assert_manifest_matches(manifest, descriptor$expected)
+    assert_manifest_matches(manifest, expected)
     assert_checkpoint_manifest_weights(path, manifest)
     return(checkpoint_from_manifest(path, manifest, manifest_path))
   }
@@ -738,7 +753,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
       "checkpoint operation did not create its output",
       run_path = job@path,
       operation = if (descriptor$format == "vortex") "export" else "checkpoint",
-      model = descriptor$variant %||% NULL,
+      model = context$model$name,
       checkpoint = path
     )
   }
@@ -751,7 +766,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
       "checkpoint inspection output is missing",
       run_path = job@path,
       operation = "checkpoint",
-      model = descriptor$variant %||% NULL,
+      model = context$model$name,
       checkpoint = path
     )
   }
@@ -764,7 +779,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
     } else if (
       !identical(
         inspection$model_size,
-        descriptor$expected$model_size
+        context$model$model_size
       )
     ) {
       "checkpoint model size does not match the requested model"
@@ -779,7 +794,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
         schema_message,
         run_path = job@path,
         operation = "checkpoint",
-        model = descriptor$variant %||% NULL,
+        model = context$model$name,
         checkpoint = path
       )
     }
@@ -790,7 +805,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
         "Vortex export is missing config.json",
         run_path = job@path,
         operation = "export",
-        model = descriptor$variant %||% NULL,
+        model = context$model$name,
         checkpoint = path
       )
     }
@@ -801,9 +816,11 @@ materialize_checkpoint_job <- function(job, descriptor) {
   } else {
     "dense"
   }
-  base_checkpoint <- inspection$base_checkpoint %||%
-    descriptor$base_checkpoint %||%
+  base_checkpoint <- if (identical(kind, "lora")) {
+    inspection$base_checkpoint
+  } else {
     NULL
+  }
   base_digest <- NULL
   if (identical(kind, "lora")) {
     if (!is_scalar_string(base_checkpoint) || !file.exists(base_checkpoint)) {
@@ -816,7 +833,7 @@ materialize_checkpoint_job <- function(job, descriptor) {
         },
         run_path = job@path,
         operation = "checkpoint",
-        model = descriptor$variant %||% NULL,
+        model = context$model$name,
         checkpoint = path
       )
     }
@@ -826,25 +843,22 @@ materialize_checkpoint_job <- function(job, descriptor) {
 
   manifest <- c(
     list(schema_version = 1L),
-    descriptor$expected,
+    expected,
     list(
       kind = kind,
-      tokenizer = inspection$tokenizer %||% descriptor$tokenizer,
+      tokenizer = operation$execution$tokenizer,
       base_checkpoint_path = base_checkpoint,
       base_checkpoint_digest = base_digest,
-      base_checkpoint_source = descriptor$base_checkpoint_source %||% NULL,
+      base_checkpoint_source = checkpoint_context$base_checkpoint$source,
+      base_checkpoint_source_trust = checkpoint_context$base_checkpoint$source_trust,
+      base_checkpoint_source_verified = checkpoint_context$base_checkpoint$source_verified,
       inspection = inspection,
       provenance = list(
-        run_path = descriptor$run_path,
-        plan = descriptor$plan,
+        run_path = job@path,
         created_at = base::format(Sys.time(), tz = "UTC", usetz = TRUE)
       )
     )
   )
-  if (is.null(manifest$mixed_precision_recipe)) {
-    manifest$mixed_precision_recipe <-
-      inspection$mixed_precision_recipe %||% descriptor$precision
-  }
   atomic_write_json(manifest, manifest_path)
   atomic_write_lines(
     jsonlite::toJSON(
@@ -1157,30 +1171,18 @@ evo2_checkpoint <- function(
     source
   }
   request <- list(
-    operation = "checkpoint",
     model = model@size,
-    model_size = model_size,
-    source_request = source_request,
-    source = info$source,
-    format_request = format,
-    source_format = info$format,
-    revision_request = revision,
-    source_revision = info$revision,
+    source = source_request,
+    format = format,
+    revision = revision,
     trust = trust,
-    source_trust = info$source_trust,
-    source_verified = info$source_verified,
     destination = destination,
-    tokenizer_request = tokenizer,
-    tokenizer = tokenizer_path,
-    precision_request = precision,
-    precision = precision_recipe,
+    tokenizer = tokenizer,
+    precision = precision,
     overwrite = overwrite
   )
-  run_path <- create_run(
-    compute,
-    kind = "checkpoint",
-    request = request
-  )
+  run <- create_run(compute, kind = "checkpoint")
+  run_path <- run$path
   inspection <- file.path(run_path, "outputs", "checkpoint-inspection.json")
   steps <- list()
   if (info$format %in% c("savanna", "nemo2")) {
@@ -1207,42 +1209,57 @@ evo2_checkpoint <- function(
     inspection,
     compute
   )
-  plan <- command_plan(
-    steps,
-    metadata = list(
-      operation = "checkpoint",
-      recipe_revision = compute@recipe@revision
+  plan <- command_plan(steps)
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(
+      type = "checkpoint",
+      path = destination,
+      format = "mbridge",
+      inspection = inspection
+    ),
+    execution = list(tokenizer = tokenizer_path),
+    context = operation_context(
+      model = list(
+        name = model@size,
+        model_size = model_size,
+        revision = info$revision
+      ),
+      checkpoint = list(
+        path = destination,
+        source = info$source,
+        source_format = info$format,
+        source_trust = info$source_trust,
+        source_verified = info$source_verified,
+        format = "mbridge",
+        kind = NULL,
+        revision = info$revision,
+        digest = NULL,
+        base_checkpoint = list(
+          path = NULL,
+          source = NULL,
+          source_trust = NULL,
+          source_verified = NULL,
+          digest = NULL
+        )
+      ),
+      tokenizer = list(
+        identity = tokenizer_provenance$identity,
+        revision = tokenizer_provenance$revision,
+        digest = list(
+          algorithm = "git-revision",
+          value = tokenizer_provenance$revision
+        )
+      ),
+      precision = list(
+        semantic = precision,
+        resolved_recipe = precision_recipe
+      )
     )
   )
-  descriptor <- list(
-    type = "checkpoint",
-    path = destination,
-    format = "mbridge",
-    expected = expected,
-    variant = model@size,
-    model_size = model_size,
-    inspection = inspection,
-    tokenizer = tokenizer_path,
-    tokenizer_revision = record$tokenizer_revision,
-    precision = precision_recipe,
-    base_checkpoint = NULL,
-    base_checkpoint_source = NULL,
-    source = info$source,
-    source_format = info$format,
-    source_revision = info$revision,
-    source_trust = info$source_trust,
-    source_verified = info$source_verified,
-    run_path = run_path,
-    plan = serializable_plan(plan)
-  )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    kind = "checkpoint",
-    expected_result = descriptor,
-    async = async
-  )
+  submit_operation(operation, async = async)
 }
 
 #' Prepare a recommended Evo 2 model
@@ -1380,10 +1397,7 @@ evo2_export <- function(
     "async must be TRUE or FALSE" = is_scalar_logical(async)
   )
   checkpoint <- model@checkpoint
-  if (
-    !is_scalar_string(checkpoint) &&
-      !S7_inherits(checkpoint, BioNeMoCheckpoint)
-  ) {
+  if (!S7_inherits(checkpoint, BioNeMoCheckpoint)) {
     bionemor_abort(
       "BN_BASE_CHECKPOINT_MISSING",
       "model must have a prepared MBridge checkpoint",
@@ -1391,16 +1405,14 @@ evo2_export <- function(
       model = model@size
     )
   }
-  if (S7_inherits(checkpoint, BioNeMoCheckpoint)) {
-    if (checkpoint@format != "mbridge") {
-      bionemor_abort(
-        "BN_CHECKPOINT_FORMAT",
-        "model checkpoint must use MBridge format",
-        operation = "export",
-        model = model@size,
-        checkpoint = checkpoint@path
-      )
-    }
+  if (checkpoint@format != "mbridge") {
+    bionemor_abort(
+      "BN_CHECKPOINT_FORMAT",
+      "model checkpoint must use MBridge format",
+      operation = "export",
+      model = model@size,
+      checkpoint = checkpoint@path
+    )
   }
   source <- checkpoint_path(checkpoint)
   source_inspection <- inspect_checkpoint_for_export(source, compute)
@@ -1445,23 +1457,13 @@ evo2_export <- function(
   }
   record <- evo2_checkpoint_model_record(model)
   model_size <- evo2_checkpoint_model_size(model, record)
-  source_manifest <- if (
-    S7_inherits(checkpoint, BioNeMoCheckpoint) &&
-      !is.null(checkpoint@manifest) &&
-      file.exists(checkpoint@manifest)
-  ) {
-    checkpoint_manifest(checkpoint)
-  } else {
-    list()
-  }
+  source_manifest <- checkpoint_manifest(checkpoint)
   source_revision <- source_manifest$source_revision
-  if (
-    is.null(source_revision) &&
-      S7_inherits(checkpoint, BioNeMoCheckpoint)
-  ) {
-    source_revision <- checkpoint@source_revision
-  }
-  source_revision <- source_revision %||% path_digest(source)
+  source_trust <- source_manifest$source_trust
+  source_verified <- source_manifest$source_verified
+  tokenizer_identity <- source_manifest$tokenizer_identity
+  tokenizer_revision <- source_manifest$tokenizer_revision
+  precision_recipe <- source_manifest$mixed_precision_recipe
   expected <- list(
     family = "evo2",
     variant = model@size,
@@ -1471,8 +1473,8 @@ evo2_export <- function(
     source_format = "mbridge",
     source_revision = source_revision,
     recipe_revision = compute@recipe@revision,
-    source_trust = source_manifest$source_trust %||% "not-recorded",
-    source_verified = isTRUE(source_manifest$source_verified)
+    source_trust = source_trust,
+    source_verified = source_verified
   )
   if (checkpoint_is_complete(destination, "vortex") && !overwrite) {
     manifest_path <- checkpoint_manifest_path(destination, "vortex")
@@ -1501,21 +1503,13 @@ evo2_export <- function(
   dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
 
   request <- list(
-    operation = "export",
     model = model@size,
-    source = source,
-    source_trust = expected$source_trust,
-    source_verified = expected$source_verified,
-    destination = destination,
-    format = "vortex",
+    path = path,
     strip_optimizer = strip_optimizer,
     overwrite = overwrite
   )
-  run_path <- create_run(
-    compute,
-    kind = "export",
-    request = request
-  )
+  run <- create_run(compute, kind = "export")
+  run_path <- run$path
   export_source <- source
   steps <- list()
   if (strip_optimizer) {
@@ -1556,35 +1550,61 @@ evo2_export <- function(
     ),
     cwd = compute@workspace
   )
-  plan <- command_plan(
-    steps,
-    metadata = list(
-      operation = "export",
-      recipe_revision = compute@recipe@revision,
+  plan <- command_plan(steps)
+  operation <- operation_spec(
+    run = run,
+    request = request,
+    plan = plan,
+    result = list(
+      type = "checkpoint",
+      path = destination,
+      format = "vortex",
+      inspection = inspection
+    ),
+    execution = list(
+      tokenizer = source_manifest$tokenizer,
       transformer_engine = transformer_engine
+    ),
+    context = operation_context(
+      model = list(
+        name = model@size,
+        model_size = model_size,
+        revision = source_revision
+      ),
+      checkpoint = list(
+        path = destination,
+        source = source,
+        source_format = "mbridge",
+        source_trust = source_trust,
+        source_verified = source_verified,
+        format = "vortex",
+        kind = "dense",
+        revision = source_revision,
+        digest = NULL,
+        base_checkpoint = list(
+          path = NULL,
+          source = NULL,
+          source_trust = NULL,
+          source_verified = NULL,
+          digest = NULL
+        )
+      ),
+      tokenizer = list(
+        identity = tokenizer_identity,
+        revision = tokenizer_revision,
+        digest = if (is.null(tokenizer_revision)) {
+          NULL
+        } else {
+          list(algorithm = "git-revision", value = tokenizer_revision)
+        }
+      ),
+      precision = list(
+        semantic = NULL,
+        resolved_recipe = precision_recipe
+      )
     )
   )
-  descriptor <- list(
-    type = "checkpoint",
-    path = destination,
-    format = "vortex",
-    expected = expected,
-    inspection = inspection,
-    tokenizer = source_manifest$tokenizer %||% NULL,
-    precision = source_manifest$mixed_precision_recipe %||% NULL,
-    base_checkpoint = NULL,
-    base_checkpoint_source = NULL,
-    run_path = run_path,
-    plan = serializable_plan(plan)
-  )
-  submit_plan(
-    plan,
-    compute,
-    run_path,
-    kind = "export",
-    expected_result = descriptor,
-    async = async
-  )
+  submit_operation(operation, async = async)
 }
 
 #' Inspect checkpoint metadata

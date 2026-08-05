@@ -43,12 +43,28 @@ test_that("Evo 2 preprocessing jobs persist and reopen", {
     file.path(job_path(job), "manifest.json"),
     simplifyVector = FALSE
   )
-  expect_identical(request$schema_version, 3L)
+  expect_identical(request$schema_version, 4L)
+  expect_named(
+    request,
+    c(
+      "schema_version",
+      "id",
+      "kind",
+      "compute",
+      "request",
+      "execution",
+      "result",
+      "context",
+      "cleanup",
+      "timeout"
+    )
+  )
   expect_identical(request$kind, "preprocess")
-  expect_identical(request$expected_result$type, "preprocess")
-  expect_identical(request$expected_result$result_version, 1L)
+  expect_identical(request$result$type, "preprocess")
+  expect_identical(request$result$result_version, 1L)
   expect_false("workflow" %in% names(request))
-  expect_false("workflow" %in% names(plan$metadata))
+  expect_identical(plan$schema_version, 3L)
+  expect_named(plan, c("schema_version", "steps"))
   expect_identical(manifest$kind, "preprocess")
   expect_identical(
     manifest$result,

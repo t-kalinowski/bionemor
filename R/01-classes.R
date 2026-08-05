@@ -74,9 +74,8 @@ BioNeMoJob <- new_class(
     kind = prop_string(),
     state = prop_string(),
     compute = BioNeMoCompute,
-    command_plan = new_property(class = class_any),
     log = prop_string(allow_null = TRUE),
-    expected_result = new_property(class = class_any, default = NULL),
+    operation = new_property(class = class_any),
     timeout = class_double,
     process = new_property(class = class_any, default = NULL),
     metadata = prop_list()

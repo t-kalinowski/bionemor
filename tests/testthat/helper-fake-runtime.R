@@ -140,6 +140,8 @@ fake_recipes_runtime <- function(bin) {
       "  input$finish_reason <- rep(Sys.getenv('BIONEMOR_FAKE_FINISH_REASON', 'length'), nrow(input))",
       "  input$usage <- I(lapply(nchar(input$prompt), function(n) list(prompt_tokens = jsonlite::unbox(n), completion_tokens = jsonlite::unbox(generated_tokens), total_tokens = jsonlite::unbox(n + generated_tokens))))",
       "  input$logprobs <- I(replicate(nrow(input), list(completion_logprobs = rep(log_probability, generated_tokens)), simplify = FALSE))",
+      "  input$input_id <- NULL",
+      "  input$sample <- NULL",
       "  dir.create(dirname(value('--output-file')), recursive = TRUE, showWarnings = FALSE)",
       "  jsonlite::stream_out(input, file(value('--output-file')), verbose = FALSE)",
       "} else if (operation == 'predict_evo2') {",

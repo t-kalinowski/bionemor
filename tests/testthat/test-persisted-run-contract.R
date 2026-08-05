@@ -39,7 +39,7 @@ test_that("unsupported persisted run schemas fail clearly", {
   )
   expect_identical(error$operation, "job-reopen")
 
-  request$schema_version <- 3L
+  request$schema_version <- 4L
   jsonlite::write_json(
     request,
     request_path,
@@ -49,7 +49,7 @@ test_that("unsupported persisted run schemas fail clearly", {
   )
   plan_path <- file.path(job_path(job), "plan.json")
   plan <- jsonlite::read_json(plan_path, simplifyVector = FALSE)
-  plan$schema_version <- 1L
+  plan$schema_version <- 2L
   jsonlite::write_json(
     plan,
     plan_path,

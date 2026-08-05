@@ -517,7 +517,7 @@ test_that("preprocessing and LoRA fine-tuning use current recipe commands", {
     100L
   )
   expect_identical(
-    run_manifest$plan$metadata$resolved_control$data_parallel_size,
+    run_manifest$execution$resolved_control$data_parallel_size,
     1L
   )
   expect_identical(run_manifest$precision$semantic, "bf16")

@@ -16,7 +16,6 @@ adapter_registry <- function() {
         `fine-tune` = c(`fine-tune` = 1L)
       ),
       materialize = bionemor_adapter_evo2_megatron_materialize,
-      manifest_context = bionemor_adapter_evo2_megatron_manifest_context,
       provenance = recipe_runtime_provenance,
       install_spec = bionemor_adapter_evo2_megatron_install_spec,
       doctor_model = bionemor_adapter_evo2_megatron_doctor_model
@@ -25,7 +24,6 @@ adapter_registry <- function() {
       family = "esm2",
       operations = list(embedding = c(`esm2-pooled` = 1L)),
       materialize = bionemor_adapter_esm2_transformers_materialize,
-      manifest_context = bionemor_adapter_esm2_transformers_manifest_context,
       provenance = recipe_runtime_provenance,
       install_spec = bionemor_adapter_esm2_transformers_install_spec,
       doctor_model = bionemor_adapter_esm2_transformers_doctor_model
@@ -41,7 +39,6 @@ adapter_record <- function(adapter) {
   record <- adapter_registry()[[adapter]]
   hooks <- c(
     "materialize",
-    "manifest_context",
     "provenance",
     "install_spec",
     "doctor_model"
@@ -80,7 +77,7 @@ adapter_function <- function(adapter, action) {
   implementation
 }
 
-operation_record <- function(adapter, kind) {
+result_versions <- function(adapter, kind) {
   stopifnot(
     "operation must be one safe name" = is_scalar_string(kind) &&
       grepl("^[A-Za-z0-9_.-]+$", kind)
@@ -117,7 +114,7 @@ validate_result_contract <- function(
   valid <- is_scalar_string(result_type) &&
     is_scalar_integerish(result_version, min = 1L)
   versions <- tryCatch(
-    operation_record(adapter, kind),
+    result_versions(adapter, kind),
     error = function(error) NULL
   )
   expected <- if (valid && !is.null(versions)) {
@@ -144,19 +141,54 @@ validate_result_contract <- function(
   invisible(descriptor)
 }
 
-read_run_request <- function(run_path) {
-  request <- read_json_file(
+read_operation_record <- function(run_path) {
+  operation <- read_json_file(
     file.path(run_path, "request.json"),
     simplify = FALSE
   )
-  if (!identical(request$schema_version, 3L)) {
+  valid <- identical(operation$schema_version, 4L) &&
+    identical(
+      names(operation),
+      c(
+        "schema_version",
+        "id",
+        "kind",
+        "compute",
+        "request",
+        "execution",
+        "result",
+        "context",
+        "cleanup",
+        "timeout"
+      )
+    ) &&
+    is_scalar_string(operation$id) &&
+    is_scalar_string(operation$kind) &&
+    is.list(operation$compute) &&
+    is.list(operation$request) &&
+    is.list(operation$execution) &&
+    is.list(operation$result) &&
+    is.list(operation$context) &&
+    identical(
+      names(operation$context),
+      c("model", "checkpoint", "tokenizer", "precision", "warnings")
+    ) &&
+    all(vapply(
+      operation$context,
+      is.list,
+      logical(1)
+    )) &&
+    (is.null(operation$cleanup) || is.list(operation$cleanup)) &&
+    (is.null(operation$timeout) ||
+      is_scalar_number(operation$timeout) && operation$timeout > 0)
+  if (!valid) {
     bionemor_abort(
       "BN_PROTOCOL",
-      "persisted run request schema is unsupported",
+      "persisted operation schema is unsupported",
       run_path = run_path,
-      request_id = request$id %||% basename(run_path),
+      request_id = operation$id %||% basename(run_path),
       operation = "job-reopen"
     )
   }
-  request
+  operation
 }

@@ -26,6 +26,7 @@ test_that("custom pickle checkpoint manifests record explicit trust", {
   )
   manifest <- checkpoint_manifest(checkpoint)
 
+  expect_false("tokenizer_revision.1" %in% names(manifest))
   expect_identical(manifest$source_trust, "explicit")
   expect_false(manifest$source_verified)
 
@@ -142,6 +143,14 @@ test_that("detached checkpoint finalization digests completed output", {
   expect_identical(observed$checkpoint$digest, detached$checkpoint$digest)
   expect_identical(detached$checkpoint$digest$value, stored)
   expect_identical(completed$checkpoint$digest$value, stored)
+  expect_identical(
+    completed$checkpoint$kind,
+    checkpoint_manifest(checkpoint)$kind
+  )
+  expect_identical(
+    completed$checkpoint$revision,
+    checkpoint_manifest(checkpoint)$source_revision
+  )
 })
 
 test_that("detached Vortex finalization preserves file and config identity", {
