@@ -24,6 +24,7 @@ fake_pooled_embedding_writer <- c(
 )
 
 expect_pooled_embedding_output <- function(prefix, shape, ids, source_dtype) {
+  expect_false(file.exists(prefix))
   expect_true(all(file.exists(paste0(prefix, c(".f32.gz", ".json")))))
   metadata <- jsonlite::read_json(
     paste0(prefix, ".json"),
@@ -34,7 +35,6 @@ expect_pooled_embedding_output <- function(prefix, shape, ids, source_dtype) {
     version = 1L,
     shape = shape,
     ids = ids,
-    source_dtype = source_dtype,
     storage_dtype = "float32",
     byte_order = "little",
     order = "row-major",
@@ -42,6 +42,7 @@ expect_pooled_embedding_output <- function(prefix, shape, ids, source_dtype) {
     compression_level = 1L
   )
   expect_identical(metadata[names(expected)], expected)
+  expect_true(metadata$source_dtype %in% source_dtype)
   expect_equal(metadata$uncompressed_bytes, prod(shape) * 4)
   expect_identical(
     metadata$data_md5,
