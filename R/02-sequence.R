@@ -336,3 +336,19 @@ read_jsonl_rows <- function(path) {
     simplifyMatrix = FALSE
   )
 }
+
+read_pooled_embedding_matrix <- function(path, ids, width = NULL) {
+  rows <- read_jsonl_rows(path)
+  if (!identical(pluck_chr(rows, "id"), ids))
+    stop("embedding output IDs do not match input order")
+  values <- lapply(rows, function(row) as.double(row$embedding))
+  widths <- lengths(values)
+  invalid <- length(unique(widths)) != 1L ||
+    !is.null(width) &&
+      (widths[[1L]] != width || any(!is.finite(unlist(values))))
+  if (invalid)
+    stop("embedding output has an invalid shape or non-finite values")
+  result <- do.call(rbind, values)
+  dimnames(result) <- list(ids, paste0("dim_", seq_len(ncol(result))))
+  result
+}

@@ -1206,20 +1206,10 @@ materialize_embedding_job <- function(job, operation) {
       )
     ))
   }
-  rows <- read_jsonl_rows(descriptor$portable)
-  ids <- pluck_chr(rows, "id")
-  if (!identical(ids, unlist(execution$input_ids, use.names = FALSE))) {
-    stop("embedding output IDs do not match input order")
-  }
-  values <- lapply(rows, function(row) {
-    as.double(unlist(row$embedding, use.names = FALSE))
-  })
-  if (length(unique(lengths(values))) != 1L) {
-    stop("embedding rows must have one common width")
-  }
-  matrix <- do.call(rbind, values)
-  rownames(matrix) <- ids
-  colnames(matrix) <- paste0("dim_", seq_len(ncol(matrix)))
+  matrix <- read_pooled_embedding_matrix(
+    descriptor$portable,
+    unlist(execution$input_ids, use.names = FALSE)
+  )
   class(matrix) <- c("evo2_embeddings", "matrix", "array")
   attr(matrix, "provenance") <- list(
     run_path = job@path,

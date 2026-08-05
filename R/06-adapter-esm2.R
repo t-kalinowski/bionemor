@@ -241,26 +241,11 @@ esm2_materialize_embedding <- function(job, operation) {
   if (!file.exists(descriptor$portable)) {
     stop("ESM-2 helper did not write its portable output")
   }
-  rows <- read_jsonl_rows(descriptor$portable)
-  if (!length(rows)) {
-    stop("ESM-2 helper wrote no embedding rows")
-  }
-  ids <- pluck_chr(rows, "id")
-  if (!identical(ids, unlist(execution$input_ids, use.names = FALSE))) {
-    stop("ESM-2 embedding IDs do not match input order")
-  }
-  values <- lapply(rows, function(row) {
-    as.double(unlist(row$embedding, use.names = FALSE))
-  })
-  if (
-    any(lengths(values) != execution$embedding_size) ||
-      any(!is.finite(unlist(values, use.names = FALSE)))
-  ) {
-    stop("ESM-2 embeddings have an invalid shape or non-finite values")
-  }
-  result <- do.call(rbind, values)
-  rownames(result) <- ids
-  colnames(result) <- paste0("dim_", seq_len(ncol(result)))
+  result <- read_pooled_embedding_matrix(
+    descriptor$portable,
+    unlist(execution$input_ids, use.names = FALSE),
+    width = execution$embedding_size
+  )
   class(result) <- c("esm2_embeddings", "matrix", "array")
   attr(result, "provenance") <- list(
     run_path = job@path,
