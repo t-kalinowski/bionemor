@@ -32,6 +32,7 @@ test_that("ESM-2 recipes and model descriptors are available offline", {
   expect_s3_class(recipe, "bionemor::BioNeMoRecipe")
   expect_equal(recipe@adapter, "esm2-transformers")
   expect_equal(recipe@recipe_version, "transformers-5.14.1")
+  expect_identical(recipe@bridge_protocol, 2L)
   expect_equal(
     recipe@revision,
     "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"
@@ -176,18 +177,32 @@ test_that("ESM-2 embeddings use durable jobs", {
   )
   model <- esm2_model("8m", compute)
   proteins <- c(reference = "m k t", variant = "Mnt")
+  output <- file.path(workspace, "portable", "esm2-pooled")
+  collision <- file.path(workspace, "portable", "collision")
+  dir.create(dirname(collision), recursive = TRUE)
+  writeLines("{}", paste0(collision, ".json"))
+  expect_error(
+    esm2_embed(model, proteins, output = collision),
+    "output path already exists"
+  )
   protein_file <- file.path(workspace, "proteins.faa")
   writeLines(
     c(">reference", proteins[[1L]], ">variant", proteins[[2L]]),
     protein_file
   )
 
-  embeddings <- esm2_embed(model, protein_file)
+  embeddings <- esm2_embed(model, protein_file, output = output)
   expect_s3_class(embeddings, "esm2_embeddings")
   expect_true(is.matrix(embeddings))
   expect_equal(dim(embeddings), c(2L, 320L))
   expect_equal(rownames(embeddings), names(proteins))
   expect_equal(embeddings[, 1L], c(reference = 1, variant = 2))
+  expect_pooled_embedding_output(
+    output,
+    c(2L, 320L),
+    names(proteins),
+    "float32"
+  )
 
   provenance <- attr(embeddings, "provenance", exact = TRUE)
   expect_identical(class(provenance), "list")
@@ -211,6 +226,10 @@ test_that("ESM-2 embeddings use durable jobs", {
   )
   expect_identical(provenance$pooling, "last-token-l2")
   expect_identical(provenance$recipe_revision, esm2_recipe()@revision)
+
+  rematerialized <- job_result(bionemo_job(provenance$run_path))
+  expect_s3_class(rematerialized, "esm2_embeddings")
+  expect_identical(as.double(rematerialized), as.double(embeddings))
 
   predicted <- predict(model, proteins, type = "embedding")
   expect_true(is.matrix(predicted))
@@ -288,4 +307,32 @@ test_that("ESM-2 embeddings use durable jobs", {
   expect_identical(local_manifest$checkpoint$path, normalizePath(checkpoint))
   expect_identical(local_manifest$checkpoint$digest$algorithm, "md5")
   expect_match(local_manifest$checkpoint$digest$value, "^[0-9a-f]{32}$")
+})
+
+test_that("ESM-2 durable outputs reject corrupted float data", {
+  workspace <- tempfile("bionemor-esm2-corrupt-")
+  bin <- tempfile("bionemor-esm2-bin-")
+  dir.create(workspace)
+  fake_esm2_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
+  )
+  compute <- bionemo_compute(
+    recipe = esm2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+  model <- esm2_model("8m", compute)
+  job <- esm2_embed(model, c(protein = "MKT"), async = TRUE)
+  job_wait(job, timeout = 30)
+
+  data <- file.path(job_path(job), "outputs", "embeddings.f32.gz")
+  connection <- file(data, "ab")
+  writeBin(as.raw(0L), connection)
+  close(connection)
+
+  expect_error(
+    job_result(bionemo_job(job_path(job))),
+    "data checksum does not match"
+  )
 })

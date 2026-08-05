@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
+import gzip
 import hashlib
 import importlib.metadata
 import json
@@ -22,8 +24,8 @@ from typing import Any
 import torch
 
 
-PROTOCOL_VERSION = 1
-HELPER_VERSION = "0.1.0"
+PROTOCOL_VERSION = 2
+HELPER_VERSION = "0.2.0"
 EXECUTION_SCHEMA_VERSION = 1
 DRIVER = "evo2-megatron"
 DNA_COMPLEMENT = str.maketrans(
@@ -54,6 +56,27 @@ def atomic_write_text(path: Path, text: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def write_gzip(path: Path, chunks: Iterable[bytes]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{path.name}-", dir=path.parent, delete=False
+        ) as raw:
+            temporary = Path(raw.name)
+            with gzip.GzipFile(
+                filename="", mode="wb", compresslevel=1, fileobj=raw, mtime=0
+            ) as stream:
+                for chunk in chunks:
+                    stream.write(chunk)
+            raw.flush()
+            os.fsync(raw.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def atomic_write_json(path: Path, value: Any) -> None:
     atomic_write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
 
@@ -64,6 +87,11 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def md5_file(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "md5").hexdigest()
 
 
 def package_version(name: str) -> str | None:
@@ -157,6 +185,7 @@ def capabilities() -> dict[str, Any]:
             "score_mean": commands["predict_evo2"],
             "score_per_token": commands["predict_evo2"],
             "embedding_layer": commands["predict_evo2"],
+            "pooled_embeddings_f32_gzip": commands["predict_evo2"],
             "lora": commands["train_evo2"],
         },
         "runtime": {
@@ -512,6 +541,62 @@ def write_json_lines(path: Path, rows: list[dict[str, Any]]) -> None:
     )
 
 
+def write_pooled_embeddings(
+    prefix: Path,
+    rows: list[dict[str, Any]],
+    source_dtype: str,
+    provenance: dict[str, Any],
+) -> None:
+    ids = [row["id"] for row in rows]
+    values = [row["embedding"] for row in rows]
+    source_dtype = source_dtype.removeprefix("torch.")
+    supported = {"float16", "bfloat16", "float32"}
+    assert values
+    width = values[0].numel()
+    if (
+        source_dtype not in supported
+        or any(
+            value.ndim != 1
+            or value.numel() != width
+            or str(value.dtype).removeprefix("torch.") not in supported
+            for value in values
+        )
+    ):
+        raise RuntimeError("pooled embeddings must be a supported floating matrix")
+    for value in values:
+        ensure_finite(value, "pooled embeddings")
+    chunks = (
+        value.detach()
+        .to(device="cpu", dtype=torch.float32)
+        .contiguous()
+        .numpy()
+        .astype("<f4", copy=False)
+        .tobytes(order="C")
+        for value in values
+    )
+    data_path = Path(f"{prefix}.f32.gz")
+    metadata_path = Path(f"{prefix}.json")
+    write_gzip(data_path, chunks)
+    atomic_write_json(
+        metadata_path,
+        {
+            "format": "bionemor-pooled-embeddings",
+            "version": 1,
+            "shape": [len(values), width],
+            "ids": ids,
+            "source_dtype": source_dtype,
+            "storage_dtype": "float32",
+            "byte_order": "little",
+            "order": "row-major",
+            "compression": "gzip",
+            "compression_level": 1,
+            "uncompressed_bytes": len(values) * width * 4,
+            "data_md5": md5_file(data_path),
+            **provenance,
+        },
+    )
+
+
 def atomic_write_parquet(
     path: Path, rows: list[dict[str, Any]], schema: dict[str, Any]
 ) -> None:
@@ -731,7 +816,7 @@ def embedding_rows(
     args: argparse.Namespace,
     expected: dict[int, dict[str, Any]],
     original_order: list[str],
-) -> tuple[list[dict[str, Any]], dict[str, str], dict[str, str], int]:
+) -> tuple[list[dict[str, Any]], dict[str, str], dict[str, str]]:
     predictions, dtypes, hashes = indexed_predictions(
         args.input_dir,
         expected,
@@ -804,8 +889,8 @@ def embedding_rows(
                 raise RuntimeError(
                     f"sequence map has an incomplete strand set for {original_id}"
                 )
-            rows.append({"id": original_id, "embedding": value.tolist()})
-        return rows, dtypes, hashes, width
+            rows.append({"id": original_id, "embedding": value})
+        return rows, dtypes, hashes
 
     grouped_strands: dict[str, set[str]] = {}
     for source in expected.values():
@@ -841,7 +926,7 @@ def embedding_rows(
                 }
             )
     rows.sort(key=lambda row: (index_order[row["id"]], row["position"]))
-    return rows, dtypes, hashes, width
+    return rows, dtypes, hashes
 
 
 def materialize_predictions(args: argparse.Namespace) -> None:
@@ -874,12 +959,21 @@ def materialize_predictions(args: argparse.Namespace) -> None:
         shape = [len(rows), 5]
         primary_dtype = dtypes["log_probs_seqs"]
     else:
-        rows, dtypes, input_hashes, width = embedding_rows(
-            args, expected, original_order
-        )
+        rows, dtypes, input_hashes = embedding_rows(args, expected, original_order)
         if args.mode == "embedding-pooled":
-            write_json_lines(args.output, rows)
-            shape = [len(rows), width]
+            write_pooled_embeddings(
+                args.output,
+                rows,
+                dtypes["hidden_embeddings"],
+                {
+                    "prediction_sha256": input_hashes,
+                    "sequence_index_sha256": sha256_file(
+                        args.input_dir / "seq_idx_map.json"
+                    ),
+                    "sequence_map_sha256": sha256_file(args.sequence_map),
+                },
+            )
+            return
         else:
             try:
                 import polars as pl
@@ -900,7 +994,7 @@ def materialize_predictions(args: argparse.Namespace) -> None:
             shape = [len(rows), 4]
         primary_dtype = dtypes["hidden_embeddings"]
 
-    summary_path = args.summary or Path(f"{args.output}.summary.json")
+    summary_path = Path(f"{args.output}.summary.json")
     summary = {
         "rows": len(rows),
         "mode": args.mode,
@@ -1155,7 +1249,6 @@ def parser() -> argparse.ArgumentParser:
     predictions.add_argument("--input", dest="input_dir", type=Path, required=True)
     predictions.add_argument("--sequence-map", type=Path, required=True)
     predictions.add_argument("--output", type=Path, required=True)
-    predictions.add_argument("--summary", type=Path)
     predictions.add_argument("--reduction", choices=("mean", "sum"))
     predictions.add_argument("--pool", choices=("mean", "max", "first", "last"))
 

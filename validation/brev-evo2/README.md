@@ -1,24 +1,32 @@
-# Brev Evo 2 validation
+# Brev GPU validation
 
 This directory contains maintainer workflows that require billable GPU compute.
 
 ## Package tests on an existing GPU instance
 
-The regular test suite uses a small local runtime substitute. To exercise the
-installed Evo 2 helper and its score, profile, pooled embedding, and unpooled
-embedding paths, run the package tests with an existing image and checkpoint:
+The regular test suite uses a small local runtime substitute. The global GPU
+gate exercises the installed Evo 2 and ESM-2 helpers, including their real
+pooled embedding writers. Run the package tests with current images and an
+Evo 2 checkpoint:
 
 ```bash
 BIONEMOR_TEST_GPU=true \
-BIONEMOR_EVO2_IMAGE=sha256:<image-id> \
+BIONEMOR_EVO2_IMAGE=sha256:<evo2-image-id> \
 BIONEMOR_EVO2_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
 BIONEMOR_EVO2_CHECKPOINT=/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
+BIONEMOR_ESM2_IMAGE=sha256:<esm2-image-id> \
+BIONEMOR_ESM2_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
 R -q -e 'devtools::test()'
 ```
 
 Set `BIONEMOR_EVO2_MODEL` when the checkpoint is not the default `"7b"` model.
-The test does not provision or start an instance. Without
-`BIONEMOR_TEST_GPU=true`, it skips the real runtime and runs the local suite.
+The ESM-2 test uses the pinned public `"8m"` model, so network access or a warm
+model cache is required. Both images must use bridge protocol 2 from the
+current package sources. Build or rebuild the package-managed Evo 2 and ESM-2
+computes first, then supply their immutable image IDs above. The explicit
+images used by these tests are verification-only and cannot be rebuilt. The
+tests do not provision or start an instance. Without `BIONEMOR_TEST_GPU=true`,
+they skip the real runtimes and run the local suite.
 
 ## Acceptance capture
 
@@ -61,9 +69,9 @@ then replaces `README.md` and two static package vignettes. The generated
 vignettes contain ordinary fenced R code and output, not executable knitr
 chunks, so package installation and vignette rendering do not require a GPU.
 
-If an existing image fails its helper-label check after the package helper
-changes, rebuild it once with `bionemo_install(compute, rebuild = TRUE)` before
-rendering again.
+If an existing package-managed image fails its helper-label check after the
+package helper changes, rebuild it once with
+`bionemo_install(compute, rebuild = TRUE)` before rendering again.
 
 The README and `bionemor` article run Evo 2 generation, scoring, and embeddings,
 then run ESM-2 protein embeddings through its separate pinned runtime. The

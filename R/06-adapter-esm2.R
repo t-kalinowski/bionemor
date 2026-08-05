@@ -79,8 +79,9 @@ esm2_embedding_plan <- function(
 #'   their names as matrix row names.
 #' @param compute A BioNeMo compute descriptor using [esm2_recipe()]. `NULL`
 #'   uses the compute target attached by [esm2_model()].
-#' @param output Optional path for the portable JSONL result. Container outputs
-#'   must be inside the compute workspace.
+#' @param output Optional prefix for the compressed float32 data (`.f32.gz`)
+#'   and JSON metadata (`.json`). Container outputs must be inside the compute
+#'   workspace.
 #' @param name Optional run name.
 #' @param async Whether to return a `BioNeMoJob` before completion.
 #'
@@ -88,6 +89,10 @@ esm2_embedding_plan <- function(
 #'   when `async = TRUE`. The matrix keeps ordinary matrix behavior. Its
 #'   `provenance` attribute records the model, source and recipe revisions,
 #'   pooling method, and path where the job was saved.
+#'
+#' @details Portable embedding files store little-endian, row-major float32
+#'   values. R reads these values into its native double-precision numeric
+#'   matrix.
 #' @examples
 #' \dontrun{
 #' compute <- bionemo_compute(
@@ -119,7 +124,11 @@ esm2_embed <- function(
       "esm2-transformers"
     )
   )
-  output <- validate_output_path(output, compute)
+  output <- validate_output_path(
+    output,
+    compute,
+    c(".f32.gz", ".json")
+  )
   record <- esm2_model_record(object@size)
   gpu_count <- esm2_gpu_count(compute)
   if (!gpu_count$ok) {
@@ -180,7 +189,7 @@ esm2_embed <- function(
       context_length = object@context_length
     )
   }
-  portable <- file.path(run_path, "outputs", "embeddings.jsonl")
+  portable <- file.path(run_path, "outputs", "embeddings")
   plan <- esm2_embedding_plan(
     input = input$path,
     portable = portable,
@@ -238,9 +247,6 @@ esm2_embed <- function(
 esm2_materialize_embedding <- function(job, operation) {
   descriptor <- operation$result
   execution <- operation$execution
-  if (!file.exists(descriptor$portable)) {
-    stop("ESM-2 helper did not write its portable output")
-  }
   result <- read_pooled_embedding_matrix(
     descriptor$portable,
     unlist(execution$input_ids, use.names = FALSE),
@@ -256,7 +262,11 @@ esm2_materialize_embedding <- function(job, operation) {
     recipe_revision = job@compute@recipe@revision
   )
   if (!is.null(operation$request$output)) {
-    copy_output_file(descriptor$portable, operation$request$output)
+    copy_output_files(
+      descriptor$portable,
+      operation$request$output,
+      c(".f32.gz", ".json")
+    )
   }
   result
 }

@@ -81,16 +81,24 @@ test_that("the installed Evo 2 runtime exercises every prediction result", {
   expect_true(file.exists(profile@path))
   expect_gt(file.info(profile@path)$size, 0)
 
+  pooled_output <- file.path(output, "embedding-pooled")
   pooled <- evo2_embed(
     model,
     sequence,
     compute,
     pool = "mean",
+    output = pooled_output,
     name = paste0(run_id, "-embedding-pooled")
   )
   expect_s3_class(pooled, "evo2_embeddings")
   expect_equal(rownames(pooled), names(sequence))
   expect_true(all(is.finite(pooled)))
+  expect_pooled_embedding_output(
+    pooled_output,
+    unname(dim(pooled)),
+    rownames(pooled),
+    c("float16", "bfloat16", "float32")
+  )
 
   unpooled <- evo2_embed(
     model,

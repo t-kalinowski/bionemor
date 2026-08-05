@@ -69,7 +69,7 @@ test_that("terminal jobs persist complete redacted run provenance", {
     manifest$dockerfile$git_blob,
     "93ee109724fb44effb35262c0cd2279707c7c3a6"
   )
-  expect_equal(manifest$helper$version, "0.1.0")
+  expect_equal(manifest$helper$version, "0.2.0")
   expect_match(manifest$helper$sha256, "^[0-9a-f]{64}$")
   expect_equal(manifest$model$name, "7b")
   expect_equal(manifest$model$model_size, "evo2_7b")

@@ -604,13 +604,15 @@ test_that("pooled embeddings return an ordered numeric matrix", {
     workspace = workspace
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
+  output <- file.path(workspace, "portable", "evo2-pooled")
 
   embeddings <- evo2_embed(
     model,
     c(first = "ACGT", second = "TGCA"),
     compute,
     layer = "last",
-    pool = "mean"
+    pool = "mean",
+    output = output
   )
 
   expect_s3_class(embeddings, "evo2_embeddings")
@@ -619,4 +621,23 @@ test_that("pooled embeddings return an ordered numeric matrix", {
   expect_equal(rownames(embeddings), c("first", "second"))
   expect_equal(colnames(embeddings), c("dim_1", "dim_2", "dim_3"))
   expect_true(all(is.finite(embeddings)))
+  expect_equal(
+    unclass(embeddings),
+    matrix(
+      c(1, 2, 3, 2, 3, 4),
+      nrow = 2L,
+      byrow = TRUE,
+      dimnames = list(
+        c("first", "second"),
+        c("dim_1", "dim_2", "dim_3")
+      )
+    ),
+    ignore_attr = "provenance"
+  )
+  expect_pooled_embedding_output(
+    output,
+    c(2L, 3L),
+    c("first", "second"),
+    "bfloat16"
+  )
 })

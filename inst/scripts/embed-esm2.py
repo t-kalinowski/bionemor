@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
+import gzip
 import hashlib
 import importlib
 import importlib.metadata
 import json
-import math
 import os
 import subprocess
 import sys
@@ -18,8 +19,8 @@ from pathlib import Path
 from typing import Any
 
 
-PROTOCOL_VERSION = 1
-HELPER_VERSION = "0.2.0"
+PROTOCOL_VERSION = 2
+HELPER_VERSION = "0.3.0"
 EXECUTION_SCHEMA_VERSION = 1
 DRIVER = "esm2-transformers"
 TRANSFORMERS_VERSION = "5.14.1"
@@ -41,12 +42,38 @@ def atomic_write_text(path: Path, text: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def write_gzip(path: Path, chunks: Iterable[bytes]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{path.name}-", dir=path.parent, delete=False
+        ) as raw:
+            temporary = Path(raw.name)
+            with gzip.GzipFile(
+                filename="", mode="wb", compresslevel=1, fileobj=raw, mtime=0
+            ) as stream:
+                for chunk in chunks:
+                    stream.write(chunk)
+            raw.flush()
+            os.fsync(raw.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def md5_file(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "md5").hexdigest()
 
 
 def package_version(name: str) -> str | None:
@@ -146,7 +173,7 @@ def description() -> dict[str, Any]:
         "execution_schema_version": EXECUTION_SCHEMA_VERSION,
         "semantic_operations": ["embed"],
         "commands": {"embed": available},
-        "features": {"pooled_embeddings_jsonl": available},
+        "features": {"pooled_embeddings_f32_gzip": available},
         "runtime": runtime,
     }
 
@@ -189,15 +216,46 @@ def read_requests(path: Path) -> tuple[list[str], list[str]]:
     return ids, sequences
 
 
-def embedding_values(embedding: Any) -> list[float]:
-    if hasattr(embedding, "detach"):
-        embedding = embedding.detach().cpu()
-    if hasattr(embedding, "tolist"):
-        embedding = embedding.tolist()
-    values = [float(value) for value in embedding]
-    if not values or any(not math.isfinite(value) for value in values):
-        raise RuntimeError("ESM-2 returned an empty or non-finite embedding")
-    return values
+def atomic_write_pooled_embeddings(
+    prefix: Path, ids: list[str], rows: list[Any]
+) -> None:
+    assert rows and len(ids) == len(rows)
+    width = rows[0].numel()
+    assert all(
+        value.ndim == 1
+        and value.numel() == width
+        and str(value.dtype) == "torch.float32"
+        for value in rows
+    )
+    chunks = (
+        value.contiguous().numpy().astype("<f4", copy=False).tobytes(order="C")
+        for value in rows
+    )
+    data_path = Path(f"{prefix}.f32.gz")
+    metadata_path = Path(f"{prefix}.json")
+    write_gzip(data_path, chunks)
+    atomic_write_text(
+        metadata_path,
+        json.dumps(
+            {
+                "format": "bionemor-pooled-embeddings",
+                "version": 1,
+                "shape": [len(rows), width],
+                "ids": ids,
+                "source_dtype": "float32",
+                "storage_dtype": "float32",
+                "byte_order": "little",
+                "order": "row-major",
+                "compression": "gzip",
+                "compression_level": 1,
+                "uncompressed_bytes": len(rows) * width * 4,
+                "data_md5": md5_file(data_path),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+    )
 
 
 def embed(args: argparse.Namespace) -> None:
@@ -228,13 +286,13 @@ def embed(args: argparse.Namespace) -> None:
             norm = torch.linalg.vector_norm(hidden)
             if not bool(torch.isfinite(hidden).all()) or norm.item() <= 1e-9:
                 raise RuntimeError("ESM-2 returned an invalid embedding")
-            values = embedding_values(hidden / norm)
+            values = (hidden / norm).detach().cpu()
             if width is None:
-                width = len(values)
-            elif len(values) != width:
+                width = values.numel()
+            elif values.numel() != width:
                 raise RuntimeError("ESM-2 returned embeddings with different widths")
-            rows.append(json.dumps({"id": identifier, "embedding": values}))
-    atomic_write_text(args.output, "\n".join(rows) + "\n")
+            rows.append(values)
+    atomic_write_pooled_embeddings(args.output, ids, rows)
 
 
 def parser() -> argparse.ArgumentParser:

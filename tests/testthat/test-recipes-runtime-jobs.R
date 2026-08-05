@@ -106,7 +106,7 @@ test_that("capabilities and doctor describe the external recipe runtime", {
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
   capabilities <- bionemo_capabilities(compute, refresh = TRUE)
-  expect_equal(capabilities$protocol_version, 1L)
+  expect_equal(capabilities$protocol_version, 2L)
   expect_equal(capabilities$recipe_version, "2.4")
   expect_equal(capabilities$recipe_revision, evo2_recipe()@revision)
   expect_true(capabilities$commands$infer_evo2)

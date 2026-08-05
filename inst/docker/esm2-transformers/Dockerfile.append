@@ -19,4 +19,4 @@ LABEL org.opencontainers.image.source="https://github.com/NVIDIA-BioNeMo/bionemo
       io.bionemor.base.image="${BIONEMOR_BASE_IMAGE}" \
       io.bionemor.base.digest="${BIONEMOR_BASE_IMAGE_DIGEST}" \
       io.bionemor.transformers.version="5.14.1" \
-      io.bionemor.bridge.protocol="1"
+      io.bionemor.bridge.protocol="2"

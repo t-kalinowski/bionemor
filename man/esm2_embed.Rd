@@ -23,8 +23,9 @@ their names as matrix row names.}
 \item{compute}{A BioNeMo compute descriptor using \code{\link[=esm2_recipe]{esm2_recipe()}}. \code{NULL}
 uses the compute target attached by \code{\link[=esm2_model]{esm2_model()}}.}
 
-\item{output}{Optional path for the portable JSONL result. Container outputs
-must be inside the compute workspace.}
+\item{output}{Optional prefix for the compressed float32 data (\code{.f32.gz})
+and JSON metadata (\code{.json}). Container outputs must be inside the compute
+workspace.}
 
 \item{name}{Optional run name.}
 
@@ -49,6 +50,10 @@ in downstream R models. They are model representations, not measurements of
 protein function. ESM-2 currently requires \code{gpus = 1}. You may supply
 multiple proteins; the runtime processes them one at a time on the selected
 GPU to preserve their bidirectional attention boundaries.
+
+Portable embedding files store little-endian, row-major float32
+values. R reads these values into its native double-precision numeric
+matrix.
 }
 \examples{
 \dontrun{

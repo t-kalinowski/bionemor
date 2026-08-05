@@ -337,18 +337,83 @@ read_jsonl_rows <- function(path) {
   )
 }
 
-read_pooled_embedding_matrix <- function(path, ids, width = NULL) {
-  rows <- read_jsonl_rows(path)
-  if (!identical(pluck_chr(rows, "id"), ids))
-    stop("embedding output IDs do not match input order")
-  values <- lapply(rows, function(row) as.double(row$embedding))
-  widths <- lengths(values)
-  invalid <- length(unique(widths)) != 1L ||
-    !is.null(width) &&
-      (widths[[1L]] != width || any(!is.finite(unlist(values))))
-  if (invalid)
-    stop("embedding output has an invalid shape or non-finite values")
-  result <- do.call(rbind, values)
-  dimnames(result) <- list(ids, paste0("dim_", seq_len(ncol(result))))
+pooled_embedding_paths <- function(prefix) {
+  stopifnot("prefix must be one non-empty string" = is_scalar_string(prefix))
+  c(
+    data = paste0(prefix, ".f32.gz"),
+    metadata = paste0(prefix, ".json")
+  )
+}
+
+read_pooled_embedding_matrix <- function(prefix, ids, width = NULL) {
+  stopifnot(
+    "prefix must be one non-empty string" = is_scalar_string(prefix),
+    "ids must be non-empty character values" = is.character(ids) &&
+      length(ids) > 0L &&
+      !anyNA(ids) &&
+      all(nzchar(ids)),
+    "width must be NULL or a positive integer" = is.null(width) ||
+      is_scalar_integerish(width, min = 1L)
+  )
+  paths <- pooled_embedding_paths(prefix)
+  if (!all(file.exists(paths))) {
+    stop("pooled embedding output is incomplete")
+  }
+  metadata <- read_json_file(paths[["metadata"]])
+  shape <- unlist(metadata$shape, use.names = FALSE)
+  contract <- list(
+    format = "bionemor-pooled-embeddings",
+    version = 1L,
+    storage_dtype = "float32",
+    byte_order = "little",
+    order = "row-major",
+    compression = "gzip",
+    compression_level = 1L
+  )
+  valid <- identical(metadata[names(contract)], contract) &&
+    is.numeric(shape) &&
+    length(shape) == 2L &&
+    all(vapply(shape, is_scalar_integerish, logical(1), min = 1L)) &&
+    is.character(metadata$ids) &&
+    is_scalar_string(metadata$source_dtype) &&
+    metadata$source_dtype %in% c("float16", "bfloat16", "float32") &&
+    is_scalar_number(metadata$uncompressed_bytes) &&
+    is_scalar_string(metadata$data_md5) &&
+    grepl("^[0-9a-f]{32}$", metadata$data_md5)
+  if (!valid) {
+    stop("pooled embedding metadata is invalid")
+  }
+  shape <- as.integer(shape)
+  expected <- prod(as.double(shape))
+  if (
+    !identical(metadata$ids, ids) ||
+      shape[[1L]] != length(ids) ||
+      !is.null(width) && shape[[2L]] != width ||
+      metadata$uncompressed_bytes != expected * 4
+  ) {
+    stop("pooled embedding metadata does not match the requested matrix")
+  }
+  if (!identical(unname(tools::md5sum(paths[["data"]])), metadata$data_md5)) {
+    stop("pooled embedding data checksum does not match its metadata")
+  }
+
+  connection <- gzfile(paths[["data"]], "rb")
+  on.exit(close(connection))
+  values <- readBin(
+    connection,
+    what = "numeric",
+    n = expected,
+    size = 4L,
+    endian = "little"
+  )
+  trailing <- readBin(connection, what = "raw", n = 1L)
+  if (length(values) != expected || length(trailing) != 0L) {
+    stop("pooled embedding data has an invalid byte length")
+  }
+  if (any(!is.finite(values))) {
+    stop("pooled embedding data contains non-finite values")
+  }
+  result <- matrix(values, nrow = shape[[1L]], byrow = TRUE)
+  dimnames(result) <- list(ids, paste0("dim_", seq_len(shape[[2L]])))
   result
 }
