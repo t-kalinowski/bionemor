@@ -134,7 +134,7 @@ test_that("operation timeout is enforced without an active R waiter", {
     validation = c(validation = "AAAA"),
     test = c(test = "CCCC")
   )
-  prepared <- evo2_prepare(
+  prepared <- evo2_preprocess(
     data,
     model,
     compute,
@@ -213,7 +213,7 @@ test_that("operation timeout escalates when the recipe ignores TERM", {
     validation = c(validation = "AAAA"),
     test = c(test = "CCCC")
   )
-  prepared <- evo2_prepare(
+  prepared <- evo2_preprocess(
     data,
     model,
     compute,

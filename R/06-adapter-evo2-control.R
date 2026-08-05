@@ -159,7 +159,7 @@ evo2_inference_control <- function(
 #' Construct typed Evo 2 preprocessing controls
 #'
 #' These controls are written to the pinned `preprocess_evo2` configuration by
-#' [evo2_prepare()]. The defaults retain input case, append the tokenizer's
+#' [evo2_preprocess()]. The defaults retain input case, append the tokenizer's
 #' end-of-document token, and keep each input sequence once.
 #'
 #' @param uppercase Whether to convert sequences to uppercase during

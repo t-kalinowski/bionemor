@@ -15,7 +15,7 @@ test_that("recommended tokenizers resolve in the selected runtime", {
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
-  prepared <- evo2_prepare(
+  prepared <- evo2_preprocess(
     evo2_dataset(c(first = "ACGT", second = "TGCA")),
     model,
     compute,
@@ -120,7 +120,7 @@ test_that("MBridge registration requires distributed checkpoint weights", {
   )
 })
 
-test_that("named fine-tuning automatically prepares raw data in a distinct run", {
+test_that("named fine-tuning preprocesses raw data in a distinct run", {
   workspace <- tempfile("bionemor-named-fit-")
   bin <- tempfile("bionemor-bin-")
   log <- tempfile("bionemor-log-")

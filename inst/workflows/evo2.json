@@ -18,8 +18,8 @@
       "result_schema": "checkpoint/vortex-v1"
     },
     {
-      "id": "evo2/prepare",
-      "task": "prepare",
+      "id": "evo2/preprocess",
+      "task": "preprocess",
       "input_schema": "sequence/dna-v1",
       "result_schema": "dataset/evo2-indexed-v1"
     },

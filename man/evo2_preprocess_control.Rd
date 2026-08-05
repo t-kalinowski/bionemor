@@ -72,7 +72,7 @@ An S7 \code{Evo2PreprocessControl}.
 }
 \description{
 These controls are written to the pinned \code{preprocess_evo2} configuration by
-\code{\link[=evo2_prepare]{evo2_prepare()}}. The defaults retain input case, append the tokenizer's
+\code{\link[=evo2_preprocess]{evo2_preprocess()}}. The defaults retain input case, append the tokenizer's
 end-of-document token, and keep each input sequence once.
 }
 \examples{

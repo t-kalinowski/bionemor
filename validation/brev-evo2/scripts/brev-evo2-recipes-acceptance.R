@@ -197,7 +197,7 @@ capture_evidence <- function(context) {
     dense_score = "manifests/dense-score.json",
     dense_generation = "manifests/dense-generation.json",
     dense_embedding = "manifests/dense-embedding.json",
-    prepare = "manifests/prepare.json",
+    preprocess = "manifests/preprocess.json",
     fine_tune = "manifests/fine-tune.json",
     fitted_score = "manifests/fitted-score.json",
     fitted_generation = "manifests/fitted-generation.json"
@@ -502,7 +502,7 @@ data <- evo2_dataset(
   validation = validation,
   test = test
 )
-prepare_step <- timed_job(evo2_prepare(
+preprocess_step <- timed_job(evo2_preprocess(
   data,
   model,
   compute,
@@ -518,7 +518,7 @@ prepare_step <- timed_job(evo2_prepare(
 fine_tune_step <- timed_job(
   evo2_finetune(
     model,
-    prepare_step$value,
+    preprocess_step$value,
     compute,
     steps = 2L,
     method = evo2_lora(
@@ -687,7 +687,7 @@ run_steps <- list(
   dense_score = dense_score_step,
   dense_generation = dense_generation_step,
   dense_embedding = dense_embedding_step,
-  prepare = prepare_step,
+  preprocess = preprocess_step,
   fine_tune = fine_tune_step,
   fitted_score = fitted_score_step,
   fitted_generation = fitted_generation_step

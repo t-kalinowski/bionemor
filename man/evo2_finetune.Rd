@@ -36,7 +36,7 @@ attached by \code{\link[=evo2_model]{evo2_model()}} or a previous fine-tuning ru
 workspace, and \code{NULL} uses \verb{artifacts/<name>}. Container execution requires
 the result to remain inside the workspace.}
 
-\item{name}{Optional durable run name. When \code{data} must be prepared
+\item{name}{Optional durable run name. When \code{data} must be preprocessed
 automatically, its preprocessing run uses \verb{<name>-data}.}
 
 \item{async}{Whether to return a durable job immediately.}
@@ -51,8 +51,8 @@ the fitted model.
 }
 \description{
 \code{evo2_finetune()} runs \code{train_evo2} from an MBridge checkpoint. Raw
-sequence inputs and unprepared \code{\link[=evo2_dataset]{evo2_dataset()}} objects are prepared
-automatically using default preprocessing controls. Call \code{\link[=evo2_prepare]{evo2_prepare()}}
+sequence inputs and unprepared \code{\link[=evo2_dataset]{evo2_dataset()}} objects are preprocessed
+automatically using default preprocessing controls. Call \code{\link[=evo2_preprocess]{evo2_preprocess()}}
 first when preprocessing must be customized or reused.
 }
 \details{

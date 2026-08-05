@@ -109,7 +109,7 @@ workflows[c("id", "family", "task")]
 
 | Model family | Input | Supported workflows | Main functions |
 |---|---|---|---|
-| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
+| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_preprocess()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
 The family-specific functions are the ordinary R interface. For automation,

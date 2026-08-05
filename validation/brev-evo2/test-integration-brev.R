@@ -131,7 +131,7 @@ test_that("Brev acceptance uses the locked image build and requires inference", 
   expect_match(acceptance, "evo2_score(", fixed = TRUE)
   expect_match(acceptance, "evo2_generate(", fixed = TRUE)
   expect_match(acceptance, "evo2_embed(", fixed = TRUE)
-  expect_match(acceptance, "evo2_prepare(", fixed = TRUE)
+  expect_match(acceptance, "evo2_preprocess(", fixed = TRUE)
   expect_match(acceptance, "evo2_finetune(", fixed = TRUE)
   expect_match(acceptance, "job_wait(", fixed = TRUE)
   expect_match(acceptance, "job_path(", fixed = TRUE)
@@ -267,7 +267,7 @@ test_that("the Brev runner copies evidence before stopping the instance", {
       "touch \"$destination/manifests/dense-score.json\"",
       "touch \"$destination/manifests/dense-generation.json\"",
       "touch \"$destination/manifests/dense-embedding.json\"",
-      "touch \"$destination/manifests/prepare.json\"",
+      "touch \"$destination/manifests/preprocess.json\"",
       "touch \"$destination/manifests/fine-tune.json\"",
       "touch \"$destination/manifests/fitted-score.json\"",
       "touch \"$destination/manifests/fitted-generation.json\"",

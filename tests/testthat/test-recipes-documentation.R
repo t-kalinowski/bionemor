@@ -193,7 +193,7 @@ test_that("public documentation states the current runtime and API contracts", {
     file.path("man", "evo2_finetune.Rd"),
     "evo2_finetune"
   )
-  expect_match(finetune, "prepared\\s+automatically")
+  expect_match(finetune, "preprocessed\\s+automatically")
   expect_match(finetune, "base checkpoint", fixed = TRUE)
   expect_match(finetune, "run <- evo2_finetune(", fixed = TRUE)
 
@@ -234,25 +234,25 @@ test_that("public documentation states the current runtime and API contracts", {
   models <- read_text(file.path("man", "evo2_models.Rd"), "evo2_models")
   expect_match(models, "does\\s+not\\s+measure\\s+available\\s+GPU\\s+memory")
 
-  preparation <- read_text(
-    file.path("man", "evo2_prepare.Rd"),
-    "evo2_prepare"
+  preprocessing <- read_text(
+    file.path("man", "evo2_preprocess.Rd"),
+    "evo2_preprocess"
   )
-  expect_match(preparation, "training-data preprocessing", fixed = TRUE)
-  expect_match(preparation, "does\\s+not\\s+prepare\\s+model\\s+weights")
-  expect_match(preparation, "performs\\s+this\\s+step\\s+automatically")
+  expect_match(preprocessing, "training-data preprocessing", fixed = TRUE)
+  expect_match(preprocessing, "does\\s+not\\s+prepare\\s+model\\s+weights")
+  expect_match(preprocessing, "performs\\s+this\\s+step\\s+automatically")
   expect_match(
-    preparation,
+    preprocessing,
     "checks\\s+that\\s+the\\s+prepared\\s+path\\s+and\\s+manifest\\s+exist"
   )
   expect_match(
-    preparation,
+    preprocessing,
     paste0(
       "verifies\\s+the\\s+recorded\\s+model\\s+size,\\s+tokenizer,\\s+",
       "tokenizer\\s+revision,\\s+and\\s+recipe\\s+revision"
     )
   )
-  expect_no_match(preparation, "checks those fields", fixed = TRUE)
+  expect_no_match(preprocessing, "checks those fields", fixed = TRUE)
 
   generics <- read_text(file.path("man", "reexports.Rd"), "reexports")
   expect_match(generics, "Evo 2 or ESM-2", fixed = TRUE)

@@ -863,7 +863,7 @@ bionemor_adapter_evo2_megatron_manifest_context <- function(
     descriptor$path
   } else if (identical(descriptor$type, "fine-tune")) {
     descriptor$checkpoint_root
-  } else if (identical(descriptor$type, "prepare")) {
+  } else if (identical(descriptor$type, "preprocess")) {
     NULL
   } else {
     descriptor$checkpoint
@@ -1009,7 +1009,7 @@ bionemor_adapter_evo2_megatron_materialize <- function(
     embed = materialize_embedding_job,
     checkpoint = materialize_checkpoint_job,
     export = materialize_checkpoint_job,
-    prepare = materialize_prepare_job,
+    preprocess = materialize_preprocess_job,
     `fine-tune` = materialize_finetune_job,
     NULL
   )
@@ -1054,7 +1054,7 @@ bionemor_adapter_evo2_megatron_run <- function(
     )
   )
   if (
-    workflow@task %in% c("checkpoint", "export", "prepare") && !is.null(name)
+    workflow@task %in% c("checkpoint", "export", "preprocess") && !is.null(name)
   ) {
     stop(paste0("name is not supported for workflow ", workflow@id))
   }
@@ -1063,7 +1063,7 @@ bionemor_adapter_evo2_megatron_run <- function(
     score = list(evo2_score, "object", "newdata", TRUE),
     profile = list(evo2_profile, "object", "newdata", TRUE),
     embed = list(evo2_embed, "object", "newdata", TRUE),
-    prepare = list(evo2_prepare, "model", "data", FALSE),
+    preprocess = list(evo2_preprocess, "model", "data", FALSE),
     `fine-tune` = list(evo2_finetune, "object", "data", TRUE),
     checkpoint = list(evo2_checkpoint, "model", "source", FALSE),
     export = list(evo2_export, "model", "path", FALSE)

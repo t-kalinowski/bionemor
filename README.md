@@ -49,7 +49,7 @@ workflows[c("id", "family", "task")]
 #> 1      esm2/embed   esm2      embed
 #> 2 evo2/checkpoint   evo2 checkpoint
 #> 3     evo2/export   evo2     export
-#> 4    evo2/prepare   evo2    prepare
+#> 4 evo2/preprocess   evo2 preprocess
 #> 5  evo2/fine-tune   evo2  fine-tune
 #> 6   evo2/generate   evo2   generate
 #> 7      evo2/score   evo2      score
@@ -61,7 +61,7 @@ The package currently provides these family-specific R interfaces:
 
 | Model family | Input | Supported workflows | Main functions |
 |---|---|---|---|
-| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_prepare()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
+| Evo 2 | DNA sequences | Checkpoint preparation and export, generation, scoring, positional profiles, embeddings, training-data preprocessing, and fine-tuning | `evo2_models()`, `evo2_model()`, `evo2_checkpoint()`, `evo2_export()`, `evo2_preprocess()`, `evo2_generate()`, `evo2_score()`, `evo2_profile()`, `evo2_embed()`, `evo2_finetune()` |
 | ESM-2 | Protein sequences | Pooled protein embeddings | `esm2_models()`, `esm2_model()`, `esm2_embed()` |
 
 The examples below begin with Evo 2 DNA workflows, then show ESM-2 protein

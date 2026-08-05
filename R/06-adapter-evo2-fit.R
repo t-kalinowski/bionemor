@@ -185,7 +185,7 @@ write_dataset_fasta <- function(x, path) {
     return(path)
   }
   if (!is.character(x) || is.null(names(x))) {
-    stop("prepared in-memory datasets must be named character vectors")
+    stop("in-memory dataset partitions must be named character vectors")
   }
   lines <- unlist(
     Map(
@@ -216,7 +216,7 @@ normalize_taxonomy_data <- function(taxonomy) {
       bionemor_abort(
         "BN_PROTOCOL",
         "taxonomy path must contain JSON or YAML",
-        operation = "prepare"
+        operation = "preprocess"
       )
     )
   }
@@ -356,7 +356,7 @@ preprocess_record <- function(
 
 #' Preprocess training data for Evo 2 fine-tuning
 #'
-#' `evo2_prepare()` is a training-data preprocessing step. It writes each
+#' `evo2_preprocess()` is a training-data preprocessing step. It writes each
 #' dataset partition as FASTA, calls the pinned `preprocess_evo2` entry point,
 #' and returns an `Evo2Dataset` that points to the resulting indexed files. It
 #' does not prepare model weights, fit the model, or run inference. The model
@@ -365,8 +365,8 @@ preprocess_record <- function(
 #'
 #' Most users can pass raw data directly to [evo2_finetune()].
 #' `evo2_finetune()` performs this step automatically with default controls.
-#' Call `evo2_prepare()` first when preprocessing must be customized or when the
-#' same indexed data will be reused across fitting runs. Its manifest records
+#' Call `evo2_preprocess()` first when preprocessing must be customized or when
+#' the same indexed data will be reused across fitting runs. Its manifest records
 #' input digests, model size, tokenizer and recipe revisions, preprocessing
 #' controls, and output digests.
 #' Before training, `evo2_finetune()` checks that the prepared path and manifest
@@ -395,7 +395,7 @@ preprocess_record <- function(
 #' model <- evo2_model("1b", compute)
 #' data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
 #'
-#' prepared <- evo2_prepare(
+#' prepared <- evo2_preprocess(
 #'   data,
 #'   model,
 #'   path = "datasets/example",
@@ -406,7 +406,7 @@ preprocess_record <- function(
 #' @references
 #' [BioNeMo Recipes Evo 2 preprocessing](https://github.com/NVIDIA-BioNeMo/bionemo-recipes/blob/e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e/recipes/evo2_megatron/README.md#data-preprocessing-preprocess_evo2)
 #' @export
-evo2_prepare <- function(
+evo2_preprocess <- function(
   data,
   model,
   compute = NULL,
@@ -444,7 +444,7 @@ evo2_prepare <- function(
   }
   dir.create(destination, recursive = TRUE, showWarnings = FALSE)
 
-  name <- safe_name(basename(destination), "evo2-prepare")
+  name <- safe_name(basename(destination), "evo2-preprocess")
   request <- list(
     model = model@size,
     destination = destination,
@@ -458,10 +458,10 @@ evo2_prepare <- function(
   )
   run_path <- create_run(
     compute,
-    "prepare",
+    "preprocess",
     name,
     request = request,
-    workflow = workflow_identity(bionemo_workflow("evo2/prepare"))
+    workflow = workflow_identity(bionemo_workflow("evo2/preprocess"))
   )
   inputs <- file.path(run_path, "inputs")
   partitions <- list(
@@ -574,7 +574,7 @@ evo2_prepare <- function(
     provenance = list(run_path = run_path)
   )
   descriptor <- list(
-    type = "prepare",
+    type = "preprocess",
     variant = model@size,
     model_size = model@model_size,
     tokenizer = tokenizer,
@@ -596,20 +596,20 @@ evo2_prepare <- function(
       c("--config", preprocess_path),
       cwd = compute@workspace
     )),
-    metadata = list(operation = "prepare", destination = destination)
+    metadata = list(operation = "preprocess", destination = destination)
   )
   submit_plan(
     plan,
     compute,
     run_path,
-    "prepare",
+    "preprocess",
     expected_result = descriptor,
     async = async
   )
 }
 
-materialize_prepare_job <- function(job, descriptor) {
-  if (!is.list(descriptor) || !identical(descriptor$type, "prepare")) {
+materialize_preprocess_job <- function(job, descriptor) {
+  if (!is.list(descriptor) || !identical(descriptor$type, "preprocess")) {
     stop("prepared-data result descriptor is invalid")
   }
   if (!is_scalar_string(descriptor$path) || !dir.exists(descriptor$path)) {
@@ -904,8 +904,8 @@ fit_control_args <- function(control, model_record) {
 #' Fine-tune an Evo 2 model
 #'
 #' `evo2_finetune()` runs `train_evo2` from an MBridge checkpoint. Raw
-#' sequence inputs and unprepared [evo2_dataset()] objects are prepared
-#' automatically using default preprocessing controls. Call [evo2_prepare()]
+#' sequence inputs and unprepared [evo2_dataset()] objects are preprocessed
+#' automatically using default preprocessing controls. Call [evo2_preprocess()]
 #' first when preprocessing must be customized or reused.
 #'
 #' `steps` counts optimizer steps, not epochs. The fitting control determines
@@ -929,7 +929,7 @@ fit_control_args <- function(control, model_record) {
 #' @param path Result directory. Relative paths resolve below the compute
 #'   workspace, and `NULL` uses `artifacts/<name>`. Container execution requires
 #'   the result to remain inside the workspace.
-#' @param name Optional durable run name. When `data` must be prepared
+#' @param name Optional durable run name. When `data` must be preprocessed
 #'   automatically, its preprocessing run uses `<name>-data`.
 #' @param async Whether to return a durable job immediately.
 #' @param timeout Complete operation timeout in seconds. This limits the
@@ -1064,7 +1064,7 @@ evo2_finetune <- function(
   name <- safe_name(name, "evo2-finetune")
   data <- if (S7_inherits(data, Evo2Dataset)) data else evo2_dataset(data)
   if (!data@prepared) {
-    data <- evo2_prepare(
+    data <- evo2_preprocess(
       data,
       object,
       compute,

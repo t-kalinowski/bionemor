@@ -38,7 +38,7 @@ test_that("the pkgdown reference index follows the public workflow", {
     "Evo 2 fine-tuning" = c(
       "evo2_dataset",
       "evo2_preprocess_control",
-      "evo2_prepare",
+      "evo2_preprocess",
       "evo2_lora",
       "evo2_full",
       "evo2_fit_control",

@@ -45,7 +45,7 @@ Model operations require a supported CUDA-capable NVIDIA GPU. The package can st
 
 ## Fine-tuning and reuse
 
-Evo 2 fine-tuning follows the same interface. `evo2_dataset()` describes the training, validation, and test sequences. `evo2_prepare()` converts those sequences into the indexed dataset consumed by the pinned Evo 2 training program. By default, `evo2_finetune()` returns a durable job, and `job_wait()` waits for that job and returns a fitted model backed by a saved checkpoint.
+Evo 2 fine-tuning follows the same interface. `evo2_dataset()` describes the training, validation, and test sequences. `evo2_preprocess()` converts those sequences into the indexed dataset consumed by the pinned Evo 2 training program. By default, `evo2_finetune()` returns a durable job, and `job_wait()` waits for that job and returns a fitted model backed by a saved checkpoint.
 
 Longer operations can return a durable job immediately. Saving its path is enough to reopen it in a later R session:
 
@@ -66,7 +66,7 @@ data <- evo2_dataset(
     test_1 = sequence_127("TGCAT")
   ))
 )
-prepared <- evo2_prepare(
+prepared <- evo2_preprocess(
   data,
   model,
   path = "datasets/my-study",

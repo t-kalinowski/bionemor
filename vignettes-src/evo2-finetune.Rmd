@@ -83,7 +83,7 @@ model <- evo2(
 independent validation and test sequences so training and evaluation do not
 measure memorization of closely related inputs.
 
-`evo2_prepare()` is specifically a training-data preprocessing step. It writes
+`evo2_preprocess()` is specifically a training-data preprocessing step. It writes
 the sequence partitions as FASTA, runs the Evo 2 indexing command, and returns
 an `Evo2Dataset` that points to the resulting `.bin` and `.idx` files. It does
 not prepare model weights, fit the model, or run inference. Calling it explicitly
@@ -115,7 +115,7 @@ data <- evo2_dataset(
   test = test
 )
 
-prepared <- evo2_prepare(
+prepared <- evo2_preprocess(
   data,
   model,
   path = file.path("datasets", paste0(run_id, "-tiny-evo2-128")),

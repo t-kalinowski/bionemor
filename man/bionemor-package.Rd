@@ -51,7 +51,7 @@ prepares a checkpoint and binds it to compute.
 \item \code{\link[=evo2_score]{evo2_score()}} scores complete sequences.
 \item \code{\link[=evo2_profile]{evo2_profile()}} writes per-position log probabilities.
 \item \code{\link[=evo2_embed]{evo2_embed()}} returns pooled embeddings or writes positional embeddings.
-\item \code{\link[=evo2_dataset]{evo2_dataset()}}, \code{\link[=evo2_prepare]{evo2_prepare()}}, and \code{\link[=evo2_finetune]{evo2_finetune()}} describe and
+\item \code{\link[=evo2_dataset]{evo2_dataset()}}, \code{\link[=evo2_preprocess]{evo2_preprocess()}}, and \code{\link[=evo2_finetune]{evo2_finetune()}} describe and
 preprocess training data, then fine-tune a model.
 \item \code{\link[=evo2_checkpoint]{evo2_checkpoint()}} and \code{\link[=evo2_export]{evo2_export()}} convert and export checkpoints.
 }

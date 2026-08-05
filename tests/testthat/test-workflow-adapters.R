@@ -55,6 +55,86 @@ test_that("BioNeMo workflows are discovered independently of models and compute"
   expect_error(bionemo_workflows("missing"), "unsupported")
 })
 
+test_that("Evo 2 preprocessing is exposed as a public workflow", {
+  exports <- getNamespaceExports("bionemor")
+  expect_true("evo2_preprocess" %in% exports)
+  expect_false("evo2_prepare" %in% exports)
+
+  workflow <- bionemo_workflow("evo2/preprocess")
+  expect_equal(workflow@family, "evo2")
+  expect_equal(workflow@task, "preprocess")
+  expect_equal(workflow@input_schema, "sequence/dna-v1")
+  expect_equal(workflow@result_schema, "dataset/evo2-indexed-v1")
+  expect_error(bionemo_workflow("evo2/prepare"), "unsupported")
+})
+
+test_that("generic Evo 2 preprocessing jobs persist and reopen", {
+  workspace <- tempfile("bionemor-workflow-preprocess-")
+  bin <- tempfile("bionemor-bin-")
+  log <- tempfile("bionemor-log-")
+  dir.create(workspace)
+  fake_recipes_runtime(bin)
+  withr::local_envvar(
+    PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+    BIONEMOR_FAKE_LOG = log
+  )
+
+  compute <- bionemo_compute(
+    recipe = evo2_recipe(),
+    engine = "external",
+    workspace = workspace
+  )
+  model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
+  data <- evo2_dataset(c(first = "ACGT", second = "TGCA"))
+
+  expect_error(
+    bionemo_run(
+      "evo2/preprocess",
+      model,
+      data,
+      compute,
+      parameters = list(path = "datasets/name-not-supported"),
+      name = "name-not-supported"
+    ),
+    "name is not supported"
+  )
+
+  job <- bionemo_run(
+    "evo2/preprocess",
+    model,
+    data,
+    compute,
+    parameters = list(path = "datasets/workflow-preprocess"),
+    async = TRUE
+  )
+  run_path <- job_path(job)
+  request <- jsonlite::read_json(
+    file.path(run_path, "request.json"),
+    simplifyVector = FALSE
+  )
+  plan <- jsonlite::read_json(
+    file.path(run_path, "plan.json"),
+    simplifyVector = FALSE
+  )
+  state <- jsonlite::read_json(
+    file.path(run_path, "state.json"),
+    simplifyVector = FALSE
+  )
+
+  expect_equal(request$kind, "preprocess")
+  expect_equal(request$workflow$id, "evo2/preprocess")
+  expect_equal(request$workflow$task, "preprocess")
+  expect_equal(request$expected_result$type, "preprocess")
+  expect_equal(plan$metadata$operation, "preprocess")
+  expect_equal(plan$metadata$workflow$id, "evo2/preprocess")
+  expect_equal(state$kind, "preprocess")
+
+  reopened <- bionemo_job(run_path)
+  prepared <- job_wait(reopened, poll = 0.01, timeout = 10)
+  expect_s3_class(prepared, "bionemor::Evo2Dataset")
+  expect_true(prepared@prepared)
+})
+
 test_that("recipes identify the adapter that installs and runs them", {
   recipe <- evo2_recipe()
   expect_equal(recipe@adapter, "evo2-megatron")
@@ -169,7 +249,7 @@ test_that("every installed Evo 2 workflow reaches its public operation", {
       list(format = "unsupported"),
       "unused argument"
     ),
-    prepare = list("ACGT", list(path = 1), "path must"),
+    preprocess = list("ACGT", list(path = 1), "path must"),
     `fine-tune` = list("ACGT", list(steps = 0L), "steps must")
   )
 

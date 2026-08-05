@@ -282,7 +282,7 @@ test_that("FASTA dataset splitting materializes deterministic partitions", {
   expect_identical(first@provenance$partition_method, "stable-hash")
 })
 
-test_that("preparation materializes compressed FASTA as plain FASTA", {
+test_that("preprocessing materializes compressed FASTA as plain FASTA", {
   workspace <- tempfile("bionemor-compressed-fasta-")
   bin <- tempfile("bionemor-bin-")
   log <- tempfile("bionemor-log-")
@@ -303,7 +303,7 @@ test_that("preparation materializes compressed FASTA as plain FASTA", {
   )
   model <- evo2("7b", checkpoint = make_mbridge_checkpoint(workspace))
 
-  prepared <- evo2_prepare(
+  prepared <- evo2_preprocess(
     evo2_dataset(
       source,
       split = c(train = 1, validation = 0, test = 0)
@@ -333,7 +333,7 @@ test_that("preparation materializes compressed FASTA as plain FASTA", {
   expect_equal(prepared@manifest$inputs$train$records, 2L)
 })
 
-test_that("preparation and LoRA fine-tuning use current recipe commands", {
+test_that("preprocessing and LoRA fine-tuning use current recipe commands", {
   workspace <- tempfile("bionemor-fit-")
   bin <- tempfile("bionemor-bin-")
   log <- tempfile("bionemor-log-")
@@ -376,7 +376,7 @@ test_that("preparation and LoRA fine-tuning use current recipe commands", {
     )
   )
 
-  prepared <- evo2_prepare(
+  prepared <- evo2_preprocess(
     data,
     model,
     compute,

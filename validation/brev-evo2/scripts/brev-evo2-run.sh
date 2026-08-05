@@ -102,7 +102,7 @@ required_capture_files=(
   manifests/dense-score.json
   manifests/dense-generation.json
   manifests/dense-embedding.json
-  manifests/prepare.json
+  manifests/preprocess.json
   manifests/fine-tune.json
   manifests/fitted-score.json
   manifests/fitted-generation.json

@@ -38,7 +38,7 @@
 #' - [evo2_score()] scores complete sequences.
 #' - [evo2_profile()] writes per-position log probabilities.
 #' - [evo2_embed()] returns pooled embeddings or writes positional embeddings.
-#' - [evo2_dataset()], [evo2_prepare()], and [evo2_finetune()] describe and
+#' - [evo2_dataset()], [evo2_preprocess()], and [evo2_finetune()] describe and
 #'   preprocess training data, then fine-tune a model.
 #' - [evo2_checkpoint()] and [evo2_export()] convert and export checkpoints.
 #'
