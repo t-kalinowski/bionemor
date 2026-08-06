@@ -187,6 +187,20 @@ test_that("Brev documentation uses the setup script and persistent workspace", {
     "/home/ubuntu/workspace/bionemor",
     fixed = TRUE
   )
+  expect_match(
+    validation_readme,
+    "pak::local_install_dev_deps()",
+    fixed = TRUE
+  )
+  expect_match(
+    validation_readme,
+    'pak::pkg_install("devtools")',
+    fixed = TRUE
+  )
+  expect_lt(
+    regexpr("pak::local_install_dev_deps()", validation_readme, fixed = TRUE),
+    regexpr("devtools::test()", validation_readme, fixed = TRUE)
+  )
 })
 
 test_that("the Brev recipe workflow resolves package inputs", {

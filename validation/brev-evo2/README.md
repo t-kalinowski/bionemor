@@ -6,8 +6,15 @@ This directory contains maintainer workflows that require billable GPU compute.
 
 The regular test suite uses a small local runtime substitute. The global GPU
 gate exercises the installed Evo 2 and ESM-2 helpers, including their real
-pooled embedding writers. Run the package tests with current images and an
-Evo 2 checkpoint:
+pooled embedding writers. From the repository root on a fresh instance, install
+the package's development dependencies and `devtools`:
+
+```bash
+Rscript --vanilla -e \
+  'pak::local_install_dev_deps(); pak::pkg_install("devtools")'
+```
+
+Then run the package tests with current images and an Evo 2 checkpoint:
 
 ```bash
 BIONEMOR_TEST_GPU=true \
