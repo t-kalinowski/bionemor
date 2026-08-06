@@ -18,7 +18,13 @@ test_process_is_running <- function(pid) {
         !ps::ps_status(handle) %in% c("zombie", "dead")
     },
     no_such_process = function(error) FALSE,
-    zombie_process = function(error) FALSE
+    zombie_process = function(error) FALSE,
+    os_error = function(error) {
+      if (identical(error$errno, 2L)) {
+        return(FALSE)
+      }
+      stop(error)
+    }
   )
 }
 
@@ -112,10 +118,13 @@ fake_recipes_runtime <- function(bin) {
   stopifnot(nzchar(python))
   python_modules <- file.path(bin, "python-modules")
   dir.create(python_modules)
-  writeLines("# Generation conversion does not use torch.", file.path(
-    python_modules,
-    "torch.py"
-  ))
+  writeLines(
+    "# Generation conversion does not use torch.",
+    file.path(
+      python_modules,
+      "torch.py"
+    )
+  )
   tokenizer_root <- file.path(bin, "tokenizers")
   dir.create(
     file.path(tokenizer_root, "nucleotide_fast_tokenizer_256"),
