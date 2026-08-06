@@ -181,11 +181,21 @@ compute
 #> <BioNeMo compute>
 #> Backend:   local
 #> Engine:    external
-#> Workspace: /tmp/RtmpChCwss/bionemor-compute-example
+#> Workspace: /tmp/RtmpunHpEW/bionemor-compute-example
 #> Recipe:    2.4 @ e8e7f597
 #> Resources: 1 node(s), 1 GPU(s)
 
 if (FALSE) { # \dontrun{
+# A local image extended from a package-managed recipe image.
+custom_compute <- bionemo_compute(
+  recipe = evo2_recipe(),
+  backend = "local",
+  engine = "container",
+  workspace = workspace,
+  image = "example/bionemor-evo2:site"
+)
+custom_compute <- bionemo_install(custom_compute)
+
 # A site-managed runtime on a Slurm cluster.
 slurm_compute <- bionemo_compute(
   recipe = evo2_recipe(),

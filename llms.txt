@@ -16,6 +16,11 @@ Biostrings. Generation and scoring return data frames, while pooled
 embeddings return numeric matrices. Longer runs can be saved, monitored,
 and reopened from another R session.
 
+A model descriptor identifies the model and optional checkpoint. A
+compute descriptor records where and how it runs. Family-specific
+functions use those objects for running and monitoring jobs without
+loading model weights into the R process.
+
 > Running a model requires a supported CUDA-capable NVIDIA GPU. There is
 > no CPU fallback. You can install `bionemor` and inspect the available
 > models without a GPU.
@@ -55,17 +60,36 @@ requirements vary by model, sequence length, batch size, and operation.
 
 If you do not have a suitable local GPU, [NVIDIA
 Brev](https://brev.nvidia.com/) lets you rent one and manage the
-instance from its CLI:
+instance from its CLI. Download the package’s startup script before
+creating the VM:
 
 ``` bash
+curl --fail --location --output bionemor-brev-setup.sh \
+  https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh
 brev search --stoppable --gpu-name L40S --min-vram 48 --sort price
-brev create bionemor-gpu --stoppable --gpu-name L40S --min-vram 48
+brev create bionemor-gpu --mode vm \
+  --stoppable --gpu-name L40S --min-vram 48 \
+  --startup-script @bionemor-brev-setup.sh
 brev shell bionemor-gpu
 ```
 
-`brev create` provisions the GPU machine, and `brev shell` opens a shell
-on it. Install R and `bionemor` there; the setup below builds the model
-environment in Docker from an NVIDIA image.
+The startup script installs the current R release with rig, installs
+`bionemor` with pak, and creates `~/workspace/bionemor`. R runs directly
+on the Brev VM; the BioNeMo recipe runtime runs in Docker. Brev supplies
+the machine, so use `backend = "local"` inside it rather than treating
+Brev as another backend.
+
+Data and checkpoints remain user-managed. Copy local files into the
+persistent workspace with the CLI, or download them from the VM:
+
+``` bash
+brev copy ./data/ \
+  bionemor-gpu:/home/ubuntu/workspace/bionemor/data/
+```
+
+Files below `~/workspace` persist when a stoppable instance is stopped.
+Deleting the instance deletes that storage, so retain another copy of
+important data.
 
 When you finish, leave the remote shell and stop the instance from your
 local terminal:
@@ -82,6 +106,9 @@ environment is built from an NVIDIA NGC base image. Create an NGC API
 key and authenticate Docker to `nvcr.io` on the GPU machine, including
 when using Brev:
 
+Megatron Bridge is the training and inference stack used by the pinned
+Evo 2 recipe. MBridge is its checkpoint format.
+
 ``` bash
 echo "$NGC_API_KEY" | docker login nvcr.io \
   --username '$oauthtoken' --password-stdin
@@ -96,7 +123,7 @@ selects that software environment; `backend = "local"` and
 ``` r
 
 workspace <- normalizePath(
-  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/bionemor-work"),
+  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/workspace/bionemor"),
   mustWork = FALSE
 )
 evo2_compute <- bionemo_compute(
@@ -114,6 +141,60 @@ builds or verifies the selected environment and checks its GPU
 capabilities. If setup fails, use
 [`bionemo_doctor()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_doctor.md)
 to inspect the environment.
+
+### Extend the recipe image
+
+Add site-specific system or Python dependencies by building on the
+package’s verified image, not directly on the raw NVIDIA base image.
+After installation, `evo2_compute@image` prints the managed recipe
+image. Export the same value in a shell:
+
+``` bash
+export BIONEMOR_RECIPE_IMAGE="$(
+  Rscript --vanilla -e '
+    library(bionemor)
+    compute <- bionemo_compute(
+      recipe = evo2_recipe(),
+      workspace = "~/workspace/bionemor"
+    )
+    cat(compute@image)
+  '
+)"
+```
+
+Then build a Dockerfile such as:
+
+``` dockerfile
+ARG BIONEMOR_RECIPE_IMAGE
+FROM ${BIONEMOR_RECIPE_IMAGE}
+
+# Add site-specific Dockerfile instructions here.
+```
+
+``` bash
+docker build \
+  --build-arg BIONEMOR_RECIPE_IMAGE \
+  --tag example/bionemor-evo2:site .
+```
+
+Select that local tag explicitly and verify the resulting prebuilt
+recipe image:
+
+``` r
+
+custom_compute <- bionemo_compute(
+  recipe = evo2_recipe(),
+  backend = "local",
+  engine = "container",
+  workspace = workspace,
+  image = "example/bionemor-evo2:site"
+)
+custom_compute <- bionemo_install(custom_compute)
+```
+
+[`bionemo_install()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_install.md)
+inspects an explicit image but does not build or pull it. The R package
+stays on the VM; it does not need to be installed in this runtime image.
 
 ## Evo 2: generate, score, and embed DNA
 
@@ -222,9 +303,9 @@ dimensions without downloading weights, and
 [`esm2_model()`](https://t-kalinowski.github.io/bionemor/reference/esm2_model.md)
 selects one for use with a compute descriptor.
 
-The ESM-2 environment uses Transformers. On first use, Transformers
-downloads the selected weights from Hugging Face and caches them below
-the workspace.
+The ESM-2 environment uses native Transformers and Transformer Engine.
+On first use, Transformers downloads the selected weights from Hugging
+Face and caches them below the workspace.
 [`esm2_embed()`](https://t-kalinowski.github.io/bionemor/reference/esm2_embed.md)
 currently requires `gpus = 1` and returns one embedding per protein:
 
