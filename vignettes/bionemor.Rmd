@@ -36,8 +36,8 @@ These concepts apply to both Evo 2 and ESM-2. Each recipe supplies the
 corresponding model commands, while the package provides the shared execution
 lifecycle.
 
-The output in this article was captured on 2026-08-01 with an NVIDIA L40S
-using package revision 7da249b5f346. The executable source
+The output in this article was captured on 2026-08-06 with an NVIDIA L40S
+using package revision 6970e338a742. The executable source
 is `vignettes-src/bionemor.Rmd`; the package vignette is pre-rendered so it can
 be read without a GPU.
 
@@ -205,7 +205,7 @@ model
 #> <Evo 2 model>
 #> Size:       7B
 #> Context:    1,048,576 nt
-#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7
+#> Checkpoint: MBridge at /home/ubuntu/workspace/bionemor/checkpoints/evo2-7b-9e69aeeaacf4-e8e7f597363c-mbridge
 #> Recipe:     BioNeMo Evo 2 2.4 @ e8e7f597
 #> Ready:      yes
 #> Compute:    local/container
@@ -284,8 +284,8 @@ str(dna_embeddings)
 #>   ..$ : chr [1:2] "reference" "variant"
 #>   ..$ : chr [1:4096] "dim_1" "dim_2" "dim_3" "dim_4" ...
 #>  - attr(*, "provenance")=List of 6
-#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/evo2-embedding-20260801T223223-074934"
-#>   ..$ checkpoint     : chr "/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7"
+#>   ..$ run_path       : chr "/home/ubuntu/workspace/bionemor/.bionemor/runs/evo2-embedding-20260806T033709-517504"
+#>   ..$ checkpoint     : chr "/home/ubuntu/workspace/bionemor/checkpoints/evo2-7b-9e69aeeaacf4-e8e7f597363c-mbridge"
 #>   ..$ layer          : chr "last"
 #>   ..$ pool           : chr "mean"
 #>   ..$ strand         : chr "both"
@@ -338,7 +338,7 @@ str(protein_embeddings)
 #>   ..$ : chr [1:2] "protein_1" "protein_2"
 #>   ..$ : chr [1:320] "dim_1" "dim_2" "dim_3" "dim_4" ...
 #>  - attr(*, "provenance")=List of 6
-#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/esm2/.bionemor/runs/esm2-embedding-20260801T223315-534991"
+#>   ..$ run_path       : chr "/home/ubuntu/workspace/bionemor/esm2/.bionemor/runs/esm2-embedding-20260806T033808-735548"
 #>   ..$ model          : chr "8m"
 #>   ..$ source         : chr "nvidia/esm2_t6_8M_UR50D"
 #>   ..$ source_revision: chr "3674a6acb6c217bbeff709d182a11b196125dfc3"

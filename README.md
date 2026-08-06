@@ -21,12 +21,13 @@ R session.
 
 ## Install bionemor
 
-``` r
+```r
 pak::pak("t-kalinowski/bionemor")
 ```
 
 For the local container setup below, install the package in the R environment on
 the Linux GPU machine, then load it:
+
 
 ``` r
 library(bionemor)
@@ -175,8 +176,8 @@ image.
 compute object, it can filter by GPU count, compute capability, and precision
 policy. Check GPU memory and disk requirements separately.
 
-The output below was captured on 2026-08-01 with an NVIDIA L40S using package
-revision 7da249b5f346.
+The output below was captured on 2026-08-06 with an NVIDIA L40S using
+package revision 6970e338a742.
 
 
 ``` r
@@ -192,7 +193,7 @@ str(models)
 #>  $ source_format            : chr  "savanna" "savanna"
 #>  $ precision_policy         : chr  "bf16-or-fp8" "bf16-or-fp8"
 #>  $ training_precision_policy: chr  "bf16-or-fp8" "bf16-or-fp8"
-#>  $ download_size            : num  1.58e+10 1.58e+10
+#>  $ download_size            : num  1.58e+10 2.34e+10
 #>  $ compatible               : logi  TRUE TRUE
 #>  $ compatibility_note       : chr  "advertised GPUs support the validated BF16 or FP8 policy" "advertised GPUs support the validated BF16 or FP8 policy"
 ```
@@ -301,7 +302,7 @@ str(protein_embeddings)
 #>   ..$ : chr [1:2] "protein_1" "protein_2"
 #>   ..$ : chr [1:320] "dim_1" "dim_2" "dim_3" "dim_4" ...
 #>  - attr(*, "provenance")=List of 6
-#>   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/esm2/.bionemor/runs/esm2-embedding-20260801T223010-834352"
+#>   ..$ run_path       : chr "/home/ubuntu/workspace/bionemor/esm2/.bionemor/runs/esm2-embedding-20260806T033433-807998"
 #>   ..$ model          : chr "8m"
 #>   ..$ source         : chr "nvidia/esm2_t6_8M_UR50D"
 #>   ..$ source_revision: chr "3674a6acb6c217bbeff709d182a11b196125dfc3"
