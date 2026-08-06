@@ -16,11 +16,6 @@ Generation and scoring return data frames, while pooled embeddings return
 numeric matrices. Longer runs can be saved, monitored, and reopened from another
 R session.
 
-A model descriptor identifies the model and optional checkpoint. A compute
-descriptor records where and how it runs. Family-specific functions use those
-objects for running and monitoring jobs without loading model weights into the R
-process.
-
 > Running a model requires a supported CUDA-capable NVIDIA GPU. There is no CPU fallback.
 > You can install `bionemor` and inspect the available models without a GPU.
 
@@ -97,9 +92,6 @@ Evo 2 operations run through NVIDIA BioNeMo Recipes and Megatron Bridge.
 `bionemor` uses versions tested with this release. The local Docker environment
 is built from an NVIDIA NGC base image. Create an NGC API key and authenticate
 Docker to `nvcr.io` on the GPU machine, including when using Brev:
-
-Megatron Bridge is the training and inference stack used by the pinned Evo 2
-recipe. MBridge is its checkpoint format.
 
 ```bash
 echo "$NGC_API_KEY" | docker login nvcr.io \
@@ -283,10 +275,10 @@ models. `esm2_models()` lists the available pinned NVIDIA checkpoints and their
 embedding dimensions without downloading weights, and `esm2_model()` selects
 one for use with a compute descriptor.
 
-The ESM-2 environment uses native Transformers and Transformer Engine. On first
-use, Transformers downloads the selected weights from Hugging Face and caches
-them below the workspace. `esm2_embed()` currently requires `gpus = 1` and
-returns one embedding per protein:
+The ESM-2 environment uses Transformers. On first use, Transformers downloads
+the selected weights from Hugging Face and caches them below the workspace.
+`esm2_embed()` currently requires `gpus = 1` and returns one embedding per
+protein:
 
 
 ``` r
