@@ -22,6 +22,7 @@ test_that("checked-in GPU documentation is a successful static capture", {
   expect_false(any(grepl("HF_TOKEN", documents, fixed = TRUE)))
 
   onboarding <- documents[1:2]
+  guide <- documents[[2L]]
   expect_true(all(grepl("NVIDIA GPU", onboarding, fixed = TRUE)))
   expect_true(all(grepl("no CPU fallback", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
@@ -32,12 +33,12 @@ test_that("checked-in GPU documentation is a successful static capture", {
     onboarding
   )))
   expect_true(all(grepl("Brev", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("pulls it anonymously", onboarding, fixed = TRUE)))
+  expect_match(guide, "pulls it anonymously", fixed = TRUE)
   expect_false(any(grepl("NGC_API_KEY", onboarding, fixed = TRUE)))
   expect_true(all(grepl("NVIDIA L40S", onboarding, fixed = TRUE)))
   expect_true(all(grepl("forward_score", onboarding, fixed = TRUE)))
   expect_true(all(grepl("finish_reason", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("Megatron Bridge", onboarding, fixed = TRUE)))
+  expect_match(guide, "Megatron Bridge", fixed = TRUE)
   expect_true(all(grepl("# In a new R session:", onboarding, fixed = TRUE)))
 
   fine_tune <- documents[[3L]]

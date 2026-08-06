@@ -68,17 +68,12 @@ test_that("the Brev setup script installs R and bionemor", {
   expect_true(dir.exists(file.path(home, "workspace", "bionemor")))
 })
 
-test_that("Brev documentation uses the setup script and persistent workspace", {
+test_that("the Brev setup guide uses the setup script and persistent workspace", {
   root <- testthat::test_path("..", "..")
   skip_if_not(file.exists(file.path(root, ".git")))
   paths <- file.path(
     root,
-    c(
-      "README.Rmd",
-      "README.md",
-      "vignettes-src/bionemor.Rmd",
-      "vignettes/bionemor.Rmd"
-    )
+    c("vignettes-src/bionemor.Rmd", "vignettes/bionemor.Rmd")
   )
   documents <- vapply(
     paths,
@@ -253,12 +248,7 @@ test_that("user documentation exposes the prebuilt image extension point", {
   skip_if_not(file.exists(file.path(root, ".git")))
   paths <- file.path(
     root,
-    c(
-      "README.Rmd",
-      "README.md",
-      "vignettes-src/bionemor.Rmd",
-      "vignettes/bionemor.Rmd"
-    )
+    c("vignettes-src/bionemor.Rmd", "vignettes/bionemor.Rmd")
   )
   documents <- vapply(
     paths,

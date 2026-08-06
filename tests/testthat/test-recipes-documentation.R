@@ -95,7 +95,7 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(readme, "Brev", fixed = TRUE)
   expect_match(readme, "evo2_model", fixed = TRUE)
   expect_match(readme, "evo2_profile", fixed = TRUE)
-  expect_match(readme, "evo2_export", fixed = TRUE)
+  expect_match(readme, "evo2_finetune", fixed = TRUE)
   expect_no_match(readme, "does more than call", fixed = TRUE)
   expect_no_match(readme, "another adapter can be added", fixed = TRUE)
 

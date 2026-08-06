@@ -29,40 +29,40 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("error = FALSE", sources, fixed = TRUE)))
 
   onboarding <- sources[1:2]
+  guide <- sources[[2L]]
   expect_true(all(grepl("NVIDIA GPU", onboarding, fixed = TRUE)))
   expect_true(all(grepl("no CPU fallback", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("BioNeMo Recipes", onboarding, fixed = TRUE)))
+  expect_match(guide, "BioNeMo Recipes", fixed = TRUE)
   expect_match(
     sources[[1L]],
-    "saved, monitored, and reopened",
-    fixed = TRUE
+    "saved,[[:space:]]+monitored,[[:space:]]+and[[:space:]]+reopened"
   )
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("ESM-2", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Brev", onboarding, fixed = TRUE)))
-  expect_true(all(grepl(
-    "Supported models and operations",
-    onboarding,
-    fixed = TRUE
-  )))
+  expect_match(guide, "Supported models and operations", fixed = TRUE)
   expect_true(all(grepl("evo2_score()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("esm2_embed()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = evo2_recipe()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = esm2_recipe()", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("Megatron Bridge", onboarding, fixed = TRUE)))
+  expect_match(guide, "Megatron Bridge", fixed = TRUE)
   expect_true(all(grepl(
     "model descriptor",
     tolower(onboarding),
     fixed = TRUE
   )))
-  expect_true(all(grepl("compute descriptor", onboarding, fixed = TRUE)))
+  expect_true(all(grepl(
+    "compute descriptor",
+    tolower(onboarding),
+    fixed = TRUE
+  )))
   expect_true(all(grepl("container", onboarding, fixed = TRUE)))
   expect_match(
-    sources[[2L]],
+    guide,
     'The experimental `backend = "slurm"` path',
     fixed = TRUE
   )
-  expect_true(all(grepl("pulls it anonymously", onboarding, fixed = TRUE)))
+  expect_match(guide, "pulls it anonymously", fixed = TRUE)
   expect_false(any(grepl("NGC_API_KEY", onboarding, fixed = TRUE)))
   expect_true(all(grepl(
     'evo2_model("7b", evo2_compute)',
@@ -85,9 +85,9 @@ test_that("GPU documentation has a guarded manual render workflow", {
     fixed = TRUE
   )))
   expect_true(all(grepl("esm2_embed(", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("Transformers", onboarding, fixed = TRUE)))
+  expect_match(guide, "Transformers", fixed = TRUE)
   expect_false(any(grepl("vLLM", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("gpus = 1", onboarding, fixed = TRUE)))
+  expect_match(guide, "gpus = 1", fixed = TRUE)
   expect_true(all(grepl("similarity", onboarding, fixed = TRUE)))
   expect_true(all(grepl("clustering", onboarding, fixed = TRUE)))
   expect_true(all(grepl(
@@ -126,6 +126,49 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_match(announcement, "async = TRUE", fixed = TRUE)
   expect_match(announcement, "fitted <- job_wait(run)", fixed = TRUE)
   expect_match(announcement, "Biostrings::DNAStringSet(", fixed = TRUE)
+})
+
+test_that("README leads with model purpose and a prediction quick start", {
+  root <- testthat::test_path("..", "..")
+  skip_if_not(file.exists(file.path(root, ".git")))
+  paths <- file.path(root, c("README.Rmd", "README.md"))
+  documents <- vapply(
+    paths,
+    function(path) paste(readLines(path, warn = FALSE), collapse = "\n"),
+    character(1)
+  )
+
+  expect_true(all(grepl(
+    paste(
+      "Evo 2 is a[[:space:]]+biological foundation model trained on DNA",
+      "sequences"
+    ),
+    documents
+  )))
+  expect_true(all(grepl(
+    paste(
+      "ESM-2 is a[[:space:]]+biological foundation model trained on protein",
+      "sequences"
+    ),
+    documents
+  )))
+  expect_true(all(grepl(
+    "## Quick start: generate DNA with Evo 2",
+    documents,
+    fixed = TRUE
+  )))
+  expect_true(all(grepl(
+    "articles/evo2-finetune.html",
+    documents,
+    fixed = TRUE
+  )))
+  expect_false(any(grepl("Extend the recipe image", documents, fixed = TRUE)))
+  expect_false(any(grepl("BIONEMOR_RECIPE_IMAGE", documents, fixed = TRUE)))
+  expect_false(any(grepl(
+    "BIONEMOR_DOCS_WORKSPACE",
+    documents,
+    fixed = TRUE
+  )))
 })
 
 test_that("user-facing docs present ESM-2 as an added capability", {
