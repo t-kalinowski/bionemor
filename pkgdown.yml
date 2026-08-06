@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   bionemor: bionemor.html
   evo2-finetune: evo2-finetune.html
-last_built: 2026-08-06T01:37Z
+last_built: 2026-08-06T01:50Z
 urls:
   reference: https://t-kalinowski.github.io/bionemor/reference
   article: https://t-kalinowski.github.io/bionemor/articles

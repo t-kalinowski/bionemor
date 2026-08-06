@@ -55,7 +55,7 @@ requirements vary by model, sequence length, batch size, and operation.
 
 If you do not have a suitable local GPU, [NVIDIA
 Brev](https://brev.nvidia.com/) lets you rent one and manage the
-instance from its CLI. Download the package’s startup script before
+instance from its CLI. Download the package’s setup script before
 creating the VM:
 
 ``` bash
@@ -63,12 +63,12 @@ curl --fail --location --output bionemor-brev-setup.sh \
   https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh
 brev search --stoppable --gpu-name L40S --min-vram 48 --sort price
 brev create bionemor-gpu --mode vm \
-  --stoppable --gpu-name L40S --min-vram 48 \
-  --startup-script @bionemor-brev-setup.sh
+  --stoppable --gpu-name L40S --min-vram 48
+brev exec bionemor-gpu @bionemor-brev-setup.sh
 brev shell bionemor-gpu
 ```
 
-The startup script installs the current R release with rig, installs
+The setup script installs the current R release with rig, installs
 `bionemor` with pak, and creates `~/workspace/bionemor`. R runs directly
 on the Brev VM; the BioNeMo recipe runtime runs in Docker. Brev supplies
 the machine, so use `backend = "local"` inside it rather than treating

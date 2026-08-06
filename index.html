@@ -113,15 +113,15 @@
 <h2 id="get-access-to-a-gpu">Get access to a GPU<a class="anchor" aria-label="anchor" href="#get-access-to-a-gpu"></a>
 </h2>
 <p>The local setup below runs models in Docker on a Linux machine with an NVIDIA GPU. Docker must be configured so containers can use the GPU. GPU requirements vary by model, sequence length, batch size, and operation.</p>
-<p>If you do not have a suitable local GPU, <a href="https://brev.nvidia.com/" class="external-link">NVIDIA Brev</a> lets you rent one and manage the instance from its CLI. Download the package’s startup script before creating the VM:</p>
+<p>If you do not have a suitable local GPU, <a href="https://brev.nvidia.com/" class="external-link">NVIDIA Brev</a> lets you rent one and manage the instance from its CLI. Download the package’s setup script before creating the VM:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--fail</span> <span class="at">--location</span> <span class="at">--output</span> bionemor-brev-setup.sh <span class="dt">\</span></span>
 <span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh</span>
 <span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="ex">brev</span> search <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48 <span class="at">--sort</span> price</span>
 <span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="ex">brev</span> create bionemor-gpu <span class="at">--mode</span> vm <span class="dt">\</span></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48 <span class="dt">\</span></span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">--startup-script</span> @bionemor-brev-setup.sh</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="ex">brev</span> exec bionemor-gpu @bionemor-brev-setup.sh</span>
 <span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="ex">brev</span> shell bionemor-gpu</span></code></pre></div>
-<p>The startup script installs the current R release with rig, installs <code>bionemor</code> with pak, and creates <code>~/workspace/bionemor</code>. R runs directly on the Brev VM; the BioNeMo recipe runtime runs in Docker. Brev supplies the machine, so use <code>backend = "local"</code> inside it rather than treating Brev as another backend.</p>
+<p>The setup script installs the current R release with rig, installs <code>bionemor</code> with pak, and creates <code>~/workspace/bionemor</code>. R runs directly on the Brev VM; the BioNeMo recipe runtime runs in Docker. Brev supplies the machine, so use <code>backend = "local"</code> inside it rather than treating Brev as another backend.</p>
 <p>Data and checkpoints remain user-managed. Copy local files into the persistent workspace with the CLI, or download them from the VM:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="ex">brev</span> copy ./data/ <span class="dt">\</span></span>
 <span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  bionemor-gpu:/home/ubuntu/workspace/bionemor/data/</span></code></pre></div>
