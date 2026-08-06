@@ -45,13 +45,21 @@ test_that("the Brev setup script installs R and bionemor", {
   expect_equal(result$status, 0L, info = result$stderr)
   calls <- readLines(log, warn = FALSE)
   expect_true(any(grepl("sudo -n true", calls, fixed = TRUE)))
-  expect_true(any(grepl("sudo -n apt-get update", calls, fixed = TRUE)))
   expect_true(any(grepl(
-    "apt-get install -y ca-certificates curl git tar",
+    "apt-get -o DPkg::Lock::Timeout=600 update",
     calls,
     fixed = TRUE
   )))
-  expect_true(any(grepl("apt-get install -y r-rig", calls, fixed = TRUE)))
+  expect_true(any(grepl(
+    "apt-get -o DPkg::Lock::Timeout=600 install -y ca-certificates curl git tar",
+    calls,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    "apt-get -o DPkg::Lock::Timeout=600 install -y r-rig",
+    calls,
+    fixed = TRUE
+  )))
   expect_true(any(grepl("sudo -n rig add release", calls, fixed = TRUE)))
   expect_true(any(grepl("sudo -n rig default release", calls, fixed = TRUE)))
   expect_true("Rscript --vanilla -" %in% calls)
@@ -79,7 +87,11 @@ test_that("Brev documentation uses the setup script and persistent workspace", {
   )
 
   expect_true(all(grepl("tools/brev/setup.sh", documents, fixed = TRUE)))
-  expect_true(all(grepl("--startup-script", documents, fixed = TRUE)))
+  expect_true(all(grepl(
+    "brev exec bionemor-gpu @bionemor-brev-setup.sh",
+    documents,
+    fixed = TRUE
+  )))
   expect_true(all(grepl("~/workspace/bionemor", documents, fixed = TRUE)))
   expect_true(all(grepl("R runs", documents, fixed = TRUE)))
 
@@ -95,7 +107,7 @@ test_that("Brev documentation uses the setup script and persistent workspace", {
   dir.create(bin)
   write_executable(
     file.path(bin, "brev"),
-    "printf '%s\\n' \"$*\" > \"$BIONEMOR_TEST_LOG\""
+    "printf '%s\\n' \"$*\" >> \"$BIONEMOR_TEST_LOG\""
   )
   result <- withr::with_envvar(
     c(
@@ -106,16 +118,34 @@ test_that("Brev documentation uses the setup script and persistent workspace", {
   )
   expect_equal(result$status, 0L, info = result$stderr)
   create_call <- readLines(log, warn = FALSE)
-  expect_match(create_call, "--mode vm", fixed = TRUE)
-  expect_match(
-    create_call,
-    paste0(
-      "--startup-script @",
-      normalizePath(file.path(root, "tools", "brev", "setup.sh"))
+  expect_length(create_call, 1L)
+  expect_match(create_call[[1L]], "--mode vm", fixed = TRUE)
+  expect_match(create_call[[1L]], "--dry-run", fixed = TRUE)
+  expect_false(grepl("--startup-script", create_call[[1L]], fixed = TRUE))
+
+  unlink(log)
+  result <- withr::with_envvar(
+    c(
+      PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+      BIONEMOR_TEST_LOG = log
     ),
-    fixed = TRUE
+    processx::run(
+      "bash",
+      c(create_script, "--create", "bionemor-test"),
+      error_on_status = FALSE
+    )
   )
-  expect_match(create_call, "--dry-run", fixed = TRUE)
+  expect_equal(result$status, 0L, info = result$stderr)
+  create_call <- readLines(log, warn = FALSE)
+  expect_length(create_call, 2L)
+  expect_match(create_call[[1L]], "create bionemor-test", fixed = TRUE)
+  expect_identical(
+    create_call[[2L]],
+    paste(
+      "exec bionemor-test",
+      paste0("@", normalizePath(file.path(root, "tools", "brev", "setup.sh")))
+    )
+  )
 
   validation_paths <- file.path(
     root,
@@ -155,6 +185,51 @@ test_that("Brev documentation uses the setup script and persistent workspace", {
   expect_match(
     validation_readme,
     "/home/ubuntu/workspace/bionemor",
+    fixed = TRUE
+  )
+})
+
+test_that("the Brev recipe workflow resolves package inputs", {
+  root <- testthat::test_path("..", "..")
+  skip_if_not(file.exists(file.path(root, ".git")))
+  script <- file.path(
+    root,
+    "validation",
+    "brev-evo2",
+    "scripts",
+    "brev-evo2-recipes.sh"
+  )
+  bin <- tempfile("bionemor-brev-recipes-bin-")
+  workspace <- tempfile("bionemor-brev-recipes-workspace-")
+  checkpoint <- file.path(workspace, "checkpoint")
+  log <- tempfile("bionemor-brev-recipes-log-")
+  dir.create(bin)
+  dir.create(checkpoint, recursive = TRUE)
+  for (command in c("docker", "git", "R")) {
+    write_executable(file.path(bin, command), "exit 0")
+  }
+  write_executable(
+    file.path(bin, "Rscript"),
+    c(
+      "printf '%s\\n' \"$*\" > \"$BIONEMOR_TEST_LOG\"",
+      "exit 0"
+    )
+  )
+
+  result <- withr::with_envvar(
+    c(
+      PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
+      BIONEMOR_EVO2_WORKSPACE = workspace,
+      BIONEMOR_EVO2_CHECKPOINT = checkpoint,
+      BIONEMOR_TEST_LOG = log
+    ),
+    processx::run("bash", script, error_on_status = FALSE)
+  )
+
+  expect_equal(result$status, 1L)
+  expect_match(
+    readLines(log, warn = FALSE),
+    normalizePath(file.path(root, "inst", "recipes", "evo2.json")),
     fixed = TRUE
   )
 })

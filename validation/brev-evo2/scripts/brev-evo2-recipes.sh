@@ -31,7 +31,7 @@ for command in awk docker git R Rscript; do
 done
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_dir="$(cd -- "$script_dir/../.." && pwd)"
+repo_dir="$(cd -- "$script_dir/../../.." && pwd)"
 lock_file="$repo_dir/inst/recipes/evo2.json"
 appendage="$repo_dir/inst/docker/evo2-recipes/Dockerfile.append"
 helper="$repo_dir/inst/scripts/materialize-evo2.py"

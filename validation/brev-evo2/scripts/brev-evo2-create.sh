@@ -42,10 +42,12 @@ args=(
   --type "$instance_type"
   --timeout 900
   --jupyter=false
-  --startup-script "@$setup_script"
 )
 if [[ "$create" == false ]]; then
   args+=(--dry-run)
 fi
 
-exec brev "${args[@]}"
+brev "${args[@]}"
+if [[ "$create" == true ]]; then
+  brev exec "$instance_name" "@$setup_script"
+fi

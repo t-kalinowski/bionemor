@@ -18,16 +18,19 @@ if [[ -z "$package_spec" ]]; then
 fi
 export BIONEMOR_PACKAGE_SPEC="$package_spec"
 
-sudo -n apt-get update
+apt_get=(sudo -n apt-get -o DPkg::Lock::Timeout=600)
+"${apt_get[@]}" update
 sudo -n env DEBIAN_FRONTEND=noninteractive \
-  apt-get install -y ca-certificates curl git tar
+  apt-get -o DPkg::Lock::Timeout=600 \
+  install -y ca-certificates curl git tar
 sudo -n curl -fsSL \
   https://rig.r-pkg.org/deb/rig.gpg \
   -o /etc/apt/trusted.gpg.d/rig.gpg
 printf '%s\n' "deb http://rig.r-pkg.org/deb rig main" |
   sudo -n tee /etc/apt/sources.list.d/rig.list >/dev/null
-sudo -n apt-get update
-sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y r-rig
+"${apt_get[@]}" update
+sudo -n env DEBIAN_FRONTEND=noninteractive \
+  apt-get -o DPkg::Lock::Timeout=600 install -y r-rig
 
 sudo -n rig add release
 sudo -n rig default release
