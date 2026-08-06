@@ -950,8 +950,7 @@ process_identity_value <- function(pid) {
     list(
       schema_version = 1L,
       pid = pid,
-      create_time = NA_character_,
-      cmdline = character()
+      create_time = NA_character_
     )
   }
   tryCatch(
@@ -969,8 +968,7 @@ process_identity_value <- function(pid) {
         create_time = sprintf(
           "%.17g",
           as.numeric(ps::ps_create_time(handle))
-        ),
-        cmdline = unname(ps::ps_cmdline(handle))
+        )
       )
     },
     no_such_process = function(error) NULL,
@@ -1057,8 +1055,7 @@ identity <- list(
   create_time = sprintf(
     "%.17g",
     as.numeric(ps::ps_create_time(handle))
-  ),
-  cmdline = unname(ps::ps_cmdline(handle))
+  )
 )
 temporary <- tempfile(".identity-", tmpdir = dirname(path))
 jsonlite::write_json(
@@ -2122,18 +2119,14 @@ persisted_process_identity <- function(run_path, stem, pid) {
     stop("persisted process identity is missing")
   }
   identity <- read_json_file(path, simplify = FALSE)
-  cmdline <- unlist(identity$cmdline, use.names = FALSE)
   if (
     !identical(identity$schema_version, 1L) ||
       !identical(as.integer(identity$pid), as.integer(pid)) ||
-      !is_scalar_string(identity$create_time) ||
-      !is.character(cmdline) ||
-      anyNA(cmdline)
+      !is_scalar_string(identity$create_time)
   ) {
     stop("persisted process identity is invalid")
   }
   identity$pid <- as.integer(identity$pid)
-  identity$cmdline <- unname(cmdline)
   identity
 }
 
