@@ -22,7 +22,7 @@ Imports:
     jsonlite,
     processx,
     ps,
-    S7 (>= 0.2.0),
+    S7 (>= 0.2.2.9000),
     stats,
     utils,
     yaml12 (>= 0.1.0)
@@ -63,3 +63,5 @@ Collate:
     'reexports.R'
     'bionemor-package.R'
     'zzz.R'
+Remotes:  
+    RConsortium/S7
