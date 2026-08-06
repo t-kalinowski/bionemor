@@ -600,16 +600,9 @@ test_that("force cancellation recovers a hung terminal log drain", {
   expect_false(test_process_group_is_running(runner_pid))
   children <- as.integer(readLines(redactor_children, warn = FALSE))
   expect_length(children, 2L)
-  child_is_running <- function(pid) {
-    tryCatch(
-      ps::ps_is_running(ps::ps_handle(pid)),
-      no_such_process = function(error) FALSE,
-      zombie_process = function(error) FALSE
-    )
-  }
   expect_false(any(vapply(
     children,
-    child_is_running,
+    test_process_is_running,
     logical(1)
   )))
   expect_equal(job_status(job), "succeeded")

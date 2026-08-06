@@ -1005,22 +1005,27 @@ write_process_identity_writer <- function(run_path) {
 args <- commandArgs(TRUE)
 if (identical(args[[1L]], "--kill-tree")) {
   identity <- jsonlite::read_json(args[[2L]], simplifyVector = FALSE)
-  handle <- tryCatch(
-    ps::ps_handle(as.integer(identity$pid)),
-    no_such_process = function(error) NULL,
-    zombie_process = function(error) NULL
+  observed_create_time <- tryCatch(
+    {
+      handle <- ps::ps_handle(as.integer(identity$pid))
+      if (
+        !ps::ps_is_running(handle) ||
+          ps::ps_status(handle) %in% c("zombie", "dead")
+      ) {
+        NA_character_
+      } else {
+        sprintf(
+          "%.17g",
+          as.numeric(ps::ps_create_time(handle))
+        )
+      }
+    },
+    no_such_process = function(error) NA_character_,
+    zombie_process = function(error) NA_character_
   )
-  if (
-    is.null(handle) ||
-      !ps::ps_is_running(handle) ||
-      ps::ps_status(handle) %in% c("zombie", "dead")
-  ) {
+  if (is.na(observed_create_time)) {
     quit(save = "no", status = 75L)
   }
-  observed_create_time <- sprintf(
-    "%.17g",
-    as.numeric(ps::ps_create_time(handle))
-  )
   if (!identical(observed_create_time, identity$create_time)) {
     quit(save = "no", status = 75L)
   }
