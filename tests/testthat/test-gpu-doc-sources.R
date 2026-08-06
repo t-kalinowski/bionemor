@@ -57,6 +57,11 @@ test_that("GPU documentation has a guarded manual render workflow", {
   )))
   expect_true(all(grepl("compute descriptor", onboarding, fixed = TRUE)))
   expect_true(all(grepl("container", onboarding, fixed = TRUE)))
+  expect_match(
+    sources[[2L]],
+    'The experimental `backend = "slurm"` path',
+    fixed = TRUE
+  )
   expect_true(all(grepl("pulls it anonymously", onboarding, fixed = TRUE)))
   expect_false(any(grepl("NGC_API_KEY", onboarding, fixed = TRUE)))
   expect_true(all(grepl(

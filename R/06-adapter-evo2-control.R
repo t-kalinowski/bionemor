@@ -408,9 +408,9 @@ evo2_lora <- function(
 
 #' Describe full Evo 2 fine-tuning
 #'
-#' Full fine-tuning updates the supported parameters in the base checkpoint
-#' instead of adding LoRA adapters. It requires more accelerator memory than
-#' [evo2_lora()].
+#' Full fine-tuning updates all trainable model parameters in the base
+#' checkpoint instead of adding LoRA adapters. It requires more accelerator
+#' memory than [evo2_lora()].
 #'
 #' @return An S7 `Evo2FullFineTune`.
 #'

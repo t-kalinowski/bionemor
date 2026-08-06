@@ -234,6 +234,22 @@ test_that("public documentation states the current runtime and API contracts", {
   models <- read_text(file.path("man", "evo2_models.Rd"), "evo2_models")
   expect_match(models, "does\\s+not\\s+measure\\s+available\\s+GPU\\s+memory")
 
+  full <- read_text(file.path("man", "evo2_full.Rd"), "evo2_full")
+  expect_match(full, "all trainable model parameters", fixed = TRUE)
+
+  fine_tune <- read_text(
+    file.path("man", "evo2_finetune.Rd"),
+    "evo2_finetune"
+  )
+  expect_match(
+    fine_tune,
+    "Compatibility checks\\s+do not determine whether the selected model"
+  )
+  expect_match(
+    fine_tune,
+    "method,\\s+and controls fit in available GPU memory"
+  )
+
   preprocessing <- read_text(
     file.path("man", "evo2_preprocess.Rd"),
     "evo2_preprocess"
