@@ -59,7 +59,6 @@
 <p>Biological foundation models are trained on large collections of DNA or protein sequences. The resulting models can be used across different sequence tasks.</p>
 <p><code>bionemor</code> lets bioinformaticians and other researchers use these models on NVIDIA GPUs from R. With Evo 2, you can generate and score DNA, calculate positional profiles and embeddings, and fine-tune a model on your own sequences. With ESM-2, you can create embeddings that represent proteins as numerical vectors for similarity, clustering, and downstream models.</p>
 <p>Sequence inputs can be character vectors or sequence sets from Biostrings. Generation and scoring return data frames, while pooled embeddings return numeric matrices. Longer runs can be saved, monitored, and reopened from another R session.</p>
-<p>A model descriptor identifies the model and optional checkpoint. A compute descriptor records where and how it runs. Family-specific functions use those objects for running and monitoring jobs without loading model weights into the R process.</p>
 <blockquote>
 <p>Running a model requires a supported CUDA-capable NVIDIA GPU. There is no CPU fallback. You can install <code>bionemor</code> and inspect the available models without a GPU.</p>
 </blockquote>
@@ -134,7 +133,6 @@
 <h2 id="set-up-evo-2">Set up Evo 2<a class="anchor" aria-label="anchor" href="#set-up-evo-2"></a>
 </h2>
 <p>Evo 2 operations run through NVIDIA BioNeMo Recipes and Megatron Bridge. <code>bionemor</code> uses versions tested with this release. The local Docker environment is built from an NVIDIA NGC base image. Create an NGC API key and authenticate Docker to <code>nvcr.io</code> on the GPU machine, including when using Brev:</p>
-<p>Megatron Bridge is the training and inference stack used by the pinned Evo 2 recipe. MBridge is its checkpoint format.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="bu">echo</span> <span class="st">"</span><span class="va">$NGC_API_KEY</span><span class="st">"</span> <span class="kw">|</span> <span class="ex">docker</span> login nvcr.io <span class="dt">\</span></span>
 <span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="at">--username</span> <span class="st">'$oauthtoken'</span> <span class="at">--password-stdin</span></span></code></pre></div>
 <p><code><a href="reference/bionemo_compute.html">bionemo_compute()</a></code> records the workspace and execution settings. <code><a href="reference/evo2_recipe.html">evo2_recipe()</a></code> selects that software environment; <code>backend = "local"</code> and <code>engine = "container"</code> run it in Docker on the current machine:</p>
@@ -264,7 +262,7 @@
 <h2 id="esm-2-embed-proteins">ESM-2: embed proteins<a class="anchor" aria-label="anchor" href="#esm-2-embed-proteins"></a>
 </h2>
 <p><code>bionemor</code> supports pooled protein embeddings with ESM-2. You can use these vectors for sequence similarity, clustering, or as features in downstream R models. <code><a href="reference/esm2_models.html">esm2_models()</a></code> lists the available pinned NVIDIA checkpoints and their embedding dimensions without downloading weights, and <code><a href="reference/esm2_model.html">esm2_model()</a></code> selects one for use with a compute descriptor.</p>
-<p>The ESM-2 environment uses native Transformers and Transformer Engine. On first use, Transformers downloads the selected weights from Hugging Face and caches them below the workspace. <code><a href="reference/esm2_embed.html">esm2_embed()</a></code> currently requires <code>gpus = 1</code> and returns one embedding per protein:</p>
+<p>The ESM-2 environment uses Transformers. On first use, Transformers downloads the selected weights from Hugging Face and caches them below the workspace. <code><a href="reference/esm2_embed.html">esm2_embed()</a></code> currently requires <code>gpus = 1</code> and returns one embedding per protein:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">esm2_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_compute.html">bionemo_compute</a></span><span class="op">(</span></span>
 <span>  recipe <span class="op">=</span> <span class="fu"><a href="reference/esm2_recipe.html">esm2_recipe</a></span><span class="op">(</span><span class="op">)</span>,</span>
