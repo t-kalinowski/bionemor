@@ -586,7 +586,7 @@ test_that("force cancellation recovers a hung terminal log drain", {
   runner_pid <- as.integer(state$backend_id)
   withr::defer(processx::run(
     kill,
-    c("-KILL", paste0("-", runner_pid)),
+    c("-KILL", "--", paste0("-", runner_pid)),
     error_on_status = FALSE
   ))
 
@@ -621,7 +621,7 @@ test_that("force cancellation recovers a hung terminal log drain", {
   ))
   withr::defer(processx::run(
     kill,
-    c("-KILL", paste0("-", bounded_runner)),
+    c("-KILL", "--", paste0("-", bounded_runner)),
     error_on_status = FALSE
   ))
   deadline <- Sys.time() + 10
@@ -751,12 +751,12 @@ test_that("reopened cancellation never signals a mismatched process identity", {
   withr::defer({
     processx::run(
       "/bin/kill",
-      c("-KILL", paste0("-", plan_pid)),
+      c("-KILL", "--", paste0("-", plan_pid)),
       error_on_status = FALSE
     )
     processx::run(
       "/bin/kill",
-      c("-KILL", paste0("-", runner_pid)),
+      c("-KILL", "--", paste0("-", runner_pid)),
       error_on_status = FALSE
     )
   })
@@ -826,12 +826,12 @@ test_that("reopened status reconciles a killed local process tree", {
   ))
   processx::run(
     "/bin/kill",
-    c("-KILL", paste0("-", plan_pid)),
+    c("-KILL", "--", paste0("-", plan_pid)),
     error_on_status = FALSE
   )
   processx::run(
     "/bin/kill",
-    c("-KILL", paste0("-", runner_pid)),
+    c("-KILL", "--", paste0("-", runner_pid)),
     error_on_status = FALSE
   )
 
@@ -904,7 +904,7 @@ test_that("reopened status cleans children after runner-only death", {
     for (pid in pids) {
       processx::run(
         "/bin/kill",
-        c("-KILL", paste0("-", pid)),
+        c("-KILL", "--", paste0("-", pid)),
         error_on_status = FALSE
       )
     }
@@ -929,7 +929,7 @@ test_that("reopened status cleans children after runner-only death", {
     expect_false(
       processx::run(
         "/bin/kill",
-        c("-0", paste0("-", pid)),
+        c("-0", "--", paste0("-", pid)),
         error_on_status = FALSE
       )$status ==
         0L
@@ -1032,7 +1032,7 @@ test_that("reopened status never signals a leaderless process group", {
   expect_equal(
     processx::run(
       "/bin/kill",
-      c("-0", paste0("-", plan_pid)),
+      c("-0", "--", paste0("-", plan_pid)),
       error_on_status = FALSE
     )$status,
     0L

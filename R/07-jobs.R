@@ -1032,14 +1032,14 @@ if (identical(args[[1L]], "--kill-tree")) {
   group <- paste0("-", as.integer(identity$pid))
   system2(
     "/bin/kill",
-    c("-TERM", group),
+    c("-TERM", "--", group),
     stdout = FALSE,
     stderr = FALSE
   )
   Sys.sleep(0.1)
   system2(
     "/bin/kill",
-    c("-KILL", group),
+    c("-KILL", "--", group),
     stdout = FALSE,
     stderr = FALSE
   )
@@ -2240,7 +2240,7 @@ stop_local_job <- function(x, force = FALSE) {
     } else {
       stopped <- command_probe(
         "kill",
-        c(if (force) "-KILL" else "-TERM", paste0("-", pid))
+        c(if (force) "-KILL" else "-TERM", "--", paste0("-", pid))
       )
       if (stopped$status != 0L && process_group_is_alive(pid)) {
         process_error <- trimws(stopped$stderr)
@@ -2261,7 +2261,10 @@ stop_local_job <- function(x, force = FALSE) {
           } else if (current_status == "dead") {
             process_stopped <- TRUE
           } else {
-            killed <- command_probe("kill", c("-KILL", paste0("-", pid)))
+            killed <- command_probe(
+              "kill",
+              c("-KILL", "--", paste0("-", pid))
+            )
             if (killed$status != 0L && process_group_is_alive(pid)) {
               process_error <- trimws(killed$stderr)
             } else {

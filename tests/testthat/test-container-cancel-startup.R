@@ -76,6 +76,14 @@ test_that("container cancellation stops the process group during startup", {
   expect_false(file.exists(file.path(job_path(job), "cancel.request")))
   expect_true(test_process_is_running(container_pid))
   expect_true(file.exists(kill_log))
+  plan_pid <- readLines(
+    file.path(job_path(job), "plan.pid"),
+    warn = FALSE
+  )
+  expect_equal(
+    readLines(kill_log, warn = FALSE),
+    c("-KILL", "--", paste0("-", plan_pid))
+  )
 
   write_executable(
     file.path(bin, "kill"),
