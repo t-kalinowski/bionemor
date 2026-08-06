@@ -1203,9 +1203,13 @@ materialize_embedding_job <- function(job, operation) {
     ) {
       stop("embedding helper summary has an invalid shape")
     }
-    if (!identical(schema, expected_schema)) {
+    if (
+      length(schema) != length(expected_schema) ||
+        !identical(schema[names(expected_schema)], expected_schema)
+    ) {
       stop("embedding helper summary has an invalid schema")
     }
+    schema <- expected_schema
     path <- copy_output_files(descriptor$portable, request$output)
     return(BioNeMoArtifact(
       path = path,

@@ -351,7 +351,7 @@ fake_recipes_runtime <- function(bin) {
       "    summary <- list(rows = nrow(rows), mode = mode)",
       "    if (mode == 'embedding-unpooled') {",
       "      summary$shape <- c(nrow(rows), 4L)",
-      "      summary$schema <- list(id = 'string', position = 'int64', embedding = 'list<double>', strand = 'string')",
+      "      summary$schema <- list(embedding = 'list<double>', id = 'string', position = 'int64', strand = 'string')",
       "    }",
       "    jsonlite::write_json(summary, paste0(output, '.summary.json'), auto_unbox = TRUE, pretty = TRUE)",
       "  }",
