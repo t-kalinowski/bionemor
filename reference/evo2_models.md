@@ -57,10 +57,10 @@ disk capacity, or fine-tuning requirements.
 models <- evo2_models()
 models[c("name", "parameters", "context_length", "download_size")]
 #>       name parameters context_length download_size
-#> 1  1b-base      1e+09           8192      2.71e+09
-#> 2  7b-base      7e+09           8192      1.58e+10
-#> 3       7b      7e+09        1048576      1.58e+10
-#> 4      20b      2e+10        1048576      1.10e+11
-#> 5 40b-base      4e+10           8192      2.25e+11
-#> 6      40b      4e+10        1048576      2.25e+11
+#> 1  1b-base      1e+09           8192    2710000000
+#> 2  7b-base      7e+09           8192   15800000000
+#> 3       7b      7e+09        1048576   23428959022
+#> 4      20b      2e+10        1048576  110000000000
+#> 5 40b-base      4e+10           8192  225000000000
+#> 6      40b      4e+10        1048576  225000000000
 ```
