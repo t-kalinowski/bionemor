@@ -687,18 +687,15 @@ read_operation <- function(run_path) {
     ),
     class = c("bionemor_run", "list")
   )
-  structure(
-    list(
-      run = run,
-      request = record$request,
-      execution = record$execution,
-      plan = read_command_plan(file.path(run_path, "plan.json")),
-      result = record$result,
-      context = record$context,
-      cleanup = record$cleanup,
-      timeout = record$timeout %||% Inf
-    ),
-    class = c("bionemor_operation", "list")
+  operation_spec(
+    run = run,
+    request = record$request,
+    execution = record$execution,
+    plan = read_command_plan(file.path(run_path, "plan.json")),
+    result = record$result,
+    context = record$context,
+    cleanup = record$cleanup,
+    timeout = record$timeout %||% Inf
   )
 }
 

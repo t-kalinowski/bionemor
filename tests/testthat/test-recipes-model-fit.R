@@ -448,8 +448,10 @@ test_that("preprocessing and LoRA fine-tuning use current recipe commands", {
       )
     ),
     name = "lora-fit",
-    async = TRUE
+    async = TRUE,
+    timeout = 10L
   )
+  expect_s3_class(bionemo_job(job_path(job)), "bionemor::BioNeMoJob")
   plan <- jsonlite::read_json(
     file.path(job_path(job), "plan.json"),
     simplifyVector = TRUE
