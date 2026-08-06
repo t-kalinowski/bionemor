@@ -1,17 +1,9 @@
 .onLoad <- function(...) {
-  S7::methods_register()
+  S7::S7_on_load()
 }
 
 .onUnload <- function(...) {
-  hook <- get0("S7_on_unload", envir = asNamespace("S7"), inherits = FALSE)
-  if (is.function(hook)) {
-    hook()
-  }
+  S7::S7_on_unload()
 }
 
-local({
-  hook <- get0("S7_on_build", envir = asNamespace("S7"), inherits = FALSE)
-  if (is.function(hook)) {
-    hook()
-  }
-})
+S7::S7_on_build()
