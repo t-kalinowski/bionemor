@@ -45,6 +45,11 @@ test_that("predict supports the three implemented inference operations", {
   )
 })
 
+test_that("compatibility generics remain callable package exports", {
+  expect_true(is.function(bionemor::fit))
+  expect_true(is.function(bionemor::predict))
+})
+
 test_that("inference extras reject settings that no operation applies", {
   unsupported <- c(
     "eden_tokenizer",
