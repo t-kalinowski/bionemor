@@ -110,7 +110,7 @@ test_that("Slurm and Apptainer do not have a dedicated article", {
   )
   expect_match(onboarding, 'backend = "slurm"', fixed = TRUE)
   expect_match(onboarding, "Apptainer", fixed = TRUE)
-  expect_no_match(onboarding, "experimental", ignore.case = TRUE)
+  expect_match(onboarding, "experimental", ignore.case = TRUE)
   expect_no_match(onboarding, "untested", ignore.case = TRUE)
   expect_no_match(onboarding, "not executed", ignore.case = TRUE)
 })
