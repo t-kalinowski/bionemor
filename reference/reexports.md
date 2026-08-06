@@ -16,27 +16,8 @@ only `type = "embedding"` is supported.
 ## Usage
 
 ``` r
-fit(
-  object,
-  data,
-  compute = NULL,
-  steps,
-  control = evo2_fit_control(),
-  method = evo2_lora(),
-  name = NULL,
-  output = NULL,
-  timeout = Inf,
-  async = FALSE,
-  ...
-)
-
-predict(
-  object,
-  newdata,
-  type = c("score", "generate", "embedding"),
-  compute = NULL,
-  ...
-)
+fit(object, ...)
+predict(object, ...)
 ```
 
 ## Arguments
@@ -47,60 +28,15 @@ predict(
   [`fit()`](https://generics.r-lib.org/reference/fit.html) supports only
   Evo 2.
 
-- data:
-
-  An `Evo2Dataset` or accepted raw sequence input.
-
-- compute:
-
-  A BioNeMo compute descriptor. `NULL` uses the descriptor attached by
-  [`evo2_model()`](https://t-kalinowski.github.io/bionemor/reference/evo2_model.md),
-  [`esm2_model()`](https://t-kalinowski.github.io/bionemor/reference/esm2_model.md),
-  or a previous fine-tuning run.
-
-- steps:
-
-  Positive training steps.
-
-- control:
-
-  Fine-tuning controls.
-
-- method:
-
-  A LoRA or full fine-tuning descriptor.
-
-- name:
-
-  Optional run name.
-
-- output:
-
-  Optional result path.
-
-- timeout:
-
-  Complete operation timeout in seconds.
-
-- async:
-
-  Whether to return a `BioNeMoJob` before the operation completes.
-
-- newdata:
-
-  DNA sequences or prompts for Evo 2, or protein sequences for ESM-2.
-
-- type:
-
-  Inference operation. Evo 2 supports `"score"`, `"generate"`, and
-  `"embedding"`; ESM-2 supports `"embedding"`.
-
 - ...:
 
-  Reserved for future compatibility and must be empty for
-  [`fit()`](https://generics.r-lib.org/reference/fit.html); passed to
-  the selected task-specific function for
-  [`predict()`](https://rdrr.io/r/stats/predict.html).
+  Method arguments. Evo 2
+  [`fit()`](https://generics.r-lib.org/reference/fit.html) accepts
+  `data`, `compute`, `steps`, `control`, `method`, `name`, `output`,
+  `timeout`, and `async`.
+  [`predict()`](https://rdrr.io/r/stats/predict.html) accepts `newdata`,
+  `type`, `compute`, and arguments for the selected task-specific
+  function.
 
 ## Value
 
