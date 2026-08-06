@@ -1019,7 +1019,8 @@ if (identical(args[[1L]], "--kill-tree")) {
       }
     },
     no_such_process = function(error) NA_character_,
-    zombie_process = function(error) NA_character_
+    zombie_process = function(error) NA_character_,
+    ps_error = function(error) NA_character_
   )
   if (is.na(observed_create_time)) {
     quit(save = "no", status = 75L)
@@ -1557,9 +1558,13 @@ submit_operation <- function(operation, async = TRUE) {
         exit_status = as.integer(submitted$status),
         failure_reason = "SBATCH_FAILED"
       )
+      message <- trimws(submitted$stderr)
+      if (!nzchar(message)) {
+        message <- paste("sbatch exited with status", submitted$status)
+      }
       bionemor_abort(
         "BN_UPSTREAM",
-        redact_credentials(trimws(submitted$stderr)),
+        redact_credentials(message),
         run_path = run_path,
         request_id = basename(run_path),
         operation = kind,

@@ -1360,10 +1360,7 @@ test_that("failed Slurm submission becomes a durable failed job", {
   fake_slurm_runtime(bin)
   write_executable(
     file.path(bin, "sbatch"),
-    c(
-      "printf 'scheduler refused submission\\n' >&2",
-      "exit 17"
-    )
+    "exit 17"
   )
   withr::local_envvar(
     PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep)
@@ -1401,6 +1398,7 @@ test_that("failed Slurm submission becomes a durable failed job", {
     class = "BN_UPSTREAM"
   )
 
+  expect_match(conditionMessage(error), "sbatch exited with status 17")
   expect_identical(error$upstream_exit_status, 17L)
   state <- jsonlite::read_json(
     file.path(run_path, "state.json"),
