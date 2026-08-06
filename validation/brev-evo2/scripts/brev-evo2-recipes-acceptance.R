@@ -369,7 +369,7 @@ capture_evidence <- function(context) {
 
 workspace <- Sys.getenv(
   "BIONEMOR_EVO2_WORKSPACE",
-  "/home/ubuntu/bionemor-workspace"
+  "/home/ubuntu/workspace/bionemor"
 )
 image <- Sys.getenv("BIONEMOR_EVO2_IMAGE")
 checkpoint_path <- Sys.getenv("BIONEMOR_EVO2_CHECKPOINT")

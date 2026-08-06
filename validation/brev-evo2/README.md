@@ -12,10 +12,10 @@ Evo 2 checkpoint:
 ```bash
 BIONEMOR_TEST_GPU=true \
 BIONEMOR_EVO2_IMAGE=sha256:<evo2-image-id> \
-BIONEMOR_EVO2_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
-BIONEMOR_EVO2_CHECKPOINT=/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
+BIONEMOR_EVO2_WORKSPACE=/home/ubuntu/workspace/bionemor \
+BIONEMOR_EVO2_CHECKPOINT=/home/ubuntu/workspace/bionemor/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
 BIONEMOR_ESM2_IMAGE=sha256:<esm2-image-id> \
-BIONEMOR_ESM2_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
+BIONEMOR_ESM2_WORKSPACE=/home/ubuntu/workspace/bionemor \
 R -q -e 'devtools::test()'
 ```
 
@@ -55,8 +55,8 @@ R CMD INSTALL .
 capture_date="$(date -u +%F)"
 capture_time="$(date -u +%Y%m%d-%H%M%S)"
 BIONEMOR_DOCS_RENDER=1 \
-BIONEMOR_DOCS_WORKSPACE=/home/ubuntu/bionemor-recipes-workspace \
-BIONEMOR_DOCS_CHECKPOINT=/home/ubuntu/bionemor-recipes-workspace/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
+BIONEMOR_DOCS_WORKSPACE=/home/ubuntu/workspace/bionemor \
+BIONEMOR_DOCS_CHECKPOINT=/home/ubuntu/workspace/bionemor/checkpoints/evo2-7b-mbridge-recipes-e8e7 \
 BIONEMOR_DOCS_GPU='NVIDIA L40S' \
 BIONEMOR_DOCS_RENDER_DATE="$capture_date" \
 BIONEMOR_DOCS_RUN_ID="docs-$capture_time" \

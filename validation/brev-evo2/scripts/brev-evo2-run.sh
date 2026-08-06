@@ -17,7 +17,8 @@ fi
 
 instance="${1:-bionemor-evo2}"
 checkpoint_source="${BIONEMOR_EVO2_CHECKPOINT_SOURCE:-}"
-checkpoint="${BIONEMOR_EVO2_CHECKPOINT:-/home/ubuntu/bionemor-workspace/checkpoints/evo2-7b}"
+workspace="/home/ubuntu/workspace/bionemor"
+checkpoint="${BIONEMOR_EVO2_CHECKPOINT:-$workspace/checkpoints/evo2-7b}"
 capture_date="${BIONEMOR_EVO2_CAPTURE_DATE:-$(date -u +%Y-%m-%d)}"
 if [[ -z "$checkpoint_source" ]]; then
   echo "BIONEMOR_EVO2_CHECKPOINT_SOURCE is required" >&2
@@ -31,8 +32,8 @@ if [[ ! "$checkpoint" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
   echo "BIONEMOR_EVO2_CHECKPOINT must be a safe absolute path on the instance" >&2
   exit 2
 fi
-if [[ "$checkpoint" != /home/ubuntu/bionemor-workspace/* ]]; then
-  echo "BIONEMOR_EVO2_CHECKPOINT must be inside /home/ubuntu/bionemor-workspace" >&2
+if [[ "$checkpoint" != "$workspace"/* ]]; then
+  echo "BIONEMOR_EVO2_CHECKPOINT must be inside $workspace" >&2
   exit 2
 fi
 if [[ ! "$capture_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
@@ -54,7 +55,7 @@ if [[ -n "$(git -C "$repo_dir" status --porcelain)" ]]; then
 fi
 validation_root="$repo_dir/validation/brev-evo2"
 capture_dir="$validation_root/$capture_date"
-remote_evidence="/home/ubuntu/bionemor-workspace/validation/brev-evo2/$capture_date"
+remote_evidence="$workspace/validation/brev-evo2/$capture_date"
 if [[ -e "$capture_dir" ]]; then
   echo "validation capture already exists: $capture_dir" >&2
   exit 2

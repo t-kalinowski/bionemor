@@ -50,17 +50,34 @@ GPU. Docker must be configured so containers can use the GPU. GPU requirements
 vary by model, sequence length, batch size, and operation.
 
 If you do not have a suitable local GPU, [NVIDIA Brev](https://brev.nvidia.com/)
-lets you rent one and manage the instance from its CLI:
+lets you rent one and manage the instance from its CLI. Download the package's
+startup script before creating the VM:
 
 ```bash
+curl --fail --location --output bionemor-brev-setup.sh \
+  https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh
 brev search --stoppable --gpu-name L40S --min-vram 48 --sort price
-brev create bionemor-gpu --stoppable --gpu-name L40S --min-vram 48
+brev create bionemor-gpu --mode vm \
+  --stoppable --gpu-name L40S --min-vram 48 \
+  --startup-script @bionemor-brev-setup.sh
 brev shell bionemor-gpu
 ```
 
-`brev create` provisions the GPU machine, and `brev shell` opens a shell on it.
-Install R and `bionemor` there; the setup below builds the model environment in
-Docker from an NVIDIA image.
+The startup script installs the current R release with rig, installs `bionemor`
+with pak, and creates `~/workspace/bionemor`. R runs directly on the Brev VM;
+the BioNeMo recipe runtime runs in Docker. Brev supplies the machine, so use
+`backend = "local"` inside it rather than treating Brev as another backend.
+
+Data and checkpoints remain user-managed. Copy local files into the persistent
+workspace with the CLI, or download them from the VM:
+
+```bash
+brev copy ./data/ \
+  bionemor-gpu:/home/ubuntu/workspace/bionemor/data/
+```
+
+Files below `~/workspace` persist when a stoppable instance is stopped. Deleting
+the instance deletes that storage, so retain another copy of important data.
 
 When you finish, leave the remote shell and stop the instance from your local
 terminal:
@@ -88,7 +105,7 @@ echo "$NGC_API_KEY" | docker login nvcr.io \
 
 ``` r
 workspace <- normalizePath(
-  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/bionemor-work"),
+  Sys.getenv("BIONEMOR_DOCS_WORKSPACE", "~/workspace/bionemor"),
   mustWork = FALSE
 )
 evo2_compute <- bionemo_compute(
@@ -104,6 +121,58 @@ evo2_compute <- bionemo_install(evo2_compute)
 `bionemo_install()` builds or verifies the selected environment and checks its
 GPU capabilities. If setup fails, use `bionemo_doctor()` to inspect the
 environment.
+
+### Extend the recipe image
+
+Add site-specific system or Python dependencies by building on the package's
+verified image, not directly on the raw NVIDIA base image. After installation,
+`evo2_compute@image` prints the managed recipe image. Export the same value in a
+shell:
+
+```bash
+export BIONEMOR_RECIPE_IMAGE="$(
+  Rscript --vanilla -e '
+    library(bionemor)
+    compute <- bionemo_compute(
+      recipe = evo2_recipe(),
+      workspace = "~/workspace/bionemor"
+    )
+    cat(compute@image)
+  '
+)"
+```
+
+Then build a Dockerfile such as:
+
+```dockerfile
+ARG BIONEMOR_RECIPE_IMAGE
+FROM ${BIONEMOR_RECIPE_IMAGE}
+
+# Add site-specific Dockerfile instructions here.
+```
+
+```bash
+docker build \
+  --build-arg BIONEMOR_RECIPE_IMAGE \
+  --tag example/bionemor-evo2:site .
+```
+
+Select that local tag explicitly and verify the resulting prebuilt recipe image:
+
+```r
+custom_compute <- bionemo_compute(
+  recipe = evo2_recipe(),
+  backend = "local",
+  engine = "container",
+  workspace = workspace,
+  image = "example/bionemor-evo2:site"
+)
+custom_compute <- bionemo_install(custom_compute)
+```
+
+`bionemo_install()` inspects an explicit image but does not build or pull it.
+The R package stays on the VM; it does not need to be installed in this runtime
+image.
 
 ## Evo 2: generate, score, and embed DNA
 

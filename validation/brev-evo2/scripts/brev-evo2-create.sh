@@ -27,6 +27,9 @@ fi
 
 instance_name="${1:-bionemor-evo2}"
 instance_type="${BREV_EVO2_INSTANCE_TYPE:-l40s-48gb.1x}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_dir="$(cd -- "$script_dir/../../.." && pwd)"
+setup_script="$repo_dir/tools/brev/setup.sh"
 if [[ ! "$instance_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
   echo "instance name must contain only letters, digits, periods, underscores, and hyphens" >&2
   exit 2
@@ -39,6 +42,7 @@ args=(
   --type "$instance_type"
   --timeout 900
   --jupyter=false
+  --startup-script "@$setup_script"
 )
 if [[ "$create" == false ]]; then
   args+=(--dry-run)

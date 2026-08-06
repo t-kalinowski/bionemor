@@ -146,6 +146,16 @@ compute <- bionemo_compute(
 compute
 
 \dontrun{
+# A local image extended from a package-managed recipe image.
+custom_compute <- bionemo_compute(
+  recipe = evo2_recipe(),
+  backend = "local",
+  engine = "container",
+  workspace = workspace,
+  image = "example/bionemor-evo2:site"
+)
+custom_compute <- bionemo_install(custom_compute)
+
 # A site-managed runtime on a Slurm cluster.
 slurm_compute <- bionemo_compute(
   recipe = evo2_recipe(),
