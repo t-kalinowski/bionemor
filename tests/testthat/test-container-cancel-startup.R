@@ -67,9 +67,6 @@ test_that("container cancellation stops the process group during startup", {
   }
   expect_true(file.exists(pid_file))
   container_pid <- as.integer(readLines(pid_file, warn = FALSE))
-  alive <- function(pid) {
-    isTRUE(tools::pskill(pid, signal = 0L))
-  }
 
   reopened <- bionemo_job(job_path(job))
   expect_error(
@@ -77,7 +74,7 @@ test_that("container cancellation stops the process group during startup", {
     "failed to stop local container or process group"
   )
   expect_false(file.exists(file.path(job_path(job), "cancel.request")))
-  expect_true(alive(container_pid))
+  expect_true(test_process_is_running(container_pid))
   expect_true(file.exists(kill_log))
 
   write_executable(
@@ -86,11 +83,11 @@ test_that("container cancellation stops the process group during startup", {
   )
   expect_no_error(job_cancel(reopened, force = TRUE))
   deadline <- Sys.time() + 2
-  while (alive(container_pid) && Sys.time() < deadline) {
+  while (test_process_is_running(container_pid) && Sys.time() < deadline) {
     Sys.sleep(0.01)
   }
 
-  expect_false(alive(container_pid))
+  expect_false(test_process_is_running(container_pid))
   expect_equal(
     readLines(cancel_log, warn = FALSE),
     c("kill", paste0("bionemor-", basename(job_path(job))))

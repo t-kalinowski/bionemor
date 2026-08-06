@@ -188,7 +188,7 @@ test_that("operation timeout is enforced without an active R waiter", {
   expect_true(file.exists(file.path(job_path(job), "plan.pid")))
   expect_true(file.exists(pid_file))
   pid <- as.integer(readLines(pid_file, warn = FALSE))
-  expect_false(isTRUE(tools::pskill(pid, signal = 0L)))
+  expect_false(test_process_is_running(pid))
 })
 
 test_that("operation timeout escalates when the recipe ignores TERM", {
@@ -266,7 +266,7 @@ test_that("operation timeout escalates when the recipe ignores TERM", {
   expect_equal(state$exit_status, 124L)
   expect_true(file.exists(pid_file))
   pid <- as.integer(readLines(pid_file, warn = FALSE))
-  expect_false(isTRUE(tools::pskill(pid, signal = 0L)))
+  expect_false(test_process_is_running(pid))
 })
 
 test_that("detached prediction jobs remove tensors after recording provenance", {
@@ -515,6 +515,7 @@ test_that("terminal status survives process inspection errors", {
   testthat::local_mocked_bindings(
     ps_handle = function(pid) pid,
     ps_is_running = function(handle) TRUE,
+    ps_status = function(handle) "sleeping",
     ps_create_time = function(handle) {
       stop(structure(
         list(
@@ -545,14 +546,6 @@ test_that("force cancellation recovers a hung terminal log drain", {
   kill <- Sys.which("kill")
   stopifnot(nzchar(awk))
   stopifnot(nzchar(kill))
-  group_is_alive <- function(pid) {
-    processx::run(
-      kill,
-      c("-0", paste0("-", pid)),
-      error_on_status = FALSE
-    )$status ==
-      0L
-  }
   dir.create(workspace)
   fake_recipes_runtime(bin)
   write_executable(
@@ -603,8 +596,8 @@ test_that("force cancellation recovers a hung terminal log drain", {
   expect_no_error(job_cancel(job, force = TRUE))
   expect_false(file.exists(file.path(job_path(job), "cancel.request")))
   expect_false(file.exists(file.path(job_path(job), "finalizing")))
-  expect_false(isTRUE(tools::pskill(runner_pid, signal = 0L)))
-  expect_false(group_is_alive(runner_pid))
+  expect_false(test_process_is_running(runner_pid))
+  expect_false(test_process_group_is_running(runner_pid))
   children <- as.integer(readLines(redactor_children, warn = FALSE))
   expect_length(children, 2L)
   child_is_running <- function(pid) {
@@ -651,8 +644,8 @@ test_that("force cancellation recovers a hung terminal log drain", {
   }
   expect_equal(bounded_state, "succeeded")
   expect_false(file.exists(file.path(job_path(bounded), "finalizing")))
-  expect_false(isTRUE(tools::pskill(bounded_runner, signal = 0L)))
-  expect_false(group_is_alive(bounded_runner))
+  expect_false(test_process_is_running(bounded_runner))
+  expect_false(test_process_group_is_running(bounded_runner))
 })
 
 test_that("force cancellation stops a hung foreground manifest finalizer", {
@@ -702,7 +695,7 @@ test_that("force cancellation stops a hung foreground manifest finalizer", {
   withr::defer(tools::pskill(finalizer_pid, signal = 9L))
 
   expect_no_error(job_cancel(bionemo_job(job_path(job)), force = TRUE))
-  expect_false(isTRUE(tools::pskill(finalizer_pid, signal = 0L)))
+  expect_false(test_process_is_running(finalizer_pid))
   expect_false(file.exists(file.path(job_path(job), "finalizing")))
   expect_equal(job_status(bionemo_job(job_path(job))), "succeeded")
 })
@@ -781,8 +774,8 @@ test_that("reopened cancellation never signals a mismatched process identity", {
   }
 
   expect_no_error(job_cancel(bionemo_job(job_path(job)), force = TRUE))
-  expect_true(isTRUE(tools::pskill(runner_pid, signal = 0L)))
-  expect_true(isTRUE(tools::pskill(plan_pid, signal = 0L)))
+  expect_true(test_process_is_running(runner_pid))
+  expect_true(test_process_is_running(plan_pid))
   expect_false(file.exists(file.path(job_path(job), "cancel.request")))
   expect_equal(job_status(bionemo_job(job_path(job))), "failed")
 })
@@ -930,7 +923,7 @@ test_that("reopened status cleans children after runner-only death", {
   )
   deadline <- Sys.time() + 2
   while (
-    isTRUE(tools::pskill(pids[["runner"]], signal = 0L)) &&
+    test_process_is_running(pids[["runner"]]) &&
       Sys.time() < deadline
   ) {
     Sys.sleep(0.01)
@@ -939,7 +932,7 @@ test_that("reopened status cleans children after runner-only death", {
   reopened <- bionemo_job(job_path(job))
   expect_equal(job_status(reopened), "failed")
   for (pid in pids[c("plan", "stdout-redactor", "stderr-redactor")]) {
-    expect_false(isTRUE(tools::pskill(pid, signal = 0L)))
+    expect_false(test_process_is_running(pid))
     expect_false(
       processx::run(
         "/bin/kill",
@@ -1030,19 +1023,19 @@ test_that("reopened status never signals a leaderless process group", {
   )
   deadline <- Sys.time() + 2
   while (
-    (isTRUE(tools::pskill(plan_pid, signal = 0L)) ||
-      isTRUE(tools::pskill(runner_pid, signal = 0L))) &&
+    (test_process_is_running(plan_pid) ||
+      test_process_is_running(runner_pid)) &&
       Sys.time() < deadline
   ) {
     Sys.sleep(0.01)
   }
-  expect_false(isTRUE(tools::pskill(plan_pid, signal = 0L)))
-  expect_false(isTRUE(tools::pskill(runner_pid, signal = 0L)))
-  expect_true(isTRUE(tools::pskill(child_pid, signal = 0L)))
+  expect_false(test_process_is_running(plan_pid))
+  expect_false(test_process_is_running(runner_pid))
+  expect_true(test_process_is_running(child_pid))
 
   reopened <- bionemo_job(job_path(job))
   expect_equal(job_status(reopened), "failed")
-  expect_true(isTRUE(tools::pskill(child_pid, signal = 0L)))
+  expect_true(test_process_is_running(child_pid))
   expect_equal(
     processx::run(
       "/bin/kill",
@@ -1111,5 +1104,5 @@ test_that("force cancellation before plan startup finalizes the run", {
   state <- jsonlite::read_json(state_path)
   expect_equal(state$state, "cancelled")
   expect_true(file.exists(file.path(job_path(job), "manifest.json")))
-  expect_false(isTRUE(tools::pskill(runner_pid, signal = 0L)))
+  expect_false(test_process_is_running(runner_pid))
 })

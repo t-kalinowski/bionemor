@@ -957,7 +957,10 @@ process_identity_value <- function(pid) {
   tryCatch(
     {
       handle <- ps::ps_handle(pid)
-      if (!isTRUE(ps::ps_is_running(handle))) {
+      if (
+        !isTRUE(ps::ps_is_running(handle)) ||
+          ps::ps_status(handle) %in% c("zombie", "dead")
+      ) {
         return(NULL)
       }
       list(
@@ -1007,7 +1010,11 @@ if (identical(args[[1L]], "--kill-tree")) {
     no_such_process = function(error) NULL,
     zombie_process = function(error) NULL
   )
-  if (is.null(handle) || !ps::ps_is_running(handle)) {
+  if (
+    is.null(handle) ||
+      !ps::ps_is_running(handle) ||
+      ps::ps_status(handle) %in% c("zombie", "dead")
+  ) {
     quit(save = "no", status = 75L)
   }
   observed_create_time <- sprintf(
@@ -1708,22 +1715,28 @@ job_path <- function(x) {
 
 terminal_job_states <- c("succeeded", "failed", "cancelled")
 
-process_id_is_alive <- function(pid) {
-  isTRUE(tools::pskill(as.integer(pid), signal = 0L))
-}
-
 process_group_is_alive <- function(pid) {
   if (is.na(pid)) {
     return(FALSE)
   }
-  if (process_id_is_alive(pid)) {
-    return(TRUE)
+  ps <- Sys.which("ps")
+  if (!nzchar(ps)) {
+    stop("ps is required to inspect local process groups")
   }
-  kill <- if (file.exists("/bin/kill")) "/bin/kill" else Sys.which("kill")
-  if (!nzchar(kill)) {
-    return(FALSE)
+  result <- command_probe(ps, c("-eo", "pgid=,stat="))
+  if (result$status != 0L) {
+    stop("failed to inspect local process groups")
   }
-  command_probe(kill, c("-0", paste0("-", pid)))$status == 0L
+  processes <- utils::read.table(
+    text = result$stdout,
+    col.names = c("pgid", "status"),
+    colClasses = "character",
+    strip.white = TRUE
+  )
+  any(
+    processes$pgid == as.character(pid) &
+      !grepl("^[ZX]", processes$status)
+  )
 }
 
 wait_for_process_group <- function(pid, timeout) {

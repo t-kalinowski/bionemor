@@ -793,14 +793,11 @@ test_that("local jobs preserve wait and cancellation boundaries", {
 
   reopened <- bionemo_job(job_path(job))
   job_cancel(reopened, force = TRUE)
-  alive <- function(pid) {
-    isTRUE(tools::pskill(pid, signal = 0L))
-  }
   deadline <- Sys.time() + 2
-  while (alive(child_pid) && Sys.time() < deadline) {
+  while (test_process_is_running(child_pid) && Sys.time() < deadline) {
     Sys.sleep(0.01)
   }
-  expect_false(alive(child_pid))
+  expect_false(test_process_is_running(child_pid))
   expect_equal(job_status(reopened), "cancelled")
   expect_true(file.exists(file.path(job_path(job), "cancel.request")))
 })
@@ -869,7 +866,7 @@ test_that("default local cancellation terminates a TERM-resistant process tree",
 
   job_cancel(bionemo_job(job_path(job)))
 
-  expect_false(isTRUE(tools::pskill(pid, signal = 0L)))
+  expect_false(test_process_is_running(pid))
   expect_equal(job_status(bionemo_job(job_path(job))), "cancelled")
   expect_true(file.exists(file.path(job_path(job), "manifest.json")))
 })

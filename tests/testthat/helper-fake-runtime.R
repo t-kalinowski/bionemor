@@ -10,6 +10,37 @@ write_r_executable <- function(path, lines) {
   path
 }
 
+test_process_is_running <- function(pid) {
+  tryCatch(
+    {
+      handle <- ps::ps_handle(pid)
+      isTRUE(ps::ps_is_running(handle)) &&
+        !ps::ps_status(handle) %in% c("zombie", "dead")
+    },
+    no_such_process = function(error) FALSE,
+    zombie_process = function(error) FALSE
+  )
+}
+
+test_process_group_is_running <- function(pid) {
+  result <- processx::run(
+    Sys.which("ps"),
+    c("-eo", "pgid=,stat="),
+    error_on_status = FALSE
+  )
+  stopifnot(result$status == 0L)
+  processes <- utils::read.table(
+    text = result$stdout,
+    col.names = c("pgid", "status"),
+    colClasses = "character",
+    strip.white = TRUE
+  )
+  any(
+    processes$pgid == as.character(pid) &
+      !grepl("^[ZX]", processes$status)
+  )
+}
+
 fake_pooled_embedding_writer <- c(
   "write_pooled_embeddings <- function(prefix, ids, values, source_dtype) {",
   "  stopifnot(is.matrix(values), all(is.finite(values)))",
