@@ -6,58 +6,16 @@
 \alias{predict}
 \title{Model compatibility generics}
 \usage{
-fit(
-  object,
-  data,
-  compute = NULL,
-  steps,
-  control = evo2_fit_control(),
-  method = evo2_lora(),
-  name = NULL,
-  output = NULL,
-  timeout = Inf,
-  async = FALSE,
-  ...
-)
-
-predict(
-  object,
-  newdata,
-  type = c("score", "generate", "embedding"),
-  compute = NULL,
-  ...
-)
+fit(object, ...)
+predict(object, ...)
 }
 \arguments{
 \item{object}{An Evo 2 or ESM-2 model. \code{fit()} supports only Evo 2.}
 
-\item{data}{An \code{Evo2Dataset} or accepted raw sequence input.}
-
-\item{compute}{A BioNeMo compute descriptor. \code{NULL} uses the descriptor
-attached by \code{\link[=evo2_model]{evo2_model()}}, \code{\link[=esm2_model]{esm2_model()}}, or a previous fine-tuning run.}
-
-\item{steps}{Positive training steps.}
-
-\item{control}{Fine-tuning controls.}
-
-\item{method}{A LoRA or full fine-tuning descriptor.}
-
-\item{name}{Optional run name.}
-
-\item{output}{Optional result path.}
-
-\item{timeout}{Complete operation timeout in seconds.}
-
-\item{async}{Whether to return a \code{BioNeMoJob} before the operation completes.}
-
-\item{newdata}{DNA sequences or prompts for Evo 2, or protein sequences for
-ESM-2.}
-
-\item{type}{Inference operation. Evo 2 supports \code{"score"}, \code{"generate"}, and
-\code{"embedding"}; ESM-2 supports \code{"embedding"}.}
-
-\item{...}{Reserved for future compatibility and must be empty for \code{fit()};
-passed to the selected task-specific function for \code{predict()}.}
+\item{...}{Method arguments. Evo 2 \code{fit()} accepts \code{data}, \code{compute}, \code{steps},
+\code{control}, \code{method}, \code{name}, \code{output}, \code{timeout}, and \code{async}. \code{predict()}
+accepts \code{newdata}, \code{type}, \code{compute}, and arguments for the selected
+task-specific function.}
 }
 \value{
 \code{fit()} returns an \code{Evo2Model} or \code{BioNeMoJob}. \code{predict()} returns

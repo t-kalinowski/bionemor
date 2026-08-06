@@ -109,13 +109,12 @@ test_that("public documentation states the current runtime and API contracts", {
   expect_match(package_help, "no\\s+CPU\\s+fallback")
 
   reexports <- read_text(file.path("man", "reexports.Rd"), "reexports")
-  expect_match(reexports, "fit(", fixed = TRUE)
+  expect_match(reexports, "fit(object, ...)", fixed = TRUE)
+  expect_match(reexports, "predict(object, ...)", fixed = TRUE)
   expect_match(reexports, "object", fixed = TRUE)
-  expect_match(
-    reexports,
-    'type = c("score", "generate", "embedding")',
-    fixed = TRUE
-  )
+  expect_match(reexports, "evo2_score", fixed = TRUE)
+  expect_match(reexports, "evo2_generate", fixed = TRUE)
+  expect_match(reexports, "evo2_embed", fixed = TRUE)
 
   generation <- read_text(
     file.path("man", "evo2_generate.Rd"),

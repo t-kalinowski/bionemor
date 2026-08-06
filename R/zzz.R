@@ -3,11 +3,15 @@
 }
 
 .onUnload <- function(...) {
-  if (exists("S7_on_unload", envir = asNamespace("S7"), inherits = FALSE)) {
-    S7::S7_on_unload()
+  hook <- get0("S7_on_unload", envir = asNamespace("S7"), inherits = FALSE)
+  if (is.function(hook)) {
+    hook()
   }
 }
 
-if (exists("S7_on_build", envir = asNamespace("S7"), inherits = FALSE)) {
-  S7::S7_on_build()
-}
+local({
+  hook <- get0("S7_on_build", envir = asNamespace("S7"), inherits = FALSE)
+  if (is.function(hook)) {
+    hook()
+  }
+})
