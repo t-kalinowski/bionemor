@@ -94,7 +94,9 @@ materializes the fitted model.
 determines data parallelism and gradient accumulation from the allocated
 GPU count and model-parallel settings. Training requires GPUs with
 compute capability 8.0 or newer; model-specific precision restrictions
-are enforced before launch.
+are enforced before launch. Compatibility checks do not determine
+whether the selected model, method, and controls fit in available GPU
+memory.
 
 A LoRA result contains adapter weights and records the dense base
 checkpoint; that base checkpoint must remain at the recorded path for

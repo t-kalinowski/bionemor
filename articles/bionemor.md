@@ -132,9 +132,9 @@ evo2_compute <- bionemo_install(evo2_compute)
 ```
 
 Use `engine = "external"` for a compatible recipe environment managed
-outside the package. `backend = "slurm"` can use that external
-environment or an existing Apptainer image on a shared cluster. If setup
-fails,
+outside the package. The experimental `backend = "slurm"` path can use
+that external environment or an existing Apptainer image on a shared
+cluster. If setup fails,
 [`bionemo_doctor()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_doctor.md)
 reports runtime and GPU checks.
 

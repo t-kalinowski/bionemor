@@ -128,7 +128,9 @@ the fitted model.</p>
     <p><code>steps</code> counts optimizer steps, not epochs. The fitting control determines
 data parallelism and gradient accumulation from the allocated GPU count and
 model-parallel settings. Training requires GPUs with compute capability 8.0
-or newer; model-specific precision restrictions are enforced before launch.</p>
+or newer; model-specific precision restrictions are enforced before launch.
+Compatibility checks do not determine whether the selected model, method,
+and controls fit in available GPU memory.</p>
 <p>A LoRA result contains adapter weights and records the dense base checkpoint;
 that base checkpoint must remain at the recorded path for later inference.
 LoRA-on-LoRA fine-tuning and full fine-tuning from a LoRA checkpoint are not
