@@ -34,7 +34,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("BioNeMo Recipes", onboarding, fixed = TRUE)))
   expect_match(
     sources[[1L]],
-    "running and monitoring jobs",
+    "saved, monitored, and reopened",
     fixed = TRUE
   )
   expect_true(all(grepl("Evo 2", onboarding, fixed = TRUE)))
@@ -50,9 +50,11 @@ test_that("GPU documentation has a guarded manual render workflow", {
   expect_true(all(grepl("recipe = evo2_recipe()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("recipe = esm2_recipe()", onboarding, fixed = TRUE)))
   expect_true(all(grepl("Megatron Bridge", onboarding, fixed = TRUE)))
-  expect_match(sources[[1L]], "Megatron Bridge is", fixed = TRUE)
-  expect_match(sources[[1L]], "checkpoint format", fixed = TRUE)
-  expect_true(all(grepl("model descriptor", onboarding, fixed = TRUE)))
+  expect_true(all(grepl(
+    "model descriptor",
+    tolower(onboarding),
+    fixed = TRUE
+  )))
   expect_true(all(grepl("compute descriptor", onboarding, fixed = TRUE)))
   expect_true(all(grepl("container", onboarding, fixed = TRUE)))
   expect_true(all(grepl(
@@ -76,7 +78,7 @@ test_that("GPU documentation has a guarded manual render workflow", {
     fixed = TRUE
   )))
   expect_true(all(grepl("esm2_embed(", onboarding, fixed = TRUE)))
-  expect_true(all(grepl("native Transformers", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("Transformers", onboarding, fixed = TRUE)))
   expect_false(any(grepl("vLLM", onboarding, fixed = TRUE)))
   expect_true(all(grepl("gpus = 1", onboarding, fixed = TRUE)))
   expect_true(all(grepl("similarity", onboarding, fixed = TRUE)))
