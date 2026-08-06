@@ -31,10 +31,10 @@ sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y r-rig
 
 sudo -n rig add release
 sudo -n rig default release
-Rscript --vanilla -e '
+Rscript --vanilla - <<'RSCRIPT'
 stopifnot(getRversion() >= "4.2")
 pak::pkg_install(Sys.getenv("BIONEMOR_PACKAGE_SPEC"))
-'
+RSCRIPT
 
 workspace="$HOME/workspace/bionemor"
 mkdir -p "$workspace"

@@ -7,6 +7,7 @@ test_that("the Brev setup script installs R and bionemor", {
   bin <- tempfile("bionemor-brev-setup-bin-")
   home <- tempfile("bionemor-brev-setup-home-")
   log <- tempfile("bionemor-brev-setup-log-")
+  rscript_stdin <- tempfile("bionemor-brev-setup-rscript-")
   dir.create(bin)
   dir.create(home)
 
@@ -24,7 +25,10 @@ test_that("the Brev setup script installs R and bionemor", {
   )
   write_executable(
     file.path(bin, "Rscript"),
-    "printf 'Rscript %s\\n' \"$*\" >> \"$BIONEMOR_TEST_LOG\""
+    c(
+      "printf 'Rscript %s\\n' \"$*\" >> \"$BIONEMOR_TEST_LOG\"",
+      "cat > \"$BIONEMOR_TEST_RSCRIPT_STDIN\""
+    )
   )
 
   result <- withr::with_envvar(
@@ -32,7 +36,8 @@ test_that("the Brev setup script installs R and bionemor", {
       PATH = paste(bin, Sys.getenv("PATH"), sep = .Platform$path.sep),
       HOME = home,
       BIONEMOR_PACKAGE_SPEC = "example/bionemor@abc123",
-      BIONEMOR_TEST_LOG = log
+      BIONEMOR_TEST_LOG = log,
+      BIONEMOR_TEST_RSCRIPT_STDIN = rscript_stdin
     ),
     processx::run("bash", script, error_on_status = FALSE)
   )
@@ -49,8 +54,9 @@ test_that("the Brev setup script installs R and bionemor", {
   expect_true(any(grepl("apt-get install -y r-rig", calls, fixed = TRUE)))
   expect_true(any(grepl("sudo -n rig add release", calls, fixed = TRUE)))
   expect_true(any(grepl("sudo -n rig default release", calls, fixed = TRUE)))
-  expect_true(any(grepl("Rscript --vanilla -e", calls, fixed = TRUE)))
-  expect_true(any(grepl("BIONEMOR_PACKAGE_SPEC", calls, fixed = TRUE)))
+  expect_true("Rscript --vanilla -" %in% calls)
+  r_code <- readLines(rscript_stdin, warn = FALSE)
+  expect_true(any(grepl("BIONEMOR_PACKAGE_SPEC", r_code, fixed = TRUE)))
   expect_true(dir.exists(file.path(home, "workspace", "bionemor")))
 })
 
