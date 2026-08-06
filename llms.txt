@@ -97,14 +97,8 @@ brev stop bionemor-gpu
 
 Evo 2 operations run through NVIDIA BioNeMo Recipes and Megatron Bridge.
 `bionemor` uses versions tested with this release. The local Docker
-environment is built from an NVIDIA NGC base image. Create an NGC API
-key and authenticate Docker to `nvcr.io` on the GPU machine, including
-when using Brev:
-
-``` bash
-echo "$NGC_API_KEY" | docker login nvcr.io \
-  --username '$oauthtoken' --password-stdin
-```
+environment is built from a public NVIDIA NGC base image. Docker pulls
+it anonymously; no NGC API key is needed for this setup.
 
 [`bionemo_compute()`](https://t-kalinowski.github.io/bionemor/reference/bionemo_compute.md)
 records the workspace and execution settings.

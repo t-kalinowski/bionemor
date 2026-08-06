@@ -105,23 +105,19 @@ GPU. There is no CPU fallback. Recipe and model metadata can be
 inspected without a GPU.</p>
 <p>For local use, run R on a Linux machine with Git, <code>tar</code>,
 Docker, and the NVIDIA Container Toolkit. Configure Docker so containers
-can see the GPU, and authenticate Docker to <code>nvcr.io</code> before
-installing a runtime.</p>
-<p>NVIDIA NGC is the container registry that supplies the runtime’s base
-image. Create an NGC API key, then authenticate Docker on the GPU
-machine:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="bu">echo</span> <span class="st">"</span><span class="va">$NGC_API_KEY</span><span class="st">"</span> <span class="kw">|</span> <span class="ex">docker</span> login nvcr.io <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="at">--username</span> <span class="st">'$oauthtoken'</span> <span class="at">--password-stdin</span></span></code></pre></div>
+can see the GPU, and install the runtime from R. The package’s pinned
+NVIDIA NGC base image is public, and Docker pulls it anonymously. No NGC
+API key is needed for this setup.</p>
 <p>If you do not have a suitable machine, <a href="https://brev.nvidia.com/" class="external-link">NVIDIA Brev</a> is one way to rent one.
 Review the hourly prices shown by <code>brev search</code> before
 creating an instance. Download the package’s setup script first:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--fail</span> <span class="at">--location</span> <span class="at">--output</span> bionemor-brev-setup.sh <span class="dt">\</span></span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh</span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="ex">brev</span> search <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48 <span class="at">--sort</span> price</span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="ex">brev</span> create bionemor-gpu <span class="at">--mode</span> vm <span class="dt">\</span></span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48</span>
-<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="ex">brev</span> exec bionemor-gpu @bionemor-brev-setup.sh</span>
-<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="ex">brev</span> shell bionemor-gpu</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--fail</span> <span class="at">--location</span> <span class="at">--output</span> bionemor-brev-setup.sh <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="ex">brev</span> search <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48 <span class="at">--sort</span> price</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="ex">brev</span> create bionemor-gpu <span class="at">--mode</span> vm <span class="dt">\</span></span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="ex">brev</span> exec bionemor-gpu @bionemor-brev-setup.sh</span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a><span class="ex">brev</span> shell bionemor-gpu</span></code></pre></div>
 <p>The setup script installs the current R release with rig, installs
 <code>bionemor</code> with pak, and creates
 <code>~/workspace/bionemor</code>. R runs directly on the Brev VM; the
@@ -130,19 +126,19 @@ BioNeMo recipe runtime runs in Docker with
 is not a <code><a href="../reference/bionemo_compute.html">bionemo_compute()</a></code> backend.</p>
 <p>Data and checkpoints remain user-managed. Copy local files into the
 persistent workspace with the CLI, or download them from the VM:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">brev</span> copy ./data/ <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  bionemor-gpu:/home/ubuntu/workspace/bionemor/data/</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">brev</span> copy ./data/ <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  bionemor-gpu:/home/ubuntu/workspace/bionemor/data/</span></code></pre></div>
 <p>Files below <code>~/workspace</code> persist when a stoppable
 instance is stopped. Deleting the instance deletes that storage, so
 retain another copy of important data. Creating the instance starts a
 billable resource. When you finish, leave the remote shell and stop the
 instance from your local terminal:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="ex">brev</span> stop bionemor-gpu</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">brev</span> stop bionemor-gpu</span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="supported-models-and-operations">Supported models and operations<a class="anchor" aria-label="anchor" href="#supported-models-and-operations"></a>
 </h2>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://t-kalinowski.github.io/bionemor/">bionemor</a></span><span class="op">)</span></span></code></pre></div>
 <p>The function name identifies the model family and the work being
 requested:</p>
@@ -196,7 +192,7 @@ longer-running work.</p>
 makes the selected model family and runtime visible in user code. The
 first installation downloads and builds the pinned BioNeMo Recipes
 runtime, so it can take several minutes.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">workspace</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/normalizePath.html" class="external-link">normalizePath</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"BIONEMOR_DOCS_WORKSPACE"</span>, <span class="st">"~/workspace/bionemor"</span><span class="op">)</span>,</span>
 <span>  mustWork <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -221,27 +217,27 @@ runtime and GPU checks.</p>
 package’s verified image, not directly on the raw NVIDIA base image.
 After installation, <code>evo2_compute@image</code> prints the managed
 recipe image. Export the same value in a shell:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="bu">export</span> <span class="va">BIONEMOR_RECIPE_IMAGE</span><span class="op">=</span><span class="st">"</span><span class="va">$(</span></span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="ex">Rscript</span> <span class="at">--vanilla</span> <span class="at">-e</span> <span class="st">'</span></span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="st">    library(bionemor)</span></span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="st">    compute &lt;- bionemo_compute(</span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="st">      recipe = evo2_recipe(),</span></span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="st">      workspace = "~/workspace/bionemor"</span></span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="st">    )</span></span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="st">    cat(compute@image)</span></span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="st">  '</span></span>
-<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="va">)</span><span class="st">"</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="bu">export</span> <span class="va">BIONEMOR_RECIPE_IMAGE</span><span class="op">=</span><span class="st">"</span><span class="va">$(</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="ex">Rscript</span> <span class="at">--vanilla</span> <span class="at">-e</span> <span class="st">'</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="st">    library(bionemor)</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="st">    compute &lt;- bionemo_compute(</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="st">      recipe = evo2_recipe(),</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="st">      workspace = "~/workspace/bionemor"</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="st">    )</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a><span class="st">    cat(compute@image)</span></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a><span class="st">  '</span></span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a><span class="va">)</span><span class="st">"</span></span></code></pre></div>
 <p>Then build a Dockerfile such as:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="kw">ARG</span> BIONEMOR_RECIPE_IMAGE</span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="kw">FROM</span> ${BIONEMOR_RECIPE_IMAGE}</span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co"># Add site-specific Dockerfile instructions here.</span></span></code></pre></div>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="ex">docker</span> build <span class="dt">\</span></span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">--build-arg</span> BIONEMOR_RECIPE_IMAGE <span class="dt">\</span></span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">--tag</span> example/bionemor-evo2:site .</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="kw">ARG</span> BIONEMOR_RECIPE_IMAGE</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="kw">FROM</span> ${BIONEMOR_RECIPE_IMAGE}</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co"># Add site-specific Dockerfile instructions here.</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="ex">docker</span> build <span class="dt">\</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="at">--build-arg</span> BIONEMOR_RECIPE_IMAGE <span class="dt">\</span></span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>  <span class="at">--tag</span> example/bionemor-evo2:site .</span></code></pre></div>
 <p>Select that local tag explicitly and verify the resulting prebuilt
 recipe image:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">custom_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bionemo_compute.html">bionemo_compute</a></span><span class="op">(</span></span>
 <span>  recipe <span class="op">=</span> <span class="fu"><a href="../reference/evo2_recipe.html">evo2_recipe</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  backend <span class="op">=</span> <span class="st">"local"</span>,</span>
@@ -264,7 +260,7 @@ descriptor because it downloads the selected weights when needed,
 converts them in that runtime, stores them in the compute workspace, and
 returns a model descriptor pointing to the checkpoint. The prepared
 checkpoint is reused on later calls from the same workspace.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/evo2_model.html">evo2_model</a></span><span class="op">(</span><span class="st">"7b"</span>, <span class="va">evo2_compute</span><span class="op">)</span></span>
 <span><span class="va">model</span></span></code></pre></div>
 <pre><code><span><span class="co">#&gt; &lt;Evo 2 model&gt;</span></span>
@@ -280,7 +276,7 @@ their hardware compatibility without downloading them.</p>
 <div class="section level2">
 <h2 id="evo-2-example-score-dna">Evo 2 example: score DNA<a class="anchor" aria-label="anchor" href="#evo-2-example-score-dna"></a>
 </h2>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dna</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  reference <span class="op">=</span> <span class="st">"ACGTACGTACGT"</span>,</span>
 <span>  variant <span class="op">=</span> <span class="st">"ACGTACGTTCGT"</span></span>
@@ -308,7 +304,7 @@ calibrated measurements of biological function. With
 <div class="section level2">
 <h2 id="evo-2-example-generate-dna">Evo 2 example: generate DNA<a class="anchor" aria-label="anchor" href="#evo-2-example-generate-dna"></a>
 </h2>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">generated</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/evo2_generate.html">evo2_generate</a></span><span class="op">(</span></span>
 <span>  <span class="va">model</span>,</span>
 <span>  <span class="va">dna</span>,</span>
@@ -329,7 +325,7 @@ biological designs.</p>
 <div class="section level2">
 <h2 id="evo-2-example-extract-pooled-embeddings">Evo 2 example: extract pooled embeddings<a class="anchor" aria-label="anchor" href="#evo-2-example-extract-pooled-embeddings"></a>
 </h2>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dna_embeddings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/evo2_embed.html">evo2_embed</a></span><span class="op">(</span></span>
 <span>  <span class="va">model</span>,</span>
 <span>  <span class="va">dna</span>,</span>
@@ -374,7 +370,7 @@ pooled embedding per input. ESM-2 inference currently requires
 <code>gpus = 1</code>; the runtime processes proteins one at a time on
 the selected GPU to preserve their bidirectional attention
 boundaries.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">esm2_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bionemo_compute.html">bionemo_compute</a></span><span class="op">(</span></span>
 <span>  recipe <span class="op">=</span> <span class="fu"><a href="../reference/esm2_recipe.html">esm2_recipe</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  backend <span class="op">=</span> <span class="st">"local"</span>,</span>
@@ -427,7 +423,7 @@ ESM-2 workspace.</p>
 outputs, and provenance under <code>.bionemor/runs</code> in the compute
 workspace. For a longer batch, return a job immediately and save its
 path:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">run</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/evo2_generate.html">evo2_generate</a></span><span class="op">(</span></span>
 <span>  <span class="va">model</span>,</span>
 <span>  <span class="va">dna</span>,</span>
