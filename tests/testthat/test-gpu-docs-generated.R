@@ -32,6 +32,8 @@ test_that("checked-in GPU documentation is a successful static capture", {
     onboarding
   )))
   expect_true(all(grepl("Brev", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("pulls it anonymously", onboarding, fixed = TRUE)))
+  expect_false(any(grepl("NGC_API_KEY", onboarding, fixed = TRUE)))
   expect_true(all(grepl("NVIDIA L40S", onboarding, fixed = TRUE)))
   expect_true(all(grepl("forward_score", onboarding, fixed = TRUE)))
   expect_true(all(grepl("finish_reason", onboarding, fixed = TRUE)))

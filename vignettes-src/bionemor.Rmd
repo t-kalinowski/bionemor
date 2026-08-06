@@ -66,15 +66,9 @@ GPU.
 
 For local use, run R on a Linux machine with Git, `tar`, Docker, and the NVIDIA
 Container Toolkit. Configure Docker so containers can see the GPU, and
-authenticate Docker to `nvcr.io` before installing a runtime.
-
-NVIDIA NGC is the container registry that supplies the runtime's base image.
-Create an NGC API key, then authenticate Docker on the GPU machine:
-
-```bash
-echo "$NGC_API_KEY" | docker login nvcr.io \
-  --username '$oauthtoken' --password-stdin
-```
+install the runtime from R. The package's pinned NVIDIA NGC base image is
+public, and Docker pulls it anonymously. No NGC API key is needed for this
+setup.
 
 If you do not have a suitable machine,
 [NVIDIA Brev](https://brev.nvidia.com/) is one way to rent one. Review the

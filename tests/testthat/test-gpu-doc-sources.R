@@ -57,6 +57,8 @@ test_that("GPU documentation has a guarded manual render workflow", {
   )))
   expect_true(all(grepl("compute descriptor", onboarding, fixed = TRUE)))
   expect_true(all(grepl("container", onboarding, fixed = TRUE)))
+  expect_true(all(grepl("pulls it anonymously", onboarding, fixed = TRUE)))
+  expect_false(any(grepl("NGC_API_KEY", onboarding, fixed = TRUE)))
   expect_true(all(grepl(
     'evo2_model("7b", evo2_compute)',
     onboarding,
