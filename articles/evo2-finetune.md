@@ -13,8 +13,8 @@ BioNeMo Recipes runtime, and a prepared Evo 2 checkpoint. The example
 below uses repeated toy sequences and only two optimizer steps to
 exercise the workflow. It does not produce a useful biological model.
 
-The output was captured on 2026-08-01 with an NVIDIA L40S using package
-revision 7da249b5f346. The executable source is
+The output was captured on 2026-08-06 with an NVIDIA L40S using package
+revision 6970e338a742. The executable source is
 `vignettes-src/evo2-finetune.Rmd`; the package vignette is pre-rendered
 so it can be read without a GPU.
 
@@ -188,10 +188,10 @@ run <- evo2_finetune(
 )
 run
 #> <bionemor_job>
-#> ID: docs-20260801-7da249b-vignette-lora
+#> ID: docs-20260806-033115-vignette-lora
 #> Kind: fine-tune
 #> State: starting
-#> Path: /home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-7da249b-vignette-lora
+#> Path: /home/ubuntu/workspace/bionemor/.bionemor/runs/docs-20260806-033115-vignette-lora
 
 fitted <- job_wait(run, timeout = 3600)
 job_status(run, refresh = TRUE)
@@ -200,7 +200,7 @@ fitted
 #> <Evo 2 model>
 #> Size:       7B
 #> Context:    1,048,576 nt
-#> Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260801-7da249b/vignette-lora/docs-20260801-7da249b-vignette-lora/checkpoints
+#> Checkpoint: MBridge at /home/ubuntu/workspace/bionemor/artifacts/docs-20260806-033115/vignette-lora/docs-20260806-033115-vignette-lora/checkpoints
 #> Recipe:     BioNeMo Evo 2 2.4 @ e8e7f597
 #> Ready:      yes
 #> Compute:    local/container
@@ -249,7 +249,7 @@ fitted_scores <- evo2_score(
 )
 fitted_scores[c("id", "score", "forward_score")]
 #>      id      score forward_score
-#> 1 probe -0.1705485    -0.1705485
+#> 1 probe -0.1703179    -0.1703179
 
 fitted_generation <- evo2_generate(
   fitted,

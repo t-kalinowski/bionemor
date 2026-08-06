@@ -76,8 +76,8 @@ Fine-tuning still requires an NVIDIA CUDA GPU, an installed BioNeMo
 Recipes runtime, and a prepared Evo 2 checkpoint. The example below uses
 repeated toy sequences and only two optimizer steps to exercise the
 workflow. It does not produce a useful biological model.</p>
-<p>The output was captured on 2026-08-01 with an NVIDIA L40S using
-package revision 7da249b5f346. The executable source is
+<p>The output was captured on 2026-08-06 with an NVIDIA L40S using
+package revision 6970e338a742. The executable source is
 <code>vignettes-src/evo2-finetune.Rmd</code>; the package vignette is
 pre-rendered so it can be read without a GPU.</p>
 <div class="section level2">
@@ -241,10 +241,10 @@ scale is <code>alpha / rank</code>.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">run</span></span>
 <span><span class="co">#&gt; &lt;bionemor_job&gt;</span></span>
-<span><span class="co">#&gt; ID: docs-20260801-7da249b-vignette-lora</span></span>
+<span><span class="co">#&gt; ID: docs-20260806-033115-vignette-lora</span></span>
 <span><span class="co">#&gt; Kind: fine-tune</span></span>
 <span><span class="co">#&gt; State: starting</span></span>
-<span><span class="co">#&gt; Path: /home/ubuntu/bionemor-recipes-workspace/.bionemor/runs/docs-20260801-7da249b-vignette-lora</span></span>
+<span><span class="co">#&gt; Path: /home/ubuntu/workspace/bionemor/.bionemor/runs/docs-20260806-033115-vignette-lora</span></span>
 <span></span>
 <span><span class="va">fitted</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/job_wait.html">job_wait</a></span><span class="op">(</span><span class="va">run</span>, timeout <span class="op">=</span> <span class="fl">3600</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/job_status.html">job_status</a></span><span class="op">(</span><span class="va">run</span>, refresh <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
@@ -253,7 +253,7 @@ scale is <code>alpha / rank</code>.</p>
 <span><span class="co">#&gt; &lt;Evo 2 model&gt;</span></span>
 <span><span class="co">#&gt; Size:       7B</span></span>
 <span><span class="co">#&gt; Context:    1,048,576 nt</span></span>
-<span><span class="co">#&gt; Checkpoint: MBridge at /home/ubuntu/bionemor-recipes-workspace/artifacts/docs-20260801-7da249b/vignette-lora/docs-20260801-7da249b-vignette-lora/checkpoints</span></span>
+<span><span class="co">#&gt; Checkpoint: MBridge at /home/ubuntu/workspace/bionemor/artifacts/docs-20260806-033115/vignette-lora/docs-20260806-033115-vignette-lora/checkpoints</span></span>
 <span><span class="co">#&gt; Recipe:     BioNeMo Evo 2 2.4 @ e8e7f597</span></span>
 <span><span class="co">#&gt; Ready:      yes</span></span>
 <span><span class="co">#&gt; Compute:    local/container</span></span></code></pre></div>
@@ -293,7 +293,7 @@ while working in the same R session.</p>
 <span><span class="op">)</span></span>
 <span><span class="va">fitted_scores</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"id"</span>, <span class="st">"score"</span>, <span class="st">"forward_score"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;      id      score forward_score</span></span>
-<span><span class="co">#&gt; 1 probe -0.1705485    -0.1705485</span></span>
+<span><span class="co">#&gt; 1 probe -0.1703179    -0.1703179</span></span>
 <span></span>
 <span><span class="va">fitted_generation</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/evo2_generate.html">evo2_generate</a></span><span class="op">(</span></span>
 <span>  <span class="va">fitted</span>,</span>

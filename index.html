@@ -187,7 +187,7 @@
 <h2 id="evo-2-generate-score-and-embed-dna">Evo 2: generate, score, and embed DNA<a class="anchor" aria-label="anchor" href="#evo-2-generate-score-and-embed-dna"></a>
 </h2>
 <p><code><a href="reference/evo2_models.html">evo2_models()</a></code> lists models without downloading weights. With a configured compute object, it can filter by GPU count, compute capability, and precision policy. Check GPU memory and disk requirements separately.</p>
-<p>The output below was captured on 2026-08-01 with an NVIDIA L40S using package revision 7da249b5f346.</p>
+<p>The output below was captured on 2026-08-06 with an NVIDIA L40S using package revision 6970e338a742.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">models</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_models.html">evo2_models</a></span><span class="op">(</span><span class="va">evo2_compute</span>, compatible <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">models</span><span class="op">)</span></span>
@@ -201,7 +201,7 @@
 <span><span class="co">#&gt;  $ source_format            : chr  "savanna" "savanna"</span></span>
 <span><span class="co">#&gt;  $ precision_policy         : chr  "bf16-or-fp8" "bf16-or-fp8"</span></span>
 <span><span class="co">#&gt;  $ training_precision_policy: chr  "bf16-or-fp8" "bf16-or-fp8"</span></span>
-<span><span class="co">#&gt;  $ download_size            : num  1.58e+10 1.58e+10</span></span>
+<span><span class="co">#&gt;  $ download_size            : num  1.58e+10 2.34e+10</span></span>
 <span><span class="co">#&gt;  $ compatible               : logi  TRUE TRUE</span></span>
 <span><span class="co">#&gt;  $ compatibility_note       : chr  "advertised GPUs support the validated BF16 or FP8 policy" "advertised GPUs support the validated BF16 or FP8 policy"</span></span></code></pre></div>
 <p><code><a href="reference/evo2_model.html">evo2_model()</a></code> downloads and prepares the selected model the first time you use it. Later calls from the same workspace reuse the prepared checkpoint:</p>
@@ -286,7 +286,7 @@
 <span><span class="co">#&gt;   ..$ : chr [1:2] "protein_1" "protein_2"</span></span>
 <span><span class="co">#&gt;   ..$ : chr [1:320] "dim_1" "dim_2" "dim_3" "dim_4" ...</span></span>
 <span><span class="co">#&gt;  - attr(*, "provenance")=List of 6</span></span>
-<span><span class="co">#&gt;   ..$ run_path       : chr "/home/ubuntu/bionemor-recipes-workspace/esm2/.bionemor/runs/esm2-embedding-20260801T223010-834352"</span></span>
+<span><span class="co">#&gt;   ..$ run_path       : chr "/home/ubuntu/workspace/bionemor/esm2/.bionemor/runs/esm2-embedding-20260806T033433-807998"</span></span>
 <span><span class="co">#&gt;   ..$ model          : chr "8m"</span></span>
 <span><span class="co">#&gt;   ..$ source         : chr "nvidia/esm2_t6_8M_UR50D"</span></span>
 <span><span class="co">#&gt;   ..$ source_revision: chr "3674a6acb6c217bbeff709d182a11b196125dfc3"</span></span>
