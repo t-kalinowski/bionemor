@@ -1,3 +1,10 @@
+test_that("evo2_models reports the pinned 7b source size", {
+  models <- evo2_models()
+  model <- models[models$name == "7b", , drop = FALSE]
+
+  expect_equal(model$download_size, 23428959022)
+})
+
 test_that("evo2_model prepares and reuses the canonical checkpoint", {
   workspace <- tempfile("bionemor-evo2-model-")
   bin <- tempfile("bionemor-bin-")

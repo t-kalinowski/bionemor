@@ -48,7 +48,7 @@
       "mixed_precision_recipe": "bf16_mixed",
       "precision_policy": "bf16-or-fp8",
       "training_precision_policy": "bf16-or-fp8",
-      "download_size": 15800000000
+      "download_size": 23428959022
     },
     {
       "name": "20b",
