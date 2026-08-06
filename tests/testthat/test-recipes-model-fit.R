@@ -469,8 +469,7 @@ test_that("preprocessing and LoRA fine-tuning use current recipe commands", {
       "--sequence-parallel",
       "--no-fp32-residual-connection",
       "--adam-eps",
-      "--hf-tokenizer-model-path",
-      tokenizer,
+      c("--hf-tokenizer-model-path", tokenizer),
       "--disable-tensorboard-logger",
       "--lora-finetune",
       "--lora-dim"
@@ -586,8 +585,7 @@ test_that("dense MBridge checkpoints export explicitly to Vortex", {
       "evo2_export_mbridge_to_vortex",
       "--mbridge-ckpt-dir",
       "--output-path",
-      "--model-size",
-      "evo2_7b"
+      c("--model-size", "evo2_7b")
     ) %in%
       tokens
   ))

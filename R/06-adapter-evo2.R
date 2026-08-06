@@ -337,12 +337,10 @@ resolved_inference_control <- function(
 
 parallel_command_args <- function(resolved) {
   c(
-    "--tensor-parallel-size",
-    as.character(resolved$tensor_parallel_size),
+    c("--tensor-parallel-size", as.character(resolved$tensor_parallel_size)),
     "--pipeline-model-parallel-size",
     as.character(resolved$pipeline_parallel_size),
-    "--context-parallel-size",
-    as.character(resolved$context_parallel_size)
+    c("--context-parallel-size", as.character(resolved$context_parallel_size))
   )
 }
 
@@ -351,8 +349,7 @@ precision_command_args <- function(resolved) {
   if (!is.null(resolved$mixed_precision_recipe)) {
     args <- c(
       args,
-      "--mixed-precision-recipe",
-      resolved$mixed_precision_recipe
+      c("--mixed-precision-recipe", resolved$mixed_precision_recipe)
     )
   }
   if (isTRUE(resolved$vortex_style_fp8)) {
@@ -409,8 +406,7 @@ torchrun_command <- function(
   command_spec(
     executable = "torchrun",
     args = c(
-      "--nproc-per-node",
-      as.character(resolved$processes_per_node),
+      c("--nproc-per-node", as.character(resolved$processes_per_node)),
       "--no-python",
       operation,
       args
@@ -451,29 +447,20 @@ evo2_generation_plan <- function(
     ))
   )
   inference_args <- c(
-    "--ckpt-dir",
-    checkpoint,
-    "--prompt-file",
-    prompts,
-    "--max-new-tokens",
-    as.character(num_tokens),
-    "--temperature",
-    format_number(temperature),
-    "--top-k",
-    as.character(top_k),
-    "--top-p",
-    format_number(top_p),
-    "--output-file",
-    upstream,
+    c("--ckpt-dir", checkpoint),
+    c("--prompt-file", prompts),
+    c("--max-new-tokens", as.character(num_tokens)),
+    c("--temperature", format_number(temperature)),
+    c("--top-k", as.character(top_k)),
+    c("--top-p", format_number(top_p)),
+    c("--output-file", upstream),
     parallel_command_args(resolved),
     precision_command_args(resolved),
     if (!is.null(resolved$max_sequence_length)) {
       c("--max-seq-length", as.character(resolved$max_sequence_length))
     },
-    "--max-batch-size",
-    as.character(resolved$max_batch_size),
-    "--cuda-graph-impl",
-    resolved$cuda_graphs,
+    c("--max-batch-size", as.character(resolved$max_batch_size)),
+    c("--cuda-graph-impl", resolved$cuda_graphs),
     if (resolved$subquadratic_ops) "--use-subquadratic-ops",
     if (resolved$chunked_prefill) "--enable-chunked-prefill",
     if (!is.null(resolved$dynamic_max_tokens)) {
@@ -489,20 +476,13 @@ evo2_generation_plan <- function(
   )
   validation_args <- c(
     "validate-generation",
-    "--input",
-    upstream,
-    "--prompts",
-    prompts,
-    "--output",
-    portable,
-    "--fasta",
-    fasta,
-    "--validation",
-    validation,
-    "--num-tokens",
-    as.character(num_tokens),
-    "--validate",
-    validate,
+    c("--input", upstream),
+    c("--prompts", prompts),
+    c("--output", portable),
+    c("--fasta", fasta),
+    c("--validation", validation),
+    c("--num-tokens", as.character(num_tokens)),
+    c("--validate", validate),
     if (return_probabilities) "--return-probabilities"
   )
   command_plan(
@@ -571,16 +551,11 @@ evo2_prediction_plan <- function(
     )
   )
   predict_args <- c(
-    "--fasta",
-    input$path,
-    "--ckpt-dir",
-    checkpoint,
-    "--output-dir",
-    upstream,
-    "--micro-batch-size",
-    as.character(batch_size),
-    "--write-interval",
-    "epoch",
+    c("--fasta", input$path),
+    c("--ckpt-dir", checkpoint),
+    c("--output-dir", upstream),
+    c("--micro-batch-size", as.character(batch_size)),
+    c("--write-interval", "epoch"),
     parallel_command_args(resolved),
     precision_command_args(resolved),
     if (resolved$subquadratic_ops) "--use-subquadratic-ops",
@@ -591,37 +566,31 @@ evo2_prediction_plan <- function(
     predict_args <- c(
       predict_args,
       "--output-log-prob-seqs",
-      "--log-prob-collapse-option",
-      "per_token"
+      c("--log-prob-collapse-option", "per_token")
     )
   } else if (mode == "profile") {
     predict_args <- c(
       predict_args,
       "--output-log-prob-seqs",
-      "--log-prob-collapse-option",
-      "per_token"
+      c("--log-prob-collapse-option", "per_token")
     )
   } else {
     predict_args <- c(
       predict_args,
-      "--embedding-layer",
-      as.character(layer)
+      c("--embedding-layer", as.character(layer))
     )
   }
   helper_args <- c(
     "materialize-predictions",
-    "--mode",
-    mode,
-    "--input",
-    upstream,
+    c("--mode", mode),
+    c("--input", upstream),
     "--sequence-map",
     file.path(
       dirname(dirname(input$path)),
       "inputs",
       "sequence-map.json"
     ),
-    "--output",
-    portable,
+    c("--output", portable),
     if (mode == "score") c("--reduction", reduction),
     if (!is.null(pool)) c("--pool", pool)
   )

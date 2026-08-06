@@ -360,19 +360,13 @@ test_that("container probes use GPUs and mount the workspace", {
       "docker",
       "run",
       "--rm",
-      "--gpus",
-      "all",
-      "--user",
-      user,
-      "-e",
-      "HOME=/tmp/bionemor",
-      "--entrypoint",
-      "-v",
-      paste0(compute@workspace, ":", compute@workspace),
-      "-w",
-      compute@workspace,
+      c("--gpus", "all"),
+      c("--user", user),
+      c("-e", "HOME=/tmp/bionemor"),
+      c("--entrypoint", "bionemor-evo2-helper"),
+      c("-v", paste0(compute@workspace, ":", compute@workspace)),
+      c("-w", compute@workspace),
       compute@image,
-      "bionemor-evo2-helper",
       "describe",
       "--json"
     ) %in%
@@ -626,20 +620,14 @@ test_that("semantic inference controls map to exact supported recipe flags", {
   invocation <- readLines(log)
   expect_true(all(
     c(
-      "--max-seq-length",
-      "1024",
-      "--max-batch-size",
-      "2",
-      "--mixed-precision-recipe",
-      "bf16_with_fp8_current_scaling_mixed",
-      "--cuda-graph-impl",
-      "none",
+      c("--max-seq-length", "1024"),
+      c("--max-batch-size", "2"),
+      c("--mixed-precision-recipe", "bf16_with_fp8_current_scaling_mixed"),
+      c("--cuda-graph-impl", "none"),
       "--use-subquadratic-ops",
       "--enable-chunked-prefill",
-      "--inference-dynamic-batching-max-tokens",
-      "512",
-      "--inference-dynamic-batching-block-size",
-      "128"
+      c("--inference-dynamic-batching-max-tokens", "512"),
+      c("--inference-dynamic-batching-block-size", "128")
     ) %in%
       invocation
   ))
@@ -666,8 +654,7 @@ test_that("semantic inference controls map to exact supported recipe flags", {
   )
   expect_true(all(
     c(
-      "--mixed-precision-recipe",
-      "bf16_mixed"
+      c("--mixed-precision-recipe", "bf16_mixed")
     ) %in%
       invocation
   ))
@@ -690,10 +677,8 @@ test_that("semantic inference controls map to exact supported recipe flags", {
   expect_true(all(
     c(
       "--no-sequence-parallel",
-      "--min-length",
-      "4",
-      "--micro-batch-size",
-      "2"
+      c("--min-length", "4"),
+      c("--micro-batch-size", "2")
     ) %in%
       invocation
   ))

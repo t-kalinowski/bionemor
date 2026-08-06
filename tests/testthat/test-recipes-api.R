@@ -89,16 +89,11 @@ test_that("a Savanna checkpoint is converted once and registered as MBridge", {
   expect_equal(sum(args == "convert"), 1L)
   expect_true(all(
     c(
-      "--savanna-ckpt-path",
-      "arcinstitute/savanna_evo2_7b",
-      "--mbridge-ckpt-dir",
-      checkpoint_path(checkpoint),
-      "--model-size",
-      "evo2_7b",
-      "--seq-length",
-      "1048576",
-      "--revision",
-      "9e69aeeaacf4d11fdbabfa73da65a770e5031f02"
+      c("--savanna-ckpt-path", "arcinstitute/savanna_evo2_7b"),
+      c("--mbridge-ckpt-dir", checkpoint_path(checkpoint)),
+      c("--model-size", "evo2_7b"),
+      c("--seq-length", "1048576"),
+      c("--revision", "9e69aeeaacf4d11fdbabfa73da65a770e5031f02")
     ) %in%
       args
   ))
@@ -742,8 +737,7 @@ test_that("scoring returns ordered portable results and predict delegates", {
   expect_true(all(
     c(
       "--output-log-prob-seqs",
-      "--log-prob-collapse-option",
-      "per_token"
+      c("--log-prob-collapse-option", "per_token")
     ) %in%
       invocations
   ))
@@ -756,8 +750,7 @@ test_that("scoring returns ordered portable results and predict delegates", {
     c(
       "materialize-predictions",
       "--input",
-      "--reduction",
-      "mean"
+      c("--reduction", "mean")
     ) %in%
       tokens
   ))

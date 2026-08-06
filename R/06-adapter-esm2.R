@@ -41,13 +41,10 @@ esm2_embedding_plan <- function(
 ) {
   args <- c(
     "embed",
-    "--model",
-    source,
+    c("--model", source),
     if (!is.null(source_revision)) c("--revision", source_revision),
-    "--input",
-    input,
-    "--output",
-    portable
+    c("--input", input),
+    c("--output", portable)
   )
   command_plan(
     list(command_spec(

@@ -248,10 +248,8 @@ test_that("ESM-2 embeddings use durable jobs", {
   arguments <- readLines(log, warn = FALSE)
   expect_true(all(
     c(
-      "--model",
-      "nvidia/esm2_t6_8M_UR50D",
-      "--revision",
-      "3674a6acb6c217bbeff709d182a11b196125dfc3"
+      c("--model", "nvidia/esm2_t6_8M_UR50D"),
+      c("--revision", "3674a6acb6c217bbeff709d182a11b196125dfc3")
     ) %in%
       arguments
   ))

@@ -282,11 +282,9 @@ fetch_recipe_source <- function(paths, recipe, lock) {
   run_install_command(
     "git",
     c(
-      "-C",
-      temporary,
+      c("-C", temporary),
       "fetch",
-      "--depth",
-      "1",
+      c("--depth", "1"),
       recipe@repository,
       recipe@revision
     ),
@@ -364,8 +362,7 @@ prepare_recipe_build_context <- function(paths, recipe, lock) {
   run_install_command(
     "git",
     c(
-      "-C",
-      paths$source,
+      c("-C", paths$source),
       "archive",
       "--format=tar",
       paste0("--output=", archive),
@@ -518,8 +515,7 @@ container_image_labels <- function(compute) {
     c(
       "image",
       "inspect",
-      "--format",
-      "{{json .Config.Labels}}",
+      c("--format", "{{json .Config.Labels}}"),
       image
     ),
     error = "failed to inspect recipe image labels",
@@ -585,8 +581,7 @@ verify_base_image_digest <- function(engine, recipe) {
     c(
       "image",
       "inspect",
-      "--format",
-      "{{json .RepoDigests}}",
+      c("--format", "{{json .RepoDigests}}"),
       recipe_base_image_reference(recipe)
     ),
     error = "failed to inspect the official NGC PyTorch base image",
@@ -761,14 +756,11 @@ bionemo_install <- function(
       engine,
       c(
         "build",
-        "--file",
-        file.path(paths$context, "Dockerfile"),
-        "--tag",
-        compute@image,
+        c("--file", file.path(paths$context, "Dockerfile")),
+        c("--tag", compute@image),
         "--build-arg",
         paste0("BIONEMOR_RECIPE_REVISION=", compute@recipe@revision),
-        "--build-arg",
-        paste0("BIONEMOR_HELPER_REVISION=", helper_revision),
+        c("--build-arg", paste0("BIONEMOR_HELPER_REVISION=", helper_revision)),
         "--build-arg",
         paste0("BIONEMOR_BASE_IMAGE=", compute@recipe@base_image),
         "--build-arg",

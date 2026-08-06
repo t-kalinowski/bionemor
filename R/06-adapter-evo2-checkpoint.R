@@ -580,16 +580,11 @@ checkpoint_conversion_command <- function(
   compute
 ) {
   common <- c(
-    "--tokenizer-path",
-    tokenizer,
-    "--mbridge-ckpt-dir",
-    destination,
-    "--model-size",
-    model_size,
-    "--seq-length",
-    as.character(sequence_length),
-    "--mixed-precision-recipe",
-    precision
+    c("--tokenizer-path", tokenizer),
+    c("--mbridge-ckpt-dir", destination),
+    c("--model-size", model_size),
+    c("--seq-length", as.character(sequence_length)),
+    c("--mixed-precision-recipe", precision)
   )
   if (source_format == "savanna") {
     converter_source <- if (startsWith(source, "hf://")) {
@@ -598,11 +593,9 @@ checkpoint_conversion_command <- function(
       source
     }
     args <- c(
-      "--savanna-ckpt-path",
-      converter_source,
+      c("--savanna-ckpt-path", converter_source),
       common,
-      "--revision",
-      revision
+      c("--revision", revision)
     )
     return(command_spec(
       "evo2_convert_savanna_to_mbridge",
@@ -1546,10 +1539,8 @@ evo2_export <- function(
     steps[[length(steps) + 1L]] <- command_spec(
       "evo2_remove_optimizer",
       c(
-        "--src-ckpt-dir",
-        source,
-        "--dst-ckpt-dir",
-        export_source
+        c("--src-ckpt-dir", source),
+        c("--dst-ckpt-dir", export_source)
       ),
       cwd = compute@workspace
     )
@@ -1557,12 +1548,9 @@ evo2_export <- function(
   steps[[length(steps) + 1L]] <- command_spec(
     "evo2_export_mbridge_to_vortex",
     c(
-      "--mbridge-ckpt-dir",
-      export_source,
-      "--output-path",
-      destination,
-      "--model-size",
-      model_size,
+      c("--mbridge-ckpt-dir", export_source),
+      c("--output-path", destination),
+      c("--model-size", model_size),
       if (!transformer_engine) "--no-te"
     ),
     cwd = compute@workspace
@@ -1572,10 +1560,8 @@ evo2_export <- function(
     "bionemor-evo2-helper",
     c(
       "write-manifest-fragment",
-      "--path",
-      destination,
-      "--output",
-      inspection
+      c("--path", destination),
+      c("--output", inspection)
     ),
     cwd = compute@workspace
   )
