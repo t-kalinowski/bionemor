@@ -346,6 +346,18 @@ compute_record <- function(compute) {
   )
 }
 
+compute_config_from_record <- function(value) {
+  config <- value %||% list()
+  gpus <- config$capabilities$runtime$gpus
+  if (is.list(gpus) && length(gpus) > 0L && !is.null(names(gpus))) {
+    config$capabilities$runtime$gpus <- as.data.frame(
+      gpus,
+      stringsAsFactors = FALSE
+    )
+  }
+  config
+}
+
 compute_from_record <- function(value) {
   if (!identical(as.integer(value$nodes), 1L)) {
     stop("persisted run must use one compute node")
@@ -397,7 +409,7 @@ compute_from_record <- function(value) {
     queue = value$queue,
     account = value$account,
     walltime = value$walltime,
-    config = value$config %||% list()
+    config = compute_config_from_record(value$config)
   )
   compute@image_digest <- value$image_digest
   compute

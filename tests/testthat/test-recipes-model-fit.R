@@ -494,7 +494,11 @@ test_that("preprocessing and LoRA fine-tuning use current recipe commands", {
       tokens
   ))
 
-  fitted <- job_wait(job, poll = 0.01, timeout = 10)
+  fitted <- job_wait(
+    bionemo_job(job_path(job)),
+    poll = 0.01,
+    timeout = 10
+  )
   expect_s3_class(fitted, "bionemor::Evo2Model")
   expect_equal(fitted@checkpoint@format, "mbridge")
   expect_equal(fitted@checkpoint@kind, "lora")
