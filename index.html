@@ -56,9 +56,9 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="bionemor">bionemor<a class="anchor" aria-label="anchor" href="#bionemor"></a>
 </h1></div>
-<p>Biological foundation models are trained on large collections of DNA or protein sequences. The resulting models can be used across different sequence tasks.</p>
-<p><code>bionemor</code> lets bioinformaticians and other researchers use these models on NVIDIA GPUs from R. With Evo 2, you can generate and score DNA, calculate positional profiles and embeddings, and fine-tune a model on your own sequences. With ESM-2, you can create embeddings that represent proteins as numerical vectors for similarity, clustering, and downstream models.</p>
-<p>Sequence inputs can be character vectors or sequence sets from Biostrings. Generation and scoring return data frames, while pooled embeddings return numeric matrices. Longer runs can be saved, monitored, and reopened from another R session.</p>
+<p>Evo 2 is a biological foundation model trained on DNA sequences. ESM-2 is a biological foundation model trained on protein sequences.</p>
+<p><code>bionemor</code> supports Evo 2 and ESM-2 on NVIDIA GPUs from R. Evo 2 can generate and score DNA, calculate positional profiles and embeddings, and be <a href="https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html">fine-tuned</a> on your own sequences. ESM-2 creates protein embeddings for similarity, clustering, and downstream models.</p>
+<p>Inference inputs are ordinary R character vectors or Biostrings sequence sets. Generation and scoring return data frames, while pooled embeddings return numeric matrices. Longer runs can be saved, monitored, and reopened from another R session.</p>
 <blockquote>
 <p>Running a model requires a supported CUDA-capable NVIDIA GPU. There is no CPU fallback. You can install <code>bionemor</code> and inspect the available models without a GPU.</p>
 </blockquote>
@@ -67,149 +67,26 @@
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"t-kalinowski/bionemor"</span><span class="op">)</span></span></code></pre></div>
-<p>For the local container setup below, install the package in the R environment on the Linux GPU machine, then load it:</p>
+</div>
+<div class="section level2">
+<h2 id="quick-start-generate-dna-with-evo-2">Quick start: generate DNA with Evo 2<a class="anchor" aria-label="anchor" href="#quick-start-generate-dna-with-evo-2"></a>
+</h2>
+<p>This example takes DNA prompts and predicts continuations with Evo 2. Run it on a Linux machine with a supported NVIDIA GPU and Docker configured for GPU access. The <a href="https://t-kalinowski.github.io/bionemor/articles/bionemor.html">setup guide</a> covers both local machines and NVIDIA Brev.</p>
+<p>First, prepare the package-managed Evo 2 runtime:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://t-kalinowski.github.io/bionemor/">bionemor</a></span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="supported-models-and-operations">Supported models and operations<a class="anchor" aria-label="anchor" href="#supported-models-and-operations"></a>
-</h2>
-<p>The supported models and their main functions are:</p>
-<table class="table">
-<colgroup>
-<col width="25%">
-<col width="25%">
-<col width="25%">
-<col width="25%">
-</colgroup>
-<thead><tr>
-<th>Model family</th>
-<th>Input</th>
-<th>What you can do</th>
-<th>Main functions</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>Evo 2</td>
-<td>DNA sequences</td>
-<td>Generation, scoring, positional profiles, embeddings, fine-tuning, training-data preprocessing, and checkpoint preparation and export</td>
-<td>
-<code><a href="reference/evo2_generate.html">evo2_generate()</a></code>, <code><a href="reference/evo2_score.html">evo2_score()</a></code>, <code><a href="reference/evo2_profile.html">evo2_profile()</a></code>, <code><a href="reference/evo2_embed.html">evo2_embed()</a></code>, <code><a href="reference/evo2_finetune.html">evo2_finetune()</a></code>, <code><a href="reference/evo2_preprocess.html">evo2_preprocess()</a></code>, <code><a href="reference/evo2_models.html">evo2_models()</a></code>, <code><a href="reference/evo2_model.html">evo2_model()</a></code>, <code><a href="reference/evo2_checkpoint.html">evo2_checkpoint()</a></code>, <code><a href="reference/evo2_export.html">evo2_export()</a></code>
-</td>
-</tr>
-<tr>
-<td>ESM-2</td>
-<td>Protein sequences</td>
-<td>Pooled protein embeddings</td>
-<td>
-<code><a href="reference/esm2_models.html">esm2_models()</a></code>, <code><a href="reference/esm2_model.html">esm2_model()</a></code>, <code><a href="reference/esm2_embed.html">esm2_embed()</a></code>
-</td>
-</tr>
-</tbody>
-</table>
-<p>The examples below begin with Evo 2 DNA, followed by ESM-2 protein embeddings.</p>
-</div>
-<div class="section level2">
-<h2 id="get-access-to-a-gpu">Get access to a GPU<a class="anchor" aria-label="anchor" href="#get-access-to-a-gpu"></a>
-</h2>
-<p>The local setup below runs models in Docker on a Linux machine with an NVIDIA GPU. Docker must be configured so containers can use the GPU. GPU requirements vary by model, sequence length, batch size, and operation.</p>
-<p>If you do not have a suitable local GPU, <a href="https://brev.nvidia.com/" class="external-link">NVIDIA Brev</a> lets you rent one and manage the instance from its CLI. Download the package’s setup script before creating the VM:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="ex">curl</span> <span class="at">--fail</span> <span class="at">--location</span> <span class="at">--output</span> bionemor-brev-setup.sh <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  https://raw.githubusercontent.com/t-kalinowski/bionemor/main/tools/brev/setup.sh</span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="ex">brev</span> search <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48 <span class="at">--sort</span> price</span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="ex">brev</span> create bionemor-gpu <span class="at">--mode</span> vm <span class="dt">\</span></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">--stoppable</span> <span class="at">--gpu-name</span> L40S <span class="at">--min-vram</span> 48</span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="ex">brev</span> exec bionemor-gpu @bionemor-brev-setup.sh</span>
-<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="ex">brev</span> shell bionemor-gpu</span></code></pre></div>
-<p>The setup script installs the current R release with rig, installs <code>bionemor</code> with pak, and creates <code>~/workspace/bionemor</code>. R runs directly on the Brev VM; the BioNeMo recipe runtime runs in Docker. Brev supplies the machine, so use <code>backend = "local"</code> inside it rather than treating Brev as another backend.</p>
-<p>Data and checkpoints remain user-managed. Copy local files into the persistent workspace with the CLI, or download them from the VM:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="ex">brev</span> copy ./data/ <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  bionemor-gpu:/home/ubuntu/workspace/bionemor/data/</span></code></pre></div>
-<p>Files below <code>~/workspace</code> persist when a stoppable instance is stopped. Deleting the instance deletes that storage, so retain another copy of important data.</p>
-<p>When you finish, leave the remote shell and stop the instance from your local terminal:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="ex">brev</span> stop bionemor-gpu</span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="set-up-evo-2">Set up Evo 2<a class="anchor" aria-label="anchor" href="#set-up-evo-2"></a>
-</h2>
-<p>Evo 2 operations run through NVIDIA BioNeMo Recipes and Megatron Bridge. <code>bionemor</code> uses versions tested with this release. The local Docker environment is built from a public NVIDIA NGC base image. Docker pulls it anonymously; no NGC API key is needed for this setup.</p>
-<p><code><a href="reference/bionemo_compute.html">bionemo_compute()</a></code> records the workspace and execution settings. <code><a href="reference/evo2_recipe.html">evo2_recipe()</a></code> selects that software environment; <code>backend = "local"</code> and <code>engine = "container"</code> run it in Docker on the current machine:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">workspace</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/normalizePath.html" class="external-link">normalizePath</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"BIONEMOR_DOCS_WORKSPACE"</span>, <span class="st">"~/workspace/bionemor"</span><span class="op">)</span>,</span>
-<span>  mustWork <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://t-kalinowski.github.io/bionemor/">bionemor</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">workspace</span> <span class="op">&lt;-</span> <span class="st">"~/workspace/bionemor"</span></span>
 <span><span class="va">evo2_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_compute.html">bionemo_compute</a></span><span class="op">(</span></span>
 <span>  recipe <span class="op">=</span> <span class="fu"><a href="reference/evo2_recipe.html">evo2_recipe</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  backend <span class="op">=</span> <span class="st">"local"</span>,</span>
-<span>  engine <span class="op">=</span> <span class="st">"container"</span>,</span>
 <span>  workspace <span class="op">=</span> <span class="va">workspace</span></span>
 <span><span class="op">)</span></span>
-<span></span>
 <span><span class="va">evo2_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_install.html">bionemo_install</a></span><span class="op">(</span><span class="va">evo2_compute</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="reference/bionemo_install.html">bionemo_install()</a></code> builds or verifies the selected environment and checks its GPU capabilities. If setup fails, use <code><a href="reference/bionemo_doctor.html">bionemo_doctor()</a></code> to inspect the environment.</p>
-<div class="section level3">
-<h3 id="extend-the-recipe-image">Extend the recipe image<a class="anchor" aria-label="anchor" href="#extend-the-recipe-image"></a>
-</h3>
-<p>Add site-specific system or Python dependencies by building on the package’s verified image, not directly on the raw NVIDIA base image. After installation, <code>evo2_compute@image</code> prints the managed recipe image. Export the same value in a shell:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="bu">export</span> <span class="va">BIONEMOR_RECIPE_IMAGE</span><span class="op">=</span><span class="st">"</span><span class="va">$(</span></span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="ex">Rscript</span> <span class="at">--vanilla</span> <span class="at">-e</span> <span class="st">'</span></span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="st">    library(bionemor)</span></span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="st">    compute &lt;- bionemo_compute(</span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="st">      recipe = evo2_recipe(),</span></span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="st">      workspace = "~/workspace/bionemor"</span></span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="st">    )</span></span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="st">    cat(compute@image)</span></span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="st">  '</span></span>
-<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="va">)</span><span class="st">"</span></span></code></pre></div>
-<p>Then build a Dockerfile such as:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode dockerfile"><code class="sourceCode dockerfile"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="kw">ARG</span> BIONEMOR_RECIPE_IMAGE</span>
-<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="kw">FROM</span> ${BIONEMOR_RECIPE_IMAGE}</span>
-<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a><span class="co"># Add site-specific Dockerfile instructions here.</span></span></code></pre></div>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="ex">docker</span> build <span class="dt">\</span></span>
-<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">--build-arg</span> BIONEMOR_RECIPE_IMAGE <span class="dt">\</span></span>
-<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">--tag</span> example/bionemor-evo2:site .</span></code></pre></div>
-<p>Select that local tag explicitly and verify the resulting prebuilt recipe image:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">custom_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_compute.html">bionemo_compute</a></span><span class="op">(</span></span>
-<span>  recipe <span class="op">=</span> <span class="fu"><a href="reference/evo2_recipe.html">evo2_recipe</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  backend <span class="op">=</span> <span class="st">"local"</span>,</span>
-<span>  engine <span class="op">=</span> <span class="st">"container"</span>,</span>
-<span>  workspace <span class="op">=</span> <span class="va">workspace</span>,</span>
-<span>  image <span class="op">=</span> <span class="st">"example/bionemor-evo2:site"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">custom_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_install.html">bionemo_install</a></span><span class="op">(</span><span class="va">custom_compute</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="reference/bionemo_install.html">bionemo_install()</a></code> inspects an explicit image but does not build or pull it. The R package stays on the VM; it does not need to be installed in this runtime image.</p>
-</div>
-</div>
-<div class="section level2">
-<h2 id="evo-2-generate-score-and-embed-dna">Evo 2: generate, score, and embed DNA<a class="anchor" aria-label="anchor" href="#evo-2-generate-score-and-embed-dna"></a>
-</h2>
-<p><code><a href="reference/evo2_models.html">evo2_models()</a></code> lists models without downloading weights. With a configured compute object, it can filter by GPU count, compute capability, and precision policy. Check GPU memory and disk requirements separately.</p>
-<p>The output below was captured on 2026-08-06 with an NVIDIA L40S using package revision 6970e338a742.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">models</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_models.html">evo2_models</a></span><span class="op">(</span><span class="va">evo2_compute</span>, compatible <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">models</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 'data.frame':    2 obs. of  12 variables:</span></span>
-<span><span class="co">#&gt;  $ name                     : chr  "7b-base" "7b"</span></span>
-<span><span class="co">#&gt;  $ model_size               : chr  "evo2_7b_base" "evo2_7b"</span></span>
-<span><span class="co">#&gt;  $ parameters               : num  7e+09 7e+09</span></span>
-<span><span class="co">#&gt;  $ context_length           : int  8192 1048576</span></span>
-<span><span class="co">#&gt;  $ source                   : chr  "hf://arcinstitute/savanna_evo2_7b_base" "hf://arcinstitute/savanna_evo2_7b"</span></span>
-<span><span class="co">#&gt;  $ source_revision          : chr  "eb0a7478e5f3c291f31e2b3d9ec14fc067f9982a" "9e69aeeaacf4d11fdbabfa73da65a770e5031f02"</span></span>
-<span><span class="co">#&gt;  $ source_format            : chr  "savanna" "savanna"</span></span>
-<span><span class="co">#&gt;  $ precision_policy         : chr  "bf16-or-fp8" "bf16-or-fp8"</span></span>
-<span><span class="co">#&gt;  $ training_precision_policy: chr  "bf16-or-fp8" "bf16-or-fp8"</span></span>
-<span><span class="co">#&gt;  $ download_size            : num  1.58e+10 2.34e+10</span></span>
-<span><span class="co">#&gt;  $ compatible               : logi  TRUE TRUE</span></span>
-<span><span class="co">#&gt;  $ compatibility_note       : chr  "advertised GPUs support the validated BF16 or FP8 policy" "advertised GPUs support the validated BF16 or FP8 policy"</span></span></code></pre></div>
-<p><code><a href="reference/evo2_model.html">evo2_model()</a></code> downloads and prepares the selected model the first time you use it. Later calls from the same workspace reuse the prepared checkpoint:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_model.html">evo2_model</a></span><span class="op">(</span><span class="st">"7b"</span>, <span class="va">evo2_compute</span><span class="op">)</span></span>
-<span><span class="va">model</span></span></code></pre></div>
-<p>Pass the model to the generation, scoring, and embedding functions. Generation and scoring return data frames; pooled embeddings return a numeric matrix:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<p>Then select and prepare the model:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_model.html">evo2_model</a></span><span class="op">(</span><span class="st">"7b"</span>, <span class="va">evo2_compute</span><span class="op">)</span></span></code></pre></div>
+<p>Then generate a continuation for each prompt:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dna</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  reference <span class="op">=</span> <span class="st">"ACGTACGTACGT"</span>,</span>
 <span>  variant <span class="op">=</span> <span class="st">"ACGTACGTTCGT"</span></span>
@@ -226,9 +103,55 @@
 <span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt;    input_id       prompt completion generated_tokens finish_reason</span></span>
 <span><span class="co">#&gt; 1 reference ACGTACGTACGT   ATACGTAT                8        length</span></span>
-<span><span class="co">#&gt; 2   variant ACGTACGTTCGT   ATACGTTT                8        length</span></span>
-<span></span>
-<span><span class="va">scores</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_score.html">evo2_score</a></span><span class="op">(</span></span>
+<span><span class="co">#&gt; 2   variant ACGTACGTTCGT   ATACGTTT                8        length</span></span></code></pre></div>
+<p>The output above was captured on 2026-08-06 with an NVIDIA L40S using package revision 6970e338a742.</p>
+<p>The first install prepares the runtime, and the first model call downloads and prepares the checkpoint. Later calls reuse both from the workspace.</p>
+<p>The same model can score sequences with <code><a href="reference/evo2_score.html">evo2_score()</a></code>, calculate positional profiles with <code><a href="reference/evo2_profile.html">evo2_profile()</a></code>, create embeddings with <code><a href="reference/evo2_embed.html">evo2_embed()</a></code>, and be fine-tuned with <code><a href="reference/evo2_finetune.html">evo2_finetune()</a></code>. See the <a href="https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html">fine-tuning guide</a> for the complete workflow.</p>
+</div>
+<div class="section level2">
+<h2 id="how-the-pieces-fit-together">How the pieces fit together<a class="anchor" aria-label="anchor" href="#how-the-pieces-fit-together"></a>
+</h2>
+<p>The quick start combines a few package objects that record how operations run. Saved jobs can be reopened later:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr>
+<th>Concept</th>
+<th>Role</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Model descriptor</td>
+<td>Identifies a model family, size, configuration, and optional checkpoint.</td>
+</tr>
+<tr>
+<td>Recipe</td>
+<td>Pins the software environment for a model family.</td>
+</tr>
+<tr>
+<td>Compute descriptor</td>
+<td>Combines a recipe with a workspace and execution settings.</td>
+</tr>
+<tr>
+<td>Operation</td>
+<td>Runs work such as <code><a href="reference/evo2_generate.html">evo2_generate()</a></code> or <code><a href="reference/esm2_embed.html">esm2_embed()</a></code>.</td>
+</tr>
+<tr>
+<td>Job</td>
+<td>Saves an operation’s request, logs, state, result, and provenance.</td>
+</tr>
+</tbody>
+</table>
+<p>The quick start uses the defaults <code>backend = "local"</code> and <code>engine = "container"</code>. The backend says where commands run: on the current machine or through Slurm. The engine says how the runtime is supplied: in a container or in a compatible external environment. The local Docker and Brev setup guides use these defaults.</p>
+</div>
+<div class="section level2">
+<h2 id="score-and-embed-dna-with-evo-2">Score and embed DNA with Evo 2<a class="anchor" aria-label="anchor" href="#score-and-embed-dna-with-evo-2"></a>
+</h2>
+<p>Scoring returns reduced token log probabilities; higher values indicate greater model likelihood. Pooled embeddings return a numeric matrix whose row names preserve the input IDs.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">scores</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_score.html">evo2_score</a></span><span class="op">(</span></span>
 <span>  <span class="va">model</span>,</span>
 <span>  <span class="va">dna</span>,</span>
 <span>  reduction <span class="op">=</span> <span class="st">"mean"</span>,</span>
@@ -254,19 +177,15 @@
 <span><span class="co">#&gt;                 dim_1        dim_2       dim_3       dim_4</span></span>
 <span><span class="co">#&gt; reference 41006313472 -25541912576 25635586048 14001286144</span></span>
 <span><span class="co">#&gt; variant   41308303360 -25804754944 26007482368 14023655424</span></span></code></pre></div>
-<p>Scores are reduced token log probabilities; higher values indicate greater model likelihood. Interpreting them in terms of biological function generally requires further analysis. Embedding row names preserve the input IDs.</p>
+<p>Scores are model likelihoods, not direct measurements of biological function.</p>
 </div>
 <div class="section level2">
-<h2 id="esm-2-embed-proteins">ESM-2: embed proteins<a class="anchor" aria-label="anchor" href="#esm-2-embed-proteins"></a>
+<h2 id="embed-proteins-with-esm-2">Embed proteins with ESM-2<a class="anchor" aria-label="anchor" href="#embed-proteins-with-esm-2"></a>
 </h2>
-<p><code>bionemor</code> supports pooled protein embeddings with ESM-2. You can use these vectors for sequence similarity, clustering, or as features in downstream R models. <code><a href="reference/esm2_models.html">esm2_models()</a></code> lists the available pinned NVIDIA checkpoints and their embedding dimensions without downloading weights, and <code><a href="reference/esm2_model.html">esm2_model()</a></code> selects one for use with a compute descriptor.</p>
-<p>The ESM-2 environment uses Transformers. On first use, Transformers downloads the selected weights from Hugging Face and caches them below the workspace. <code><a href="reference/esm2_embed.html">esm2_embed()</a></code> currently requires <code>gpus = 1</code> and returns one embedding per protein:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<p>ESM-2 turns protein sequences into vectors for similarity, clustering, or use as features in downstream R models:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">esm2_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_compute.html">bionemo_compute</a></span><span class="op">(</span></span>
 <span>  recipe <span class="op">=</span> <span class="fu"><a href="reference/esm2_recipe.html">esm2_recipe</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  backend <span class="op">=</span> <span class="st">"local"</span>,</span>
-<span>  engine <span class="op">=</span> <span class="st">"container"</span>,</span>
-<span>  gpus <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  workspace <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">workspace</span>, <span class="st">"esm2"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">esm2_compute</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/bionemo_install.html">bionemo_install</a></span><span class="op">(</span><span class="va">esm2_compute</span><span class="op">)</span></span>
@@ -280,29 +199,17 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">protein_embeddings</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1]   2 320</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">protein_embeddings</span><span class="op">)</span></span>
-<span><span class="co">#&gt;  'esm2_embeddings' num [1:2, 1:320] -0.00477 -0.0147 -0.02391 0.002 0.06589 ...</span></span>
-<span><span class="co">#&gt;  - attr(*, "dimnames")=List of 2</span></span>
-<span><span class="co">#&gt;   ..$ : chr [1:2] "protein_1" "protein_2"</span></span>
-<span><span class="co">#&gt;   ..$ : chr [1:320] "dim_1" "dim_2" "dim_3" "dim_4" ...</span></span>
-<span><span class="co">#&gt;  - attr(*, "provenance")=List of 6</span></span>
-<span><span class="co">#&gt;   ..$ run_path       : chr "/home/ubuntu/workspace/bionemor/esm2/.bionemor/runs/esm2-embedding-20260806T033433-807998"</span></span>
-<span><span class="co">#&gt;   ..$ model          : chr "8m"</span></span>
-<span><span class="co">#&gt;   ..$ source         : chr "nvidia/esm2_t6_8M_UR50D"</span></span>
-<span><span class="co">#&gt;   ..$ source_revision: chr "3674a6acb6c217bbeff709d182a11b196125dfc3"</span></span>
-<span><span class="co">#&gt;   ..$ pooling        : chr "last-token-l2"</span></span>
-<span><span class="co">#&gt;   ..$ recipe_revision: chr "e8e7f597363c3b6dcc26f9b51fe683dd7f282f9e"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">protein_embeddings</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt;             dim_1   dim_2  dim_3  dim_4</span></span>
 <span><span class="co">#&gt; protein_1 -0.0048 -0.0239 0.0659 0.0467</span></span>
 <span><span class="co">#&gt; protein_2 -0.0147  0.0020 0.0397 0.0330</span></span></code></pre></div>
-<p>Each row is one last-token, L2-normalized protein embedding. The result is a numeric matrix for use with ordinary R tools. Its <code>provenance</code> attribute records the model, recipe revision, and path where the job was saved.</p>
+<p>Each row is one last-token, L2-normalized protein embedding. The result behaves like an ordinary numeric matrix and includes provenance for the model and saved job.</p>
 </div>
 <div class="section level2">
 <h2 id="run-longer-work">Run longer work<a class="anchor" aria-label="anchor" href="#run-longer-work"></a>
 </h2>
 <p>Operations that accept <code>async = TRUE</code> return a saved job. Save its path to monitor it or reopen it in a later R session:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">run</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/evo2_generate.html">evo2_generate</a></span><span class="op">(</span></span>
 <span>  <span class="va">model</span>,</span>
 <span>  <span class="va">dna</span>,</span>
@@ -318,54 +225,15 @@
 <span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/job_wait.html">job_wait</a></span><span class="op">(</span><span class="va">same_run</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="how-the-pieces-fit-together">How the pieces fit together<a class="anchor" aria-label="anchor" href="#how-the-pieces-fit-together"></a>
-</h2>
-<p>The examples above use the following package concepts:</p>
-<table class="table">
-<colgroup>
-<col width="50%">
-<col width="50%">
-</colgroup>
-<thead><tr>
-<th>Concept</th>
-<th>Role in bionemor</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>Model descriptor</td>
-<td>Identifies the model family, size, configuration, and optional checkpoint.</td>
-</tr>
-<tr>
-<td>Checkpoint</td>
-<td>Model weights obtained from a registered source, a supplied path, or an earlier run.</td>
-</tr>
-<tr>
-<td>Recipe</td>
-<td>Describes the versioned software environment and commands for a model family.</td>
-</tr>
-<tr>
-<td>Compute descriptor</td>
-<td>Combines a recipe with a workspace, execution settings, and requested GPU resources.</td>
-</tr>
-<tr>
-<td>Operation</td>
-<td>Work requested through a family-specific R function such as <code><a href="reference/evo2_score.html">evo2_score()</a></code> or <code><a href="reference/esm2_embed.html">esm2_embed()</a></code>.</td>
-</tr>
-<tr>
-<td>Job</td>
-<td>A saved record of an operation’s request, logs, state, outputs, and provenance.</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="section level2">
-<h2 id="more-guides">More guides<a class="anchor" aria-label="anchor" href="#more-guides"></a>
+<h2 id="learn-more">Learn more<a class="anchor" aria-label="anchor" href="#learn-more"></a>
 </h2>
 <ul>
 <li>
-<a href="https://t-kalinowski.github.io/bionemor/articles/bionemor.html">Get started with bionemor</a> walks through setup and Evo 2 and ESM-2 examples.</li>
+<a href="https://t-kalinowski.github.io/bionemor/articles/bionemor.html">Set up a GPU runtime and work on Brev</a> covers Docker, model setup, custom images, and the full Evo 2 and ESM-2 workflows.</li>
 <li>
 <a href="https://t-kalinowski.github.io/bionemor/articles/evo2-finetune.html">Fine-tune Evo 2 and retain the checkpoint</a> covers preprocessing, LoRA, and fitted inference.</li>
+<li>
+<a href="https://t-kalinowski.github.io/bionemor/reference/index.html">Browse the function reference</a> for all supported operations and controls.</li>
 </ul>
 </div>
 </div>
